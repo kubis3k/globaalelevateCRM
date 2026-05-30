@@ -1,6 +1,8 @@
 import type { Metadata } from "next"
 import { Inter } from "next/font/google"
 import "./globals.css"
+import { Toaster } from "@/components/ui/toast"
+import { ConfirmDialogHost } from "@/components/ui/confirm-dialog"
 
 const inter = Inter({
   subsets: ["latin"],
@@ -39,6 +41,8 @@ export default function RootLayout({
       </head>
       <body className="min-h-full flex flex-col bg-background text-foreground">
         {children}
+        <Toaster />
+        <ConfirmDialogHost />
       </body>
     </html>
   )
