@@ -6,33 +6,40 @@ import { createAdminClient } from '@/lib/supabase/admin'
 
 // ─── Team members ──────────────────────────────────────────────
 
-export async function addTeamMember(formData: FormData) {
+export async function addTeamMember(formData: FormData): Promise<{ error?: string }> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) throw new Error('Not authenticated')
+  if (!user) return { error: 'Nejste přihlášen.' }
 
   const admin = createAdminClient()
   const { data: tenantUser } = await admin.from('tenant_users').select('tenant_id, role').eq('user_id', user.id).maybeSingle()
-  if (!tenantUser || tenantUser.role !== 'admin') throw new Error('Nemáte oprávnění přidávat uživatele.')
+  if (!tenantUser || tenantUser.role !== 'admin') return { error: 'Nemáte oprávnění přidávat uživatele.' }
 
-  const username = formData.get('username') as string
+  const username = (formData.get('username') as string)?.trim()
   const fullName = formData.get('fullName') as string
   const role = formData.get('role') as string
   const customRoleId = formData.get('customRoleId') as string
   const password = formData.get('password') as string
+  if (!username || !password) return { error: 'Vyplňte uživatelské jméno i heslo.' }
+
   // Stejné mapování jako v login/actions.ts – jinak by se uživatel nepřihlásil.
   const email = `${username}@globaalelevate.com`
+
+  // Profil zakládá automaticky DB trigger handle_new_user při vzniku auth uživatele,
+  // proto nevkládáme, ale upsertujeme. Předkontrola jména brání vzniku osiřelého uživatele.
+  const { data: existing } = await admin.from('profiles').select('id').eq('username', username).maybeSingle()
+  if (existing) return { error: 'Uživatelské jméno již existuje.' }
 
   const { data: newUser, error: authError } = await admin.auth.admin.createUser({
     email, password, email_confirm: true,
   })
-  if (authError || !newUser.user) throw new Error(authError?.message || 'Chyba při vytváření uživatele.')
+  if (authError || !newUser.user) return { error: authError?.message || 'Chyba při vytváření uživatele.' }
 
-  const { error: profileError } = await admin.from('profiles').insert({ id: newUser.user.id, username, full_name: fullName })
+  // Trigger profil už vytvořil (s prázdným full_name) → doplníme jméno přes upsert.
+  const { error: profileError } = await admin.from('profiles').upsert({ id: newUser.user.id, username, full_name: fullName })
   if (profileError) {
-    await admin.auth.admin.deleteUser(newUser.user.id) // rollback osiřelého auth uživatele
-    if (profileError.code === '23505') throw new Error('Uživatelské jméno již existuje.')
-    throw new Error(profileError.message)
+    await admin.auth.admin.deleteUser(newUser.user.id) // rollback
+    return { error: profileError.code === '23505' ? 'Uživatelské jméno již existuje.' : profileError.message }
   }
 
   const { error: membershipError } = await admin.from('tenant_users').insert({
@@ -43,10 +50,11 @@ export async function addTeamMember(formData: FormData) {
   })
   if (membershipError) {
     await admin.auth.admin.deleteUser(newUser.user.id) // rollback
-    throw new Error(membershipError.message)
+    return { error: membershipError.message }
   }
 
   revalidatePath('/team')
+  return {}
 }
 
 export async function removeTeamMember(userId: string) {

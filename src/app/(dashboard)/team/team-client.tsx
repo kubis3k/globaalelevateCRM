@@ -60,8 +60,12 @@ export function TeamClient({ members, customRoles: initialRoles, currentUserId, 
     const fd = new FormData()
     Object.entries(memberForm).forEach(([k, v]) => fd.set(k === 'fullName' ? 'fullName' : k === 'customRoleId' ? 'customRoleId' : k, v))
     startTransition(async () => {
-      try { await addTeamMember(fd); setShowAddMember(false); setMemberForm({ username: '', fullName: '', role: 'employee', customRoleId: 'none', password: '' }) }
-      catch (e: any) { setError(e.message) }
+      try {
+        const res = await addTeamMember(fd)
+        if (res?.error) { setError(res.error); return }
+        setShowAddMember(false)
+        setMemberForm({ username: '', fullName: '', role: 'employee', customRoleId: 'none', password: '' })
+      } catch (e: any) { setError(e.message) }
     })
   }
 
