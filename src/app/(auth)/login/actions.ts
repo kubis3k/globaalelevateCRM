@@ -11,7 +11,7 @@ export async function login(formData: FormData) {
   const password = formData.get('password') as string
 
   // Interní mapování uživatelského jména na email pro Supabase Auth (Workaround)
-  const email = `${username}@internal.globalelevate.com`
+  const email = `${username}@globaalelevate.com`
 
   const { error } = await supabase.auth.signInWithPassword({
     email,
