@@ -4,6 +4,8 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 
+// ─── Team members ──────────────────────────────────────────────
+
 export async function addTeamMember(formData: FormData) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -16,6 +18,7 @@ export async function addTeamMember(formData: FormData) {
   const username = formData.get('username') as string
   const fullName = formData.get('fullName') as string
   const role = formData.get('role') as string
+  const customRoleId = formData.get('customRoleId') as string
   const password = formData.get('password') as string
   const email = `${username}@internal.globalelevate.com`
 
@@ -25,7 +28,12 @@ export async function addTeamMember(formData: FormData) {
   if (authError || !newUser.user) throw new Error(authError?.message || 'Chyba při vytváření uživatele.')
 
   await admin.from('profiles').insert({ id: newUser.user.id, username, full_name: fullName })
-  await admin.from('tenant_users').insert({ tenant_id: tenantUser.tenant_id, user_id: newUser.user.id, role: role as any })
+  await admin.from('tenant_users').insert({
+    tenant_id: tenantUser.tenant_id,
+    user_id: newUser.user.id,
+    role: role as any,
+    custom_role_id: customRoleId && customRoleId !== 'none' ? customRoleId : null,
+  })
 
   revalidatePath('/team')
 }
@@ -40,8 +48,81 @@ export async function removeTeamMember(userId: string) {
   const { data: tenantUser } = await admin.from('tenant_users').select('tenant_id, role').eq('user_id', user.id).maybeSingle()
   if (!tenantUser || tenantUser.role !== 'admin') throw new Error('Nemáte oprávnění mazat uživatele.')
 
-  const { error } = await admin.auth.admin.deleteUser(userId)
-  if (error) throw new Error('Chyba při mazání uživatele.')
+  await admin.auth.admin.deleteUser(userId)
+  revalidatePath('/team')
+}
 
+// ─── Custom roles ───────────────────────────────────────────────
+
+export async function createCustomRole(formData: FormData) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error('Not authenticated')
+
+  const admin = createAdminClient()
+  const { data: tenantUser } = await admin.from('tenant_users').select('tenant_id, role').eq('user_id', user.id).maybeSingle()
+  if (!tenantUser || tenantUser.role !== 'admin') throw new Error('Nemáte oprávnění.')
+
+  const rawModules = formData.getAll('modules') as string[]
+
+  const { error } = await admin.from('custom_roles').insert({
+    tenant_id: tenantUser.tenant_id,
+    name: formData.get('name') as string,
+    description: formData.get('description') as string || null,
+    color: formData.get('color') as string || '#6366f1',
+    modules: rawModules,
+  })
+  if (error) {
+    if (error.code === '23505') throw new Error('Role s tímto názvem již existuje.')
+    if (error.code === '42P01') throw new Error('Tabulka custom_roles ještě neexistuje – nejprve spusťte migraci v Supabase.')
+    throw new Error(error.message)
+  }
+  revalidatePath('/team')
+}
+
+export async function updateCustomRole(roleId: string, formData: FormData) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error('Not authenticated')
+
+  const admin = createAdminClient()
+  const { data: tenantUser } = await admin.from('tenant_users').select('tenant_id, role').eq('user_id', user.id).maybeSingle()
+  if (!tenantUser || tenantUser.role !== 'admin') throw new Error('Nemáte oprávnění.')
+
+  const rawModules = formData.getAll('modules') as string[]
+
+  const { error } = await admin.from('custom_roles').update({
+    name: formData.get('name') as string,
+    description: formData.get('description') as string || null,
+    color: formData.get('color') as string || '#6366f1',
+    modules: rawModules,
+  }).eq('id', roleId)
+  if (error) throw new Error(error.message)
+  revalidatePath('/team')
+}
+
+export async function deleteCustomRole(roleId: string) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error('Not authenticated')
+
+  const admin = createAdminClient()
+  const { data: tenantUser } = await admin.from('tenant_users').select('role').eq('user_id', user.id).maybeSingle()
+  if (!tenantUser || tenantUser.role !== 'admin') throw new Error('Nemáte oprávnění.')
+
+  await admin.from('custom_roles').delete().eq('id', roleId)
+  revalidatePath('/team')
+}
+
+export async function assignCustomRole(userId: string, customRoleId: string | null) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error('Not authenticated')
+
+  const admin = createAdminClient()
+  const { data: tenantUser } = await admin.from('tenant_users').select('tenant_id, role').eq('user_id', user.id).maybeSingle()
+  if (!tenantUser || tenantUser.role !== 'admin') throw new Error('Nemáte oprávnění.')
+
+  await admin.from('tenant_users').update({ custom_role_id: customRoleId }).eq('user_id', userId).eq('tenant_id', tenantUser.tenant_id)
   revalidatePath('/team')
 }
