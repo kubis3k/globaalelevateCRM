@@ -1,9 +1,9 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
-import { LayoutDashboard, Users, FileText, DollarSign, Calendar, LogOut, ChevronRight } from 'lucide-react'
-import Link from 'next/link'
+import { LogOut, ChevronRight } from 'lucide-react'
 import Image from 'next/image'
 import { ThemeToggle } from '@/components/ui/theme-toggle'
+import { SidebarNav } from '@/components/sidebar-nav'
 
 export default async function DashboardLayout({
   children,
@@ -24,29 +24,20 @@ export default async function DashboardLayout({
     <div className="flex min-h-screen bg-background">
       {/* Sidebar */}
       <aside className="w-60 bg-white dark:bg-[#0d1117] border-r border-slate-200 dark:border-white/5 flex flex-col shrink-0 transition-colors duration-300">
-        {/* Logo */}
-        <div className="px-5 py-5 border-b border-slate-100 dark:border-white/5">
+        {/* Logo - enlarged & centered */}
+        <div className="px-5 py-6 border-b border-slate-100 dark:border-white/5 flex items-center justify-center">
           <Image
             src="/logo.png"
             alt="Globaal Elevate"
-            width={130}
-            height={40}
-            className="logo-smart object-contain"
+            width={160}
+            height={50}
+            className="logo-smart object-contain hover:scale-105 transition-transform duration-200"
             priority
           />
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 px-3 py-4 space-y-0.5">
-          <p className="text-[10px] font-semibold text-slate-400 dark:text-slate-600 uppercase tracking-widest px-3 mb-3">
-            Menu
-          </p>
-          <NavItem href="/dashboard"  icon={<LayoutDashboard className="h-4 w-4" />} label="Dashboard" />
-          <NavItem href="/team"       icon={<Users className="h-4 w-4" />}           label="Tým" />
-          <NavItem href="/invoices"   icon={<FileText className="h-4 w-4" />}        label="Faktury" />
-          <NavItem href="/finance"    icon={<DollarSign className="h-4 w-4" />}      label="Finance" />
-          <NavItem href="/calendar"   icon={<Calendar className="h-4 w-4" />}        label="Kalendář" />
-        </nav>
+        <SidebarNav />
 
         {/* User footer */}
         <div className="px-3 py-3 border-t border-slate-100 dark:border-white/5">
@@ -90,17 +81,5 @@ export default async function DashboardLayout({
         </div>
       </main>
     </div>
-  )
-}
-
-function NavItem({ href, icon, label }: { href: string; icon: React.ReactNode; label: string }) {
-  return (
-    <Link
-      href={href}
-      className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-white/5 hover:text-slate-900 dark:hover:text-slate-200 transition-all duration-150 group"
-    >
-      <span className="text-slate-400 dark:text-slate-500 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">{icon}</span>
-      {label}
-    </Link>
   )
 }
