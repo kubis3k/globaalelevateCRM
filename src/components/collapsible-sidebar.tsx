@@ -7,24 +7,39 @@ import { usePathname } from 'next/navigation'
 import { LayoutDashboard, Users, FileText, DollarSign, Calendar, LogOut, ChevronRight } from 'lucide-react'
 import { ThemeToggle } from '@/components/ui/theme-toggle'
 import { cn } from '@/lib/utils'
+import { MODULES } from '@/lib/modules'
 
-const NAV_ITEMS = [
-  { href: '/dashboard',  icon: LayoutDashboard, label: 'Dashboard' },
-  { href: '/team',       icon: Users,            label: 'Tým' },
-  { href: '/invoices',   icon: FileText,         label: 'Faktury' },
-  { href: '/finance',    icon: DollarSign,       label: 'Finance' },
-  { href: '/calendar',   icon: Calendar,         label: 'Kalendář' },
-]
+const MODULE_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
+  dashboard: LayoutDashboard,
+  team: Users,
+  invoices: FileText,
+  finance: DollarSign,
+  calendar: Calendar,
+}
+
+const ROLE_LABELS: Record<string, string> = {
+  admin: 'Administrátor',
+  manager: 'Manažer',
+  employee: 'Zaměstnanec',
+  external: 'Externista',
+}
 
 type Props = {
   username: string
   initials: string
+  role?: string | null
+  allowedModules: string[]
 }
 
-export function CollapsibleSidebar({ username, initials }: Props) {
+export function CollapsibleSidebar({ username, initials, role, allowedModules }: Props) {
   const pathname = usePathname()
   const [expanded, setExpanded] = useState(false)
   const sidebarRef = useRef<HTMLDivElement>(null)
+
+  const navItems = MODULES
+    .filter((m) => allowedModules.includes(m.id))
+    .map((m) => ({ href: m.href, label: m.label, Icon: MODULE_ICONS[m.id] }))
+  const roleLabel = (role && ROLE_LABELS[role]) || 'Uživatel'
 
   return (
     <aside
@@ -69,7 +84,7 @@ export function CollapsibleSidebar({ username, initials }: Props) {
           <p className="text-[10px] font-semibold text-slate-400 dark:text-slate-600 uppercase tracking-widest px-2 mb-2 whitespace-nowrap select-none">Menu</p>
         )}
 
-        {NAV_ITEMS.map(({ href, icon: Icon, label }) => {
+        {navItems.map(({ href, Icon, label }) => {
           const isActive = pathname === href || (href !== '/dashboard' && pathname.startsWith(href))
           return (
             <Link
@@ -114,7 +129,7 @@ export function CollapsibleSidebar({ username, initials }: Props) {
             <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-indigo-600 text-white text-xs font-bold">{initials}</div>
             <div className="flex-1 min-w-0">
               <div className="text-sm font-medium text-slate-800 dark:text-slate-300 truncate">{username}</div>
-              <div className="text-[11px] text-slate-400 dark:text-slate-600">Admin</div>
+              <div className="text-[11px] text-slate-400 dark:text-slate-600">{roleLabel}</div>
             </div>
             <div className="flex items-center gap-1">
               <ThemeToggle />

@@ -1,9 +1,9 @@
-import { requireTenant } from '@/lib/supabase/tenant'
+import { requireModuleAccess } from '@/lib/supabase/tenant'
 import { NoTenantView } from '@/components/ui/no-tenant-view'
 import { CalendarView } from '@/components/calendar-view'
 
 export default async function CalendarPage() {
-  const { supabase, user, tenantId, role } = await requireTenant()
+  const { supabase, user, tenantId, role } = await requireModuleAccess('calendar')
   
   if (!tenantId) return <NoTenantView />
 

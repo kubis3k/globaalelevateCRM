@@ -1,23 +1,22 @@
-import { requireTenant } from '@/lib/supabase/tenant'
+import { requireModuleAccess } from '@/lib/supabase/tenant'
 import { NoTenantView } from '@/components/ui/no-tenant-view'
 import { TeamClient } from './team-client'
 
 export default async function TeamPage() {
-  const { supabase, user, tenantId, role } = await requireTenant()
+  const { supabase, user, tenantId, role } = await requireModuleAccess('team')
   if (!tenantId) return <NoTenantView />
 
-  const admin = (await import('@/lib/supabase/admin')).createAdminClient()
+  // `supabase` z requireTenant je service-role admin client (obchází RLS).
+  const { data: members } = await supabase
+    .from('tenant_users')
+    .select('user_id, role, custom_role_id, profiles (username, full_name)')
+    .eq('tenant_id', tenantId)
 
-  const [{ data: members }, { data: customRoles }] = await Promise.all([
-    admin.from('tenant_users')
-      .select(`user_id, role, custom_role_id, profiles (username, full_name)`)
-      .eq('tenant_id', tenantId),
-    admin.from('custom_roles')
-      .select('*')
-      .eq('tenant_id', tenantId)
-      .order('name')
-      .catch(() => ({ data: [] })),
-  ])
+  const { data: customRoles } = await supabase
+    .from('custom_roles')
+    .select('*')
+    .eq('tenant_id', tenantId)
+    .order('name')
 
   return (
     <TeamClient

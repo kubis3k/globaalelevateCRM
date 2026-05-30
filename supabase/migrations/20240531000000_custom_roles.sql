@@ -12,6 +12,23 @@ CREATE TABLE IF NOT EXISTS public.custom_roles (
 
 ALTER TABLE public.custom_roles ENABLE ROW LEVEL SECURITY;
 
+-- RLS politiky pro custom_roles (aplikace čte přes service-role; toto je defense-in-depth).
+-- Idempotentní: DROP IF EXISTS + CREATE umožňuje opakované spuštění migrace.
+DROP POLICY IF EXISTS "Users can view custom roles of their tenants" ON public.custom_roles;
+CREATE POLICY "Users can view custom roles of their tenants" ON public.custom_roles
+  FOR SELECT USING (tenant_id IN (SELECT public.get_user_tenant_ids()));
+
+DROP POLICY IF EXISTS "Admins can manage custom roles" ON public.custom_roles;
+CREATE POLICY "Admins can manage custom roles" ON public.custom_roles
+  FOR ALL USING (
+    EXISTS (
+      SELECT 1 FROM public.tenant_users tu
+      WHERE tu.user_id = auth.uid()
+        AND tu.tenant_id = custom_roles.tenant_id
+        AND tu.role = 'admin'
+    )
+  );
+
 -- Add custom_role_id to tenant_users
 ALTER TABLE public.tenant_users
   ADD COLUMN IF NOT EXISTS custom_role_id UUID REFERENCES public.custom_roles(id) ON DELETE SET NULL;

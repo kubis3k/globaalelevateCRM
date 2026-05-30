@@ -1,19 +1,16 @@
-import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
 import { ChevronRight } from 'lucide-react'
 import { CollapsibleSidebar } from '@/components/collapsible-sidebar'
+import { requireTenant } from '@/lib/supabase/tenant'
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  const { user, role, allowedModules } = await requireTenant()
 
   const username = user.email?.split('@')[0] || 'Uživatel'
   const initials = username.split('.').map((p: string) => p[0]?.toUpperCase()).join('').slice(0, 2)
 
   return (
     <div className="flex min-h-screen bg-background">
-      <CollapsibleSidebar username={username} initials={initials} />
+      <CollapsibleSidebar username={username} initials={initials} role={role} allowedModules={allowedModules} />
       <main className="flex-1 flex flex-col min-w-0">
         <header className="h-14 border-b border-border bg-background/80 backdrop-blur-sm flex items-center px-6 shrink-0 sticky top-0 z-10">
           <div className="flex items-center gap-1.5 text-sm">

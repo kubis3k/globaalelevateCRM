@@ -1,4 +1,4 @@
-import { requireTenant } from '@/lib/supabase/tenant'
+import { requireModuleAccess } from '@/lib/supabase/tenant'
 import { NoTenantView } from '@/components/ui/no-tenant-view'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
@@ -11,7 +11,7 @@ import { AddInvoiceForm } from './add-invoice-form'
 import { deleteInvoice, updateInvoiceStatus } from './actions'
 
 export default async function InvoicesPage() {
-  const { supabase, tenantId } = await requireTenant()
+  const { supabase, tenantId } = await requireModuleAccess('invoices')
   
   if (!tenantId) {
     return <NoTenantView />

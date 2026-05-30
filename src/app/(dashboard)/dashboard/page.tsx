@@ -1,11 +1,11 @@
-import { requireTenant } from '@/lib/supabase/tenant'
+import { requireModuleAccess } from '@/lib/supabase/tenant'
 import { NoTenantView } from '@/components/ui/no-tenant-view'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { DollarSign, FileText, Users, Calendar } from 'lucide-react'
 import { CashflowChart } from '../finance/cashflow-chart'
 
 export default async function DashboardPage() {
-  const { supabase, tenantId } = await requireTenant()
+  const { supabase, tenantId } = await requireModuleAccess('dashboard')
   
   if (!tenantId) {
     return <NoTenantView />

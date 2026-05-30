@@ -1,4 +1,4 @@
-import { requireTenant } from '@/lib/supabase/tenant'
+import { requireModuleAccess } from '@/lib/supabase/tenant'
 import { NoTenantView } from '@/components/ui/no-tenant-view'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
@@ -11,7 +11,7 @@ import { deleteTransaction } from './actions'
 import { CashflowChart } from './cashflow-chart'
 
 export default async function FinancePage() {
-  const { supabase, tenantId } = await requireTenant()
+  const { supabase, tenantId } = await requireModuleAccess('finance')
   
   if (!tenantId) {
     return <NoTenantView />

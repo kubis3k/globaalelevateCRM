@@ -106,6 +106,14 @@ export function TeamClient({ members, customRoles: initialRoles, currentUserId, 
     setShowAddRole(false)
   }
 
+  function handleAssignRole(userId: string, value: string) {
+    setError('')
+    startTransition(async () => {
+      try { await assignCustomRole(userId, value === 'none' ? null : value) }
+      catch (e: any) { setError(e.message) }
+    })
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -226,7 +234,17 @@ export function TeamClient({ members, customRoles: initialRoles, currentUserId, 
                         </span>
                       </td>
                       <td className="px-5 py-3.5">
-                        {customRole ? (
+                        {isAdmin ? (
+                          <select
+                            value={m.custom_role_id || 'none'}
+                            onChange={e => handleAssignRole(m.user_id, e.target.value)}
+                            disabled={isPending}
+                            className="rounded-lg border border-slate-200 dark:border-slate-700 bg-background px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50"
+                          >
+                            <option value="none">— žádná —</option>
+                            {customRoles.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+                          </select>
+                        ) : customRole ? (
                           <span className="text-xs px-2.5 py-1 rounded-full font-medium text-white" style={{ background: customRole.color }}>
                             {customRole.name}
                           </span>
@@ -399,12 +417,6 @@ export function TeamClient({ members, customRoles: initialRoles, currentUserId, 
                 {isAdmin && <button onClick={() => setShowAddRole(true)} className="mt-3 text-indigo-600 dark:text-indigo-400 text-sm font-medium hover:underline">Vytvořit první roli →</button>}
               </div>
             )}
-          </div>
-
-          {/* Migration notice if table doesn't exist */}
-          <div className="bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800/40 rounded-xl p-4 text-sm text-amber-800 dark:text-amber-300">
-            <p className="font-semibold mb-1">⚠️ Před použitím spusťte migraci v Supabase</p>
-            <p className="text-xs opacity-80">Dashboard → SQL Editor → vložte obsah souboru <code className="font-mono bg-amber-100 dark:bg-amber-900/40 px-1 rounded">supabase/migrations/20240531000000_custom_roles.sql</code></p>
           </div>
         </div>
       )}
