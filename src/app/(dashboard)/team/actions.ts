@@ -15,7 +15,7 @@ export async function addTeamMember(formData: FormData) {
     .from('tenant_users')
     .select('tenant_id, role')
     .eq('user_id', user.id)
-    .single()
+    .maybeSingle()
 
   if (!tenantUser || tenantUser.role !== 'admin') {
     throw new Error('Nemáte oprávnění přidávat uživatele.')
@@ -66,7 +66,7 @@ export async function removeTeamMember(userId: string) {
     .from('tenant_users')
     .select('tenant_id, role')
     .eq('user_id', user.id)
-    .single()
+    .maybeSingle()
 
   if (!tenantUser || tenantUser.role !== 'admin') {
     throw new Error('Nemáte oprávnění mazat uživatele.')

@@ -1,4 +1,5 @@
-import { createClient } from '@/lib/supabase/server'
+import { requireTenant } from '@/lib/supabase/tenant'
+import { NoTenantView } from '@/components/ui/no-tenant-view'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { CalendarPlus, Trash, Calendar as CalendarIcon, Clock, User } from 'lucide-react'
@@ -7,19 +8,16 @@ import { AddEventForm } from './add-event-form'
 import { deleteEvent } from './actions'
 
 export default async function CalendarPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { supabase, tenantId } = await requireTenant()
   
-  const { data: currentUserData } = await supabase
-    .from('tenant_users')
-    .select('tenant_id')
-    .eq('user_id', user?.id)
-    .single()
+  if (!tenantId) {
+    return <NoTenantView />
+  }
 
   const { data: teamMembers } = await supabase
     .from('tenant_users')
     .select(`user_id, profiles (username, full_name)`)
-    .eq('tenant_id', currentUserData?.tenant_id)
+    .eq('tenant_id', tenantId)
 
   const { data: events } = await supabase
     .from('calendar_events')
@@ -27,7 +25,7 @@ export default async function CalendarPage() {
       *,
       profiles:assigned_to (full_name)
     `)
-    .eq('tenant_id', currentUserData?.tenant_id)
+    .eq('tenant_id', tenantId)
     .order('start_time', { ascending: true })
 
   return (

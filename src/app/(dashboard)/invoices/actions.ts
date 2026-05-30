@@ -13,7 +13,7 @@ export async function createInvoice(formData: FormData) {
     .from('tenant_users')
     .select('tenant_id')
     .eq('user_id', user.id)
-    .single()
+    .maybeSingle()
 
   if (!tenantUser) throw new Error('Uživatel není přiřazen k žádné firmě.')
 

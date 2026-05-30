@@ -1,4 +1,5 @@
-import { createClient } from '@/lib/supabase/server'
+import { requireTenant } from '@/lib/supabase/tenant'
+import { NoTenantView } from '@/components/ui/no-tenant-view'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Button } from '@/components/ui/button'
@@ -10,27 +11,26 @@ import { deleteTransaction } from './actions'
 import { CashflowChart } from './cashflow-chart'
 
 export default async function FinancePage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { supabase, tenantId } = await requireTenant()
   
-  const { data: currentUserData } = await supabase
-    .from('tenant_users')
-    .select('tenant_id')
-    .eq('user_id', user?.id)
-    .single()
+  if (!tenantId) {
+    return <NoTenantView />
+  }
 
   const { data: transactions } = await supabase
     .from('transactions')
     .select('*')
-    .eq('tenant_id', currentUserData?.tenant_id)
+    .eq('tenant_id', tenantId)
     .order('date', { ascending: false })
 
-  const totalIncome = transactions?.filter(t => t.type === 'income').reduce((acc, t) => acc + Number(t.amount), 0) || 0
-  const totalExpense = transactions?.filter(t => t.type === 'expense').reduce((acc, t) => acc + Number(t.amount), 0) || 0
+  const safeTransactions = transactions || []
+
+  const totalIncome = safeTransactions.filter(t => t.type === 'income').reduce((acc, t) => acc + Number(t.amount), 0) || 0
+  const totalExpense = safeTransactions.filter(t => t.type === 'expense').reduce((acc, t) => acc + Number(t.amount), 0) || 0
   const balance = totalIncome - totalExpense
 
   // Sestavení dat pro graf (vzestupně podle data)
-  const chartData = [...(transactions || [])].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+  const chartData = [...safeTransactions].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
 
   return (
     <div className="space-y-6">

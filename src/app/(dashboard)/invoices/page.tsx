@@ -1,4 +1,5 @@
-import { createClient } from '@/lib/supabase/server'
+import { requireTenant } from '@/lib/supabase/tenant'
+import { NoTenantView } from '@/components/ui/no-tenant-view'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
@@ -10,21 +11,16 @@ import { AddInvoiceForm } from './add-invoice-form'
 import { deleteInvoice, updateInvoiceStatus } from './actions'
 
 export default async function InvoicesPage() {
-  const supabase = await createClient()
+  const { supabase, tenantId } = await requireTenant()
   
-  const { data: { user } } = await supabase.auth.getUser()
-  
-  // Získání aktuální tenant_id
-  const { data: currentUserData } = await supabase
-    .from('tenant_users')
-    .select('tenant_id')
-    .eq('user_id', user?.id)
-    .single()
+  if (!tenantId) {
+    return <NoTenantView />
+  }
 
   const { data: invoices } = await supabase
     .from('invoices')
     .select('*')
-    .eq('tenant_id', currentUserData?.tenant_id)
+    .eq('tenant_id', tenantId)
     .order('issue_date', { ascending: false })
 
   return (

@@ -1,4 +1,5 @@
-import { createClient } from '@/lib/supabase/server'
+import { requireTenant } from '@/lib/supabase/tenant'
+import { NoTenantView } from '@/components/ui/no-tenant-view'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
@@ -9,18 +10,13 @@ import { AddMemberForm } from './add-member-form'
 import { removeTeamMember } from './actions'
 
 export default async function TeamPage() {
-  const supabase = await createClient()
+  const { supabase, user, tenantId, role } = await requireTenant()
   
-  const { data: { user } } = await supabase.auth.getUser()
-  
-  // Získání aktuální role uživatele v jeho tenantu
-  const { data: currentUserData } = await supabase
-    .from('tenant_users')
-    .select('role, tenant_id')
-    .eq('user_id', user?.id)
-    .single()
+  if (!tenantId) {
+    return <NoTenantView />
+  }
 
-  const isAdmin = currentUserData?.role === 'admin'
+  const isAdmin = role === 'admin'
 
   // Načtení všech členů týmu ve stejném tenantu včetně propojení na tabulku profilů
   const { data: teamMembers } = await supabase
@@ -34,7 +30,7 @@ export default async function TeamPage() {
         full_name
       )
     `)
-    .eq('tenant_id', currentUserData?.tenant_id)
+    .eq('tenant_id', tenantId)
     .order('created_at', { ascending: true })
 
   return (

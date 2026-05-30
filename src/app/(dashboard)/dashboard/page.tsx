@@ -1,26 +1,22 @@
-import { createClient } from '@/lib/supabase/server'
+import { requireTenant } from '@/lib/supabase/tenant'
+import { NoTenantView } from '@/components/ui/no-tenant-view'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { DollarSign, FileText, Users, Calendar } from 'lucide-react'
 import { CashflowChart } from '../finance/cashflow-chart'
 
 export default async function DashboardPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { supabase, tenantId } = await requireTenant()
+  
+  if (!tenantId) {
+    return <NoTenantView />
+  }
 
-  const { data: currentUserData } = await supabase
-    .from('tenant_users')
-    .select('tenant_id')
-    .eq('user_id', user?.id)
-    .single()
-
-  const tenantId = currentUserData?.tenant_id
-
-  // Data fetching
+  // Data fetching safely
   const [
-    { count: teamCount },
-    { data: invoices },
-    { count: upcomingTasks },
-    { data: transactions }
+    teamResult,
+    invoicesResult,
+    upcomingTasksResult,
+    transactionsResult
   ] = await Promise.all([
     supabase.from('tenant_users').select('*', { count: 'exact', head: true }).eq('tenant_id', tenantId),
     supabase.from('invoices').select('amount, status, type').eq('tenant_id', tenantId),
@@ -28,12 +24,17 @@ export default async function DashboardPage() {
     supabase.from('transactions').select('amount, type, date').eq('tenant_id', tenantId).order('date', { ascending: true })
   ])
 
+  const teamCount = teamResult.count || 0
+  const invoices = invoicesResult.data || []
+  const upcomingTasks = upcomingTasksResult.count || 0
+  const transactions = transactionsResult.data || []
+
   // Invoices processing
-  const unpaidInvoices = invoices?.filter((i: any) => i.status === 'pending' || i.status === 'overdue').length || 0
+  const unpaidInvoices = invoices.filter((i: any) => i.status === 'pending' || i.status === 'overdue').length
 
   // Finance processing
-  const totalIncome = transactions?.filter((t: any) => t.type === 'income').reduce((acc: number, t: any) => acc + Number(t.amount), 0) || 0
-  const totalExpense = transactions?.filter((t: any) => t.type === 'expense').reduce((acc: number, t: any) => acc + Number(t.amount), 0) || 0
+  const totalIncome = transactions.filter((t: any) => t.type === 'income').reduce((acc: number, t: any) => acc + Number(t.amount), 0)
+  const totalExpense = transactions.filter((t: any) => t.type === 'expense').reduce((acc: number, t: any) => acc + Number(t.amount), 0)
   const balance = totalIncome - totalExpense
 
   return (
