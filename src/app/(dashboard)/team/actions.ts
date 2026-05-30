@@ -20,20 +20,31 @@ export async function addTeamMember(formData: FormData) {
   const role = formData.get('role') as string
   const customRoleId = formData.get('customRoleId') as string
   const password = formData.get('password') as string
-  const email = `${username}@internal.globalelevate.com`
+  // Stejné mapování jako v login/actions.ts – jinak by se uživatel nepřihlásil.
+  const email = `${username}@globaalelevate.com`
 
   const { data: newUser, error: authError } = await admin.auth.admin.createUser({
     email, password, email_confirm: true,
   })
   if (authError || !newUser.user) throw new Error(authError?.message || 'Chyba při vytváření uživatele.')
 
-  await admin.from('profiles').insert({ id: newUser.user.id, username, full_name: fullName })
-  await admin.from('tenant_users').insert({
+  const { error: profileError } = await admin.from('profiles').insert({ id: newUser.user.id, username, full_name: fullName })
+  if (profileError) {
+    await admin.auth.admin.deleteUser(newUser.user.id) // rollback osiřelého auth uživatele
+    if (profileError.code === '23505') throw new Error('Uživatelské jméno již existuje.')
+    throw new Error(profileError.message)
+  }
+
+  const { error: membershipError } = await admin.from('tenant_users').insert({
     tenant_id: tenantUser.tenant_id,
     user_id: newUser.user.id,
     role: role as any,
     custom_role_id: customRoleId && customRoleId !== 'none' ? customRoleId : null,
   })
+  if (membershipError) {
+    await admin.auth.admin.deleteUser(newUser.user.id) // rollback
+    throw new Error(membershipError.message)
+  }
 
   revalidatePath('/team')
 }
