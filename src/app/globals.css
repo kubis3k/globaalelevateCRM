@@ -155,3 +155,12 @@
   transition-duration: 150ms;
   transition-timing-function: ease;
 }
+
+/* Logo: remove PNG white background in both themes */
+.logo-smart {
+  mix-blend-mode: multiply; /* light: white bg × light bg = bg color → transparent */
+}
+.dark .logo-smart {
+  filter: invert(1);
+  mix-blend-mode: screen; /* dark: invert makes bg black, screen makes black transparent → logo shows as white */
+}
