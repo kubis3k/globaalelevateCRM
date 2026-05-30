@@ -42,7 +42,7 @@ export function CollapsibleSidebar({ username, initials }: Props) {
       {/* Logo */}
       <div className={cn(
         'flex items-center border-b border-slate-100 dark:border-white/5 overflow-hidden transition-all duration-300',
-        expanded ? 'px-4 py-5 justify-start' : 'px-0 py-5 justify-center'
+        expanded ? 'px-4 py-5 justify-center' : 'px-0 py-5 justify-center'
       )}>
         {expanded ? (
           <Image
