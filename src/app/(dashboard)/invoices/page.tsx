@@ -8,7 +8,7 @@ import { PageHeader } from '@/components/ui/page-header'
 import { EmptyState } from '@/components/ui/empty-state'
 import { FilePlus, ArrowUpRight, ArrowDownLeft, FileText } from 'lucide-react'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
-import { AddInvoiceForm } from './add-invoice-form'
+import { InvoiceForm } from './invoice-form'
 import { InvoiceRowActions } from './invoice-row-actions'
 
 type BadgeVariant = 'secondary' | 'info' | 'success' | 'destructive' | 'warning'
@@ -44,7 +44,7 @@ export default async function InvoicesPage() {
               <DialogTitle>Vytvořit nový doklad</DialogTitle>
               <DialogDescription>Vyplňte údaje faktury. Doklad bude ihned zařazen do účetnictví.</DialogDescription>
             </DialogHeader>
-            <AddInvoiceForm clients={clients ?? []} />
+            <InvoiceForm clients={clients ?? []} />
           </DialogContent>
         </Dialog>
       </PageHeader>
@@ -89,7 +89,7 @@ export default async function InvoicesPage() {
                       </TableCell>
                       <TableCell className="text-muted-foreground">{new Date(invoice.due_date).toLocaleDateString('cs-CZ')}</TableCell>
                       <TableCell><Badge variant={status.variant}>{status.label}</Badge></TableCell>
-                      <TableCell className="text-right"><InvoiceRowActions id={invoice.id} /></TableCell>
+                      <TableCell className="text-right"><InvoiceRowActions invoice={invoice} clients={clients ?? []} /></TableCell>
                     </TableRow>
                   )
                 })}

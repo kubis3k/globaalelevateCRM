@@ -80,6 +80,40 @@ export async function updateInvoiceStatus(invoiceId: string, newStatus: string) 
   revalidateLinked(updated?.client_id)
 }
 
+export async function updateInvoice(invoiceId: string, formData: FormData) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error('Not authenticated')
+
+  const admin = createAdminClient()
+  const { data: tenantUser } = await admin.from('tenant_users').select('tenant_id').eq('user_id', user.id).maybeSingle()
+  if (!tenantUser) throw new Error('Uživatel není přiřazen k žádné firmě.')
+
+  const clientIdRaw = formData.get('clientId') as string
+  const clientId = clientIdRaw && clientIdRaw !== 'none' ? clientIdRaw : null
+  let clientName = (formData.get('clientName') as string) || ''
+  if (clientId) {
+    const { data: cl } = await admin.from('crm_clients').select('name').eq('id', clientId).eq('tenant_id', tenantUser.tenant_id).maybeSingle()
+    if (cl?.name) clientName = cl.name
+  }
+
+  const { data: updated, error } = await admin.from('invoices').update({
+    type: formData.get('type') as string,
+    status: formData.get('status') as string,
+    invoice_number: formData.get('invoiceNumber') as string,
+    client_name: clientName,
+    client_id: clientId,
+    amount: parseFloat(formData.get('amount') as string),
+    currency: (formData.get('currency') as string) || 'CZK',
+    issue_date: formData.get('issueDate') as string,
+    due_date: formData.get('dueDate') as string,
+  }).eq('id', invoiceId).eq('tenant_id', tenantUser.tenant_id).select('*').maybeSingle()
+  if (error) throw new Error(error.message)
+
+  await syncInvoiceTransaction(admin, updated)
+  revalidateLinked(clientId)
+}
+
 export async function deleteInvoice(invoiceId: string) {
   const admin = createAdminClient()
   // Remove the auto-created finance transaction first, then the invoice.

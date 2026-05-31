@@ -1,28 +1,35 @@
 'use client'
 
+import { useState } from 'react'
+import { Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { createInvoice } from './actions'
-import { useState } from 'react'
-import { Loader2 } from 'lucide-react'
 import { toast } from '@/components/ui/toast'
+import { createInvoice, updateInvoice } from './actions'
 
 type Client = { id: string; name: string }
 
-export function AddInvoiceForm({ clients = [] }: { clients?: Client[] }) {
+export function InvoiceForm({ clients = [], invoice, onDone }: { clients?: Client[]; invoice?: any; onDone?: () => void }) {
+  const isEdit = !!invoice
   const [loading, setLoading] = useState(false)
-  const [clientId, setClientId] = useState('none')
-  const [clientName, setClientName] = useState('')
+  const [clientId, setClientId] = useState<string>(invoice?.client_id || 'none')
+  const [clientName, setClientName] = useState<string>(invoice?.client_name || '')
 
   async function handleSubmit(formData: FormData) {
     setLoading(true)
     try {
-      await createInvoice(formData)
-      window.location.reload()
+      if (isEdit) {
+        await updateInvoice(invoice.id, formData)
+        toast.success('Faktura uložena')
+        onDone?.()
+      } else {
+        await createInvoice(formData)
+        window.location.reload()
+      }
     } catch (e: any) {
-      toast.error('Chyba', e.message || 'Došlo k chybě při vytváření faktury.')
+      toast.error('Chyba', e.message || 'Doklad se nepodařilo uložit.')
       setLoading(false)
     }
   }
@@ -32,7 +39,7 @@ export function AddInvoiceForm({ clients = [] }: { clients?: Client[] }) {
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
           <Label htmlFor="type">Typ dokladu</Label>
-          <Select name="type" defaultValue="issued">
+          <Select name="type" defaultValue={invoice?.type || 'issued'}>
             <SelectTrigger className="w-full"><SelectValue placeholder="Vyberte typ" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="issued">Vydaná faktura</SelectItem>
@@ -42,7 +49,7 @@ export function AddInvoiceForm({ clients = [] }: { clients?: Client[] }) {
         </div>
         <div className="space-y-2">
           <Label htmlFor="status">Stav</Label>
-          <Select name="status" defaultValue="pending">
+          <Select name="status" defaultValue={invoice?.status || 'pending'}>
             <SelectTrigger className="w-full"><SelectValue placeholder="Vyberte stav" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="draft">Koncept</SelectItem>
@@ -57,7 +64,7 @@ export function AddInvoiceForm({ clients = [] }: { clients?: Client[] }) {
 
       <div className="space-y-2">
         <Label htmlFor="invoiceNumber">Číslo faktury</Label>
-        <Input id="invoiceNumber" name="invoiceNumber" required placeholder="FV-20240001" />
+        <Input id="invoiceNumber" name="invoiceNumber" required placeholder="FV-20240001" defaultValue={invoice?.invoice_number || ''} />
       </div>
 
       {clients.length > 0 && (
@@ -88,11 +95,11 @@ export function AddInvoiceForm({ clients = [] }: { clients?: Client[] }) {
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
           <Label htmlFor="amount">Částka</Label>
-          <Input id="amount" name="amount" type="number" step="0.01" required placeholder="0.00" />
+          <Input id="amount" name="amount" type="number" step="0.01" required placeholder="0.00" defaultValue={invoice?.amount ?? ''} />
         </div>
         <div className="space-y-2">
           <Label htmlFor="currency">Měna</Label>
-          <Select name="currency" defaultValue="CZK">
+          <Select name="currency" defaultValue={invoice?.currency || 'CZK'}>
             <SelectTrigger className="w-full"><SelectValue placeholder="Měna" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="CZK">CZK</SelectItem>
@@ -106,17 +113,17 @@ export function AddInvoiceForm({ clients = [] }: { clients?: Client[] }) {
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
           <Label htmlFor="issueDate">Datum vystavení</Label>
-          <Input id="issueDate" name="issueDate" type="date" required />
+          <Input id="issueDate" name="issueDate" type="date" required defaultValue={invoice?.issue_date || ''} />
         </div>
         <div className="space-y-2">
           <Label htmlFor="dueDate">Datum splatnosti</Label>
-          <Input id="dueDate" name="dueDate" type="date" required />
+          <Input id="dueDate" name="dueDate" type="date" required defaultValue={invoice?.due_date || ''} />
         </div>
       </div>
 
       <Button type="submit" size="lg" className="w-full" disabled={loading}>
         {loading ? <Loader2 className="mr-2 size-4 animate-spin" /> : null}
-        Vytvořit fakturu
+        {isEdit ? 'Uložit změny' : 'Vytvořit fakturu'}
       </Button>
     </form>
   )
