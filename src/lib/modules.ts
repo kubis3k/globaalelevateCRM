@@ -1,17 +1,17 @@
 // Single source of truth for the app's modules.
 // Consumed by the sidebar nav, the team role-management UI, and module access control.
 export const MODULES = [
-  { id: 'dashboard', label: 'Dashboard', href: '/dashboard', color: '#6366f1' },
-  { id: 'team',      label: 'Tým',       href: '/team',      color: '#8b5cf6' },
-  { id: 'invoices',  label: 'Faktury',   href: '/invoices',  color: '#0ea5e9' },
-  { id: 'finance',   label: 'Finance',   href: '/finance',   color: '#10b981' },
-  { id: 'calendar',  label: 'Kalendář',  href: '/calendar',  color: '#f59e0b' },
-  { id: 'hr',        label: 'HR',        href: '/hr',        color: '#f43f5e' },
-  { id: 'crm',       label: 'CRM',       href: '/crm',       color: '#06b6d4' },
-  { id: 'mail',      label: 'Pošta',     href: '/mail',      color: '#f97316' },
-  { id: 'documents', label: 'Dokumenty', href: '/documents', color: '#14b8a6' },
-  { id: 'globaal-ai', label: 'Globaal AI', href: '/ai',       color: '#a855f7' },
   { id: 'personal',  label: 'Osobní',    href: '/personal',  color: '#ec4899' },
+  { id: 'dashboard', label: 'Dashboard', href: '/dashboard', color: '#6366f1' },
+  { id: 'globaal-ai', label: 'Globaal AI', href: '/ai',       color: '#a855f7' },
+  { id: 'mail',      label: 'Pošta',     href: '/mail',      color: '#f97316' },
+  { id: 'calendar',  label: 'Kalendář',  href: '/calendar',  color: '#f59e0b' },
+  { id: 'finance',   label: 'Finance',   href: '/finance',   color: '#10b981' },
+  { id: 'invoices',  label: 'Faktury',   href: '/invoices',  color: '#0ea5e9' },
+  { id: 'documents', label: 'Dokumenty', href: '/documents', color: '#14b8a6' },
+  { id: 'hr',        label: 'HR',        href: '/hr',        color: '#f43f5e' },
+  { id: 'team',      label: 'Tým',       href: '/team',      color: '#8b5cf6' },
+  { id: 'crm',       label: 'CRM',       href: '/crm',       color: '#06b6d4' },
 ] as const
 
 export type ModuleId = (typeof MODULES)[number]['id']
