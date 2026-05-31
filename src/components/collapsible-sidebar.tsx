@@ -46,9 +46,14 @@ export function CollapsibleSidebar({ allowedModules }: { allowedModules: string[
             priority
           />
         ) : (
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-xs font-black tracking-tighter text-primary-foreground">
-            GE
-          </div>
+          <Image
+            src="/logo.png"
+            alt="Globaal Elevate"
+            width={32}
+            height={32}
+            className="logo-smart size-8 object-contain"
+            priority
+          />
         )}
       </div>
 
