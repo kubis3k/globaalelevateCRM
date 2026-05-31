@@ -56,7 +56,7 @@ export async function POST(req: NextRequest) {
   const canHr = canManageHr(tu.role)
   const system = [{ type: 'text', text: buildSystemText({ today, allowed, canHr }), cache_control: { type: 'ephemeral' } }]
   const tools: any[] = [{ type: 'web_search_20260209', name: 'web_search' }, ...companyTools(allowed, tu.role)]
-  const toolCtx = { admin, tenantId: tu.tenant_id, role: tu.role, allowedModules: allowed }
+  const toolCtx = { admin, tenantId: tu.tenant_id, userId: user.id, role: tu.role, allowedModules: allowed }
 
   const encoder = new TextEncoder()
   const stream = new ReadableStream({

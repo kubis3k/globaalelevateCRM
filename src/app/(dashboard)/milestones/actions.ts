@@ -45,6 +45,14 @@ export async function setMilestoneProgress(id: string, progress: number): Promis
   revalidatePath('/milestones'); return {}
 }
 
+export async function setMilestoneArchived(id: string, archived: boolean): Promise<{ error?: string }> {
+  const c = await getCtx(); if ('error' in c) return c
+  if (!canManageMilestones(c.role)) return { error: 'Nemáte oprávnění.' }
+  const { error } = await c.admin.from('milestones').update({ archived, updated_at: new Date().toISOString() }).eq('id', id).eq('tenant_id', c.tenantId)
+  if (error) return { error: error.message }
+  revalidatePath('/milestones'); revalidatePath('/dashboard'); return {}
+}
+
 export async function deleteMilestone(id: string): Promise<{ error?: string }> {
   const c = await getCtx(); if ('error' in c) return c
   if (!canManageMilestones(c.role)) return { error: 'Nemáte oprávnění.' }

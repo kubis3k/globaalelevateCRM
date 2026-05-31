@@ -136,6 +136,13 @@ export async function setPersonalGoalProgress(id: string, progress: number): Pro
   revalidate(); return {}
 }
 
+export async function setPersonalGoalArchived(id: string, archived: boolean): Promise<{ error?: string }> {
+  const c = await getCtx(); if ('error' in c) return c
+  const { error } = await c.admin.from('personal_goals').update({ archived, updated_at: new Date().toISOString() }).eq('id', id).eq('user_id', c.userId)
+  if (error) return { error: error.message }
+  revalidate(); return {}
+}
+
 export async function deletePersonalGoal(id: string): Promise<{ error?: string }> {
   const c = await getCtx(); if ('error' in c) return c
   const { error } = await c.admin.from('personal_goals').delete().eq('id', id).eq('user_id', c.userId)

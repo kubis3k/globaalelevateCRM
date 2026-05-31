@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import { requireModuleAccess } from '@/lib/supabase/tenant'
 import { NoTenantView } from '@/components/ui/no-tenant-view'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
@@ -9,9 +10,21 @@ import { CashflowChart } from '../finance/cashflow-chart'
 const czk = (n: number) =>
   new Intl.NumberFormat('cs-CZ', { style: 'currency', currency: 'CZK' }).format(n)
 
+const TF_LABELS = [{ key: 'week', label: 'Týden' }, { key: 'month', label: 'Měsíc' }, { key: 'year', label: 'Rok' }]
+
 export default async function DashboardPage() {
-  const { supabase, tenantId } = await requireModuleAccess('dashboard')
+  const { supabase, tenantId, allowedModules } = await requireModuleAccess('dashboard')
   if (!tenantId) return <NoTenantView />
+
+  const showGoals = allowedModules.includes('milestones')
+  const { data: milestones } = showGoals
+    ? await supabase.from('milestones').select('timeframe, progress').eq('tenant_id', tenantId).eq('archived', false)
+    : { data: [] as any[] }
+  const goalSummary = TF_LABELS.map((t) => {
+    const items = (milestones || []).filter((m: any) => m.timeframe === t.key)
+    const avg = items.length ? Math.round(items.reduce((s: number, m: any) => s + (m.progress || 0), 0) / items.length) : 0
+    return { ...t, count: items.length, avg }
+  })
 
   const [teamResult, invoicesResult, upcomingTasksResult, transactionsResult] = await Promise.all([
     supabase.from('tenant_users').select('*', { count: 'exact', head: true }).eq('tenant_id', tenantId),
@@ -61,6 +74,34 @@ export default async function DashboardPage() {
         <StatCard title="Pohledávky" value={czk(receivables)} hint="Neuhrazené vydané faktury" icon={<FileText className="size-4" />} />
         <StatCard title="Závazky" value={czk(payables)} tone="negative" hint="Neuhrazené přijaté faktury" icon={<ArrowDownLeft className="size-4" />} />
       </div>
+
+      {showGoals && (
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0">
+            <div>
+              <CardTitle>Firemní cíle</CardTitle>
+              <CardDescription>Pokrok podle období</CardDescription>
+            </div>
+            <Link href="/milestones" className="text-sm font-medium text-primary hover:underline">Otevřít →</Link>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-4 sm:grid-cols-3">
+              {goalSummary.map((g) => (
+                <div key={g.key} className="rounded-lg border border-border p-3">
+                  <div className="flex items-baseline justify-between">
+                    <span className="text-sm font-medium text-foreground">{g.label}</span>
+                    <span className="text-lg font-semibold tabular-nums text-foreground">{g.avg}&nbsp;%</span>
+                  </div>
+                  <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted">
+                    <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${g.avg}%` }} />
+                  </div>
+                  <div className="mt-1.5 text-xs text-muted-foreground">{g.count ? `${g.count} ${g.count === 1 ? 'cíl' : g.count <= 4 ? 'cíle' : 'cílů'}` : 'Žádné cíle'}</div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid gap-4 lg:grid-cols-7">
         <Card className="lg:col-span-4">

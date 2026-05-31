@@ -8,7 +8,7 @@ export default async function MilestonesPage() {
   if (!tenantId) return null
   const { data } = await supabase
     .from('milestones')
-    .select('id, title, description, timeframe, target_date, progress')
+    .select('id, title, description, timeframe, target_date, progress, archived')
     .eq('tenant_id', tenantId)
     .order('created_at', { ascending: false })
 

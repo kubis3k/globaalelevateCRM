@@ -5,7 +5,7 @@ import { canManageHr } from '@/lib/permissions'
 // user's module access, so the AI can only read what the user could read in the
 // UI. Executors run with the service-role client, tenant-scoped.
 
-export type AiToolCtx = { admin: any; tenantId: string; role: string; allowedModules: string[] }
+export type AiToolCtx = { admin: any; tenantId: string; userId: string; role: string; allowedModules: string[] }
 type ToolDef = { name: string; description: string; input_schema: any }
 
 export function companyTools(allowed: string[], role: string): ToolDef[] {
@@ -52,6 +52,20 @@ export function companyTools(allowed: string[], role: string): ToolDef[] {
       input_schema: { type: 'object', properties: { query: { type: 'string', description: 'Část názvu dokumentu; volitelné' } } },
     })
   }
+  if (has('milestones')) {
+    tools.push({
+      name: 'get_company_goals',
+      description: 'Vrátí firemní cíle (milníky) na týden/měsíc/rok s pokrokem v %. Jen aktivní (nearchivované).',
+      input_schema: { type: 'object', properties: {} },
+    })
+  }
+  if (has('personal')) {
+    tools.push({
+      name: 'get_personal_goals',
+      description: 'Vrátí osobní cíle přihlášeného uživatele (týden/měsíc/rok) s pokrokem. Soukromé — jen jeho.',
+      input_schema: { type: 'object', properties: {} },
+    })
+  }
   return tools
 }
 
@@ -95,6 +109,18 @@ export async function executeCompanyTool(ctx: AiToolCtx, name: string, input: an
         if (input?.query) q = q.ilike('name', `%${input.query}%`)
         const { data } = await q.order('created_at', { ascending: false }).limit(50)
         return JSON.stringify(cap(data))
+      }
+      case 'get_company_goals': {
+        const { data } = await admin.from('milestones')
+          .select('title, description, timeframe, target_date, progress')
+          .eq('tenant_id', tenantId).eq('archived', false).limit(100)
+        return JSON.stringify(cap(data, 100))
+      }
+      case 'get_personal_goals': {
+        const { data } = await admin.from('personal_goals')
+          .select('title, description, timeframe, target_date, progress')
+          .eq('user_id', ctx.userId).eq('archived', false).limit(100)
+        return JSON.stringify(cap(data, 100))
       }
       default:
         return `Neznámý nástroj: ${name}`

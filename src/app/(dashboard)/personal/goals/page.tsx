@@ -6,7 +6,7 @@ export default async function PersonalGoalsPage() {
   if (!tenantId) return null
   const { data } = await supabase
     .from('personal_goals')
-    .select('id, title, description, timeframe, target_date, progress')
+    .select('id, title, description, timeframe, target_date, progress, archived')
     .eq('user_id', user.id)
     .order('created_at', { ascending: false })
 
