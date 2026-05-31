@@ -191,3 +191,106 @@ export async function clockOut(): Promise<{ error?: string }> {
   if (error) return { error: error.message }
   revalidatePath('/hr/attendance'); return {}
 }
+
+// ─── Documents (private storage bucket: hr-documents) ──────────
+const BUCKET = 'hr-documents'
+
+export async function uploadDocument(formData: FormData): Promise<{ error?: string }> {
+  const c = await getCtx(); if ('error' in c) return c
+  const file = formData.get('file') as File | null
+  if (!file || file.size === 0) return { error: 'Vyberte soubor.' }
+  if (file.size > 10 * 1024 * 1024) return { error: 'Soubor je větší než 10 MB.' }
+  let targetUser = c.userId
+  const forUser = opt(formData, 'userId')
+  if (forUser && forUser !== c.userId) {
+    if (!canManageHr(c.role)) return { error: 'Nahrávat dokumenty ostatním může jen manažer.' }
+    targetUser = forUser
+  }
+  const ext = file.name.includes('.') ? '.' + file.name.split('.').pop() : ''
+  const path = `${c.tenantId}/${targetUser}/${crypto.randomUUID()}${ext}`
+  const { error: upErr } = await c.admin.storage.from(BUCKET).upload(path, file, { contentType: file.type || undefined, upsert: false })
+  if (upErr) return { error: upErr.message }
+  const { error } = await c.admin.from('hr_documents').insert({
+    tenant_id: c.tenantId, user_id: targetUser, name: str(formData, 'name') || file.name,
+    category: str(formData, 'category') || 'other', storage_path: path, uploaded_by: c.userId,
+  })
+  if (error) return { error: error.message }
+  revalidatePath('/hr/documents'); return {}
+}
+
+export async function getDocumentUrl(id: string): Promise<{ url?: string; error?: string }> {
+  const c = await getCtx(); if ('error' in c) return c
+  const { data: doc } = await c.admin.from('hr_documents').select('user_id, storage_path').eq('id', id).eq('tenant_id', c.tenantId).maybeSingle()
+  if (!doc) return { error: 'Dokument nenalezen.' }
+  if (doc.user_id !== c.userId && !canManageHr(c.role)) return { error: 'Nemáte oprávnění.' }
+  const { data, error } = await c.admin.storage.from(BUCKET).createSignedUrl(doc.storage_path, 60)
+  if (error) return { error: error.message }
+  return { url: data.signedUrl }
+}
+
+export async function deleteDocument(id: string): Promise<{ error?: string }> {
+  const c = await getCtx(); if ('error' in c) return c
+  const { data: doc } = await c.admin.from('hr_documents').select('user_id, storage_path').eq('id', id).eq('tenant_id', c.tenantId).maybeSingle()
+  if (!doc) return { error: 'Dokument nenalezen.' }
+  if (doc.user_id !== c.userId && !canManageHr(c.role)) return { error: 'Nemáte oprávnění.' }
+  await c.admin.storage.from(BUCKET).remove([doc.storage_path])
+  const { error } = await c.admin.from('hr_documents').delete().eq('id', id).eq('tenant_id', c.tenantId)
+  if (error) return { error: error.message }
+  revalidatePath('/hr/documents'); return {}
+}
+
+// ─── Recruitment ───────────────────────────────────────────────
+export async function createJob(formData: FormData): Promise<{ error?: string }> {
+  const c = await getCtx(); if ('error' in c) return c
+  if (!canManageHr(c.role)) return { error: 'Nemáte oprávnění.' }
+  const title = str(formData, 'title'); if (!title) return { error: 'Zadejte název pozice.' }
+  const { error } = await c.admin.from('hr_job_postings').insert({
+    tenant_id: c.tenantId, title, department_id: opt(formData, 'departmentId'), description: str(formData, 'description'), status: 'open',
+  })
+  if (error) return { error: error.message }
+  revalidatePath('/hr/recruitment'); revalidatePath('/hr'); return {}
+}
+
+export async function setJobStatus(id: string, status: 'open' | 'closed'): Promise<{ error?: string }> {
+  const c = await getCtx(); if ('error' in c) return c
+  if (!canManageHr(c.role)) return { error: 'Nemáte oprávnění.' }
+  const { error } = await c.admin.from('hr_job_postings').update({ status }).eq('id', id).eq('tenant_id', c.tenantId)
+  if (error) return { error: error.message }
+  revalidatePath('/hr/recruitment'); revalidatePath('/hr'); return {}
+}
+
+export async function deleteJob(id: string): Promise<{ error?: string }> {
+  const c = await getCtx(); if ('error' in c) return c
+  if (!canManageHr(c.role)) return { error: 'Nemáte oprávnění.' }
+  const { error } = await c.admin.from('hr_job_postings').delete().eq('id', id).eq('tenant_id', c.tenantId)
+  if (error) return { error: error.message }
+  revalidatePath('/hr/recruitment'); revalidatePath('/hr'); return {}
+}
+
+export async function createCandidate(formData: FormData): Promise<{ error?: string }> {
+  const c = await getCtx(); if ('error' in c) return c
+  if (!canManageHr(c.role)) return { error: 'Nemáte oprávnění.' }
+  const name = str(formData, 'name'); if (!name) return { error: 'Zadejte jméno kandidáta.' }
+  const { error } = await c.admin.from('hr_candidates').insert({
+    tenant_id: c.tenantId, job_id: opt(formData, 'jobId'), name,
+    email: str(formData, 'email'), phone: str(formData, 'phone'), notes: str(formData, 'notes'), stage: 'applied',
+  })
+  if (error) return { error: error.message }
+  revalidatePath('/hr/recruitment'); return {}
+}
+
+export async function setCandidateStage(id: string, stage: string): Promise<{ error?: string }> {
+  const c = await getCtx(); if ('error' in c) return c
+  if (!canManageHr(c.role)) return { error: 'Nemáte oprávnění.' }
+  const { error } = await c.admin.from('hr_candidates').update({ stage }).eq('id', id).eq('tenant_id', c.tenantId)
+  if (error) return { error: error.message }
+  revalidatePath('/hr/recruitment'); return {}
+}
+
+export async function deleteCandidate(id: string): Promise<{ error?: string }> {
+  const c = await getCtx(); if ('error' in c) return c
+  if (!canManageHr(c.role)) return { error: 'Nemáte oprávnění.' }
+  const { error } = await c.admin.from('hr_candidates').delete().eq('id', id).eq('tenant_id', c.tenantId)
+  if (error) return { error: error.message }
+  revalidatePath('/hr/recruitment'); return {}
+}
