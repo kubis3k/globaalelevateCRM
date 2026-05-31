@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { Plus, Pencil, Trash2, ListTodo, Check } from 'lucide-react'
+import Link from 'next/link'
+import { Plus, Pencil, Trash2, ListTodo, Check, CalendarClock } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -14,12 +15,13 @@ import { cn } from '@/lib/utils'
 import { saveTask, toggleTask, deleteTask } from '../actions'
 
 type Task = { id: string; title: string; note: string | null; due_date: string | null; priority: string; done: boolean }
+type Assigned = { id: string; title: string; start_time: string }
 
 const selectClass = 'h-8 w-full rounded-lg border border-input bg-background px-2 text-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50'
 const PRIORITY: Record<string, string> = { low: 'Nízká', normal: 'Běžná', high: 'Vysoká' }
 const todayStr = () => new Date().toISOString().slice(0, 10)
 
-export function TasksClient({ tasks }: { tasks: Task[] }) {
+export function TasksClient({ tasks, assigned = [] }: { tasks: Task[]; assigned?: Assigned[] }) {
   const [editing, setEditing] = useState<Task | null>(null)
   const [creating, setCreating] = useState(false)
   const [isPending, startTransition] = useTransition()
@@ -74,6 +76,23 @@ export function TasksClient({ tasks }: { tasks: Task[] }) {
         <p className="text-sm text-muted-foreground">{open.length} k vyřízení · {done.length} hotovo</p>
         <Button size="lg" onClick={() => setCreating(true)}><Plus className="size-4" />Nový úkol</Button>
       </div>
+
+      {assigned.length > 0 && (
+        <div className="overflow-hidden rounded-xl border border-amber-400/40 bg-card shadow-xs">
+          <div className="flex items-center gap-2 border-b border-border bg-amber-400/10 px-3 py-2 text-xs font-medium text-foreground">
+            <CalendarClock className="size-3.5 text-amber-500" />Přiřazené úkoly (sdílený kalendář)
+            <Link href="/calendar" className="ml-auto font-normal text-primary hover:underline">Kalendář →</Link>
+          </div>
+          <div className="divide-y divide-border">
+            {assigned.map((a) => (
+              <div key={a.id} className="flex items-center justify-between gap-3 px-3 py-2.5">
+                <span className="min-w-0 flex-1 truncate text-sm text-foreground">{a.title}</span>
+                <span className="shrink-0 text-xs tabular-nums text-muted-foreground">{new Date(a.start_time).toLocaleString('cs-CZ', { day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="overflow-hidden rounded-xl border border-border bg-card shadow-xs">
         {tasks.length === 0 ? (

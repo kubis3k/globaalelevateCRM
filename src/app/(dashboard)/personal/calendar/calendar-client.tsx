@@ -1,7 +1,8 @@
 'use client'
 
 import { useMemo, useState, useTransition } from 'react'
-import { ChevronLeft, ChevronRight, Plus, Trash2 } from 'lucide-react'
+import Link from 'next/link'
+import { ChevronLeft, ChevronRight, Plus, Trash2, CalendarClock } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -12,6 +13,8 @@ import { cn } from '@/lib/utils'
 import { saveEvent, deleteEvent } from '../actions'
 
 type Ev = { id: string; title: string; description: string | null; start_time: string; end_time: string; all_day: boolean }
+type SharedEv = { id: string; title: string; description: string | null; start_time: string; end_time: string }
+type Item = { id: string; title: string; start: string; allDay: boolean; shared: boolean; ev?: Ev; sev?: SharedEv }
 
 const MONTHS = ['Leden', 'Únor', 'Březen', 'Duben', 'Květen', 'Červen', 'Červenec', 'Srpen', 'Září', 'Říjen', 'Listopad', 'Prosinec']
 const WEEKDAYS = ['Po', 'Út', 'St', 'Čt', 'Pá', 'So', 'Ne']
@@ -19,25 +22,25 @@ const pad = (n: number) => String(n).padStart(2, '0')
 const keyOf = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
 const timeOf = (iso: string) => new Date(iso).toLocaleTimeString('cs-CZ', { hour: '2-digit', minute: '2-digit' })
 
-export function PersonalCalendarClient({ events }: { events: Ev[] }) {
+export function PersonalCalendarClient({ events, shared }: { events: Ev[]; shared: SharedEv[] }) {
   const now = new Date()
   const [year, setYear] = useState(now.getFullYear())
   const [month, setMonth] = useState(now.getMonth())
   const [dialog, setDialog] = useState<{ event?: Ev; date?: string } | null>(null)
+  const [info, setInfo] = useState<SharedEv | null>(null)
 
   const byDay = useMemo(() => {
-    const m = new Map<string, Ev[]>()
-    for (const e of events) {
-      const k = keyOf(new Date(e.start_time))
-      if (!m.has(k)) m.set(k, [])
-      m.get(k)!.push(e)
-    }
+    const m = new Map<string, Item[]>()
+    const add = (k: string, it: Item) => { if (!m.has(k)) m.set(k, []); m.get(k)!.push(it) }
+    for (const e of events) add(keyOf(new Date(e.start_time)), { id: e.id, title: e.title, start: e.start_time, allDay: e.all_day, shared: false, ev: e })
+    for (const s of shared) add(keyOf(new Date(s.start_time)), { id: s.id, title: s.title, start: s.start_time, allDay: false, shared: true, sev: s })
+    for (const arr of m.values()) arr.sort((a, b) => a.start.localeCompare(b.start))
     return m
-  }, [events])
+  }, [events, shared])
 
   const cells = useMemo(() => {
     const first = new Date(year, month, 1)
-    const lead = (first.getDay() + 6) % 7 // Monday = 0
+    const lead = (first.getDay() + 6) % 7
     const days = new Date(year, month + 1, 0).getDate()
     const arr: ({ day: number; key: string } | null)[] = []
     for (let i = 0; i < lead; i++) arr.push(null)
@@ -47,10 +50,7 @@ export function PersonalCalendarClient({ events }: { events: Ev[] }) {
   }, [year, month])
 
   const todayKey = keyOf(new Date())
-  function shift(delta: number) {
-    const d = new Date(year, month + delta, 1)
-    setYear(d.getFullYear()); setMonth(d.getMonth())
-  }
+  function shift(delta: number) { const d = new Date(year, month + delta, 1); setYear(d.getFullYear()); setMonth(d.getMonth()) }
   function goToday() { setYear(now.getFullYear()); setMonth(now.getMonth()) }
 
   return (
@@ -65,6 +65,11 @@ export function PersonalCalendarClient({ events }: { events: Ev[] }) {
         <Button size="lg" onClick={() => setDialog({ date: todayKey })}><Plus className="size-4" />Nová událost</Button>
       </div>
 
+      <div className="flex items-center gap-4 text-xs text-muted-foreground">
+        <span className="flex items-center gap-1.5"><span className="size-2.5 rounded-sm bg-primary/30" />Osobní</span>
+        <span className="flex items-center gap-1.5"><span className="size-2.5 rounded-sm bg-amber-400/40" />Přiřazené (sdílený kalendář)</span>
+      </div>
+
       <div className="overflow-hidden rounded-xl border border-border bg-card shadow-xs">
         <div className="grid grid-cols-7 border-b border-border bg-muted/40">
           {WEEKDAYS.map((w) => <div key={w} className="px-2 py-1.5 text-center text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{w}</div>)}
@@ -72,20 +77,22 @@ export function PersonalCalendarClient({ events }: { events: Ev[] }) {
         <div className="grid grid-cols-7">
           {cells.map((c, i) => {
             if (!c) return <div key={i} className="min-h-[88px] border-b border-r border-border bg-muted/20" />
-            const dayEvents = byDay.get(c.key) || []
+            const items = byDay.get(c.key) || []
             const isToday = c.key === todayKey
             return (
               <button key={i} onClick={() => setDialog({ date: c.key })}
                 className="group min-h-[88px] border-b border-r border-border p-1 text-left align-top transition-colors hover:bg-muted/40 focus:outline-none focus-visible:bg-muted/60">
                 <div className={cn('mb-1 inline-flex size-6 items-center justify-center rounded-full text-xs', isToday ? 'bg-primary font-semibold text-primary-foreground' : 'text-muted-foreground')}>{c.day}</div>
                 <div className="space-y-0.5">
-                  {dayEvents.slice(0, 3).map((e) => (
-                    <div key={e.id} onClick={(ev) => { ev.stopPropagation(); setDialog({ event: e }) }}
-                      className="truncate rounded bg-primary/10 px-1.5 py-0.5 text-[11px] text-primary hover:bg-primary/20">
-                      {!e.all_day && <span className="tabular-nums opacity-70">{timeOf(e.start_time)} </span>}{e.title}
+                  {items.slice(0, 3).map((it) => (
+                    <div key={(it.shared ? 's' : 'p') + it.id}
+                      onClick={(ev) => { ev.stopPropagation(); it.shared ? setInfo(it.sev!) : setDialog({ event: it.ev }) }}
+                      className={cn('truncate rounded px-1.5 py-0.5 text-[11px]',
+                        it.shared ? 'bg-amber-400/20 text-amber-700 hover:bg-amber-400/30 dark:text-amber-300' : 'bg-primary/10 text-primary hover:bg-primary/20')}>
+                      {!it.allDay && <span className="tabular-nums opacity-70">{timeOf(it.start)} </span>}{it.title}
                     </div>
                   ))}
-                  {dayEvents.length > 3 && <div className="px-1.5 text-[11px] text-muted-foreground">+{dayEvents.length - 3} další</div>}
+                  {items.length > 3 && <div className="px-1.5 text-[11px] text-muted-foreground">+{items.length - 3} další</div>}
                 </div>
               </button>
             )
@@ -94,7 +101,31 @@ export function PersonalCalendarClient({ events }: { events: Ev[] }) {
       </div>
 
       {dialog && <EventDialog event={dialog.event} date={dialog.date} onClose={() => setDialog(null)} />}
+      {info && <SharedInfoDialog event={info} onClose={() => setInfo(null)} />}
     </div>
+  )
+}
+
+function SharedInfoDialog({ event, onClose }: { event: SharedEv; onClose: () => void }) {
+  const range = `${new Date(event.start_time).toLocaleString('cs-CZ', { day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit' })} – ${timeOf(event.end_time)}`
+  return (
+    <Dialog open onOpenChange={(o) => { if (!o) onClose() }}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2"><CalendarClock className="size-4 text-amber-500" />{event.title}</DialogTitle>
+          <DialogDescription>Přiřazeno tobě ze sdíleného firemního kalendáře.</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3 text-sm">
+          <div className="tabular-nums text-muted-foreground">{range}</div>
+          {event.description && <p className="whitespace-pre-wrap text-foreground">{event.description}</p>}
+          <p className="rounded-lg bg-muted/50 p-2.5 text-xs text-muted-foreground">Tato událost patří do sdíleného kalendáře — upravit ji můžeš tam.</p>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" size="lg" onClick={onClose}>Zavřít</Button>
+            <Link href="/calendar" className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-primary px-3 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90">Otevřít Kalendář</Link>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
   )
 }
 
