@@ -7,7 +7,7 @@ import { DollarSign, FileText, Users, Calendar, ArrowDownLeft, ArrowUpRight, Act
 import { CashflowChart } from '../finance/cashflow-chart'
 
 const czk = (n: number) =>
-  new Intl.NumberFormat('cs-CZ', { style: 'currency', currency: 'CZK', maximumFractionDigits: 0 }).format(n)
+  new Intl.NumberFormat('cs-CZ', { style: 'currency', currency: 'CZK' }).format(n)
 
 export default async function DashboardPage() {
   const { supabase, tenantId } = await requireModuleAccess('dashboard')
@@ -17,7 +17,7 @@ export default async function DashboardPage() {
     supabase.from('tenant_users').select('*', { count: 'exact', head: true }).eq('tenant_id', tenantId),
     supabase.from('invoices').select('amount, status, type').eq('tenant_id', tenantId),
     supabase.from('calendar_events').select('*', { count: 'exact', head: true }).eq('tenant_id', tenantId).gte('start_time', new Date().toISOString()),
-    supabase.from('transactions').select('amount, type, date, description').eq('tenant_id', tenantId).order('date', { ascending: true }),
+    supabase.from('transactions').select('amount, type, date, description, created_at').eq('tenant_id', tenantId).order('date', { ascending: true }),
   ])
 
   const teamCount = teamResult.count || 0
@@ -34,7 +34,13 @@ export default async function DashboardPage() {
   const totalIncome = transactions.filter((t: any) => t.type === 'income').reduce((a: number, t: any) => a + Number(t.amount), 0)
   const totalExpense = transactions.filter((t: any) => t.type === 'expense').reduce((a: number, t: any) => a + Number(t.amount), 0)
   const balance = totalIncome - totalExpense
-  const recent = [...transactions].slice(-6).reverse()
+  const recent = [...transactions]
+    .sort((a: any, b: any) =>
+      a.date === b.date
+        ? String(b.created_at ?? '').localeCompare(String(a.created_at ?? ''))
+        : (a.date < b.date ? 1 : -1)
+    )
+    .slice(0, 6)
 
   return (
     <div className="space-y-6">

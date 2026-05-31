@@ -26,6 +26,7 @@ export default async function FinancePage() {
     .select('*')
     .eq('tenant_id', tenantId)
     .order('date', { ascending: false })
+    .order('created_at', { ascending: false })
 
   const safe = transactions || []
   const invoiceIds = Array.from(new Set(safe.map((t: any) => t.invoice_id).filter(Boolean)))
