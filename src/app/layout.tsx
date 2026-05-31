@@ -1,4 +1,4 @@
-import type { Metadata } from "next"
+import type { Metadata, Viewport } from "next"
 import { Inter } from "next/font/google"
 import "./globals.css"
 import { Toaster } from "@/components/ui/toast"
@@ -12,7 +12,27 @@ const inter = Inter({
 
 export const metadata: Metadata = {
   title: "Globaal Elevate Production",
-  description: "Firemní ERP systém",
+  description: "Interní firemní systém — Globaal Elevate Production",
+  applicationName: "Globaal Elevate",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "Globaal Elevate",
+  },
+  icons: {
+    icon: "/icon-192x192.png",
+    apple: "/apple-touch-icon.png",
+  },
+}
+
+export const viewport: Viewport = {
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#ffffff" },
+    { media: "(prefers-color-scheme: dark)", color: "#0a0a0a" },
+  ],
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
 }
 
 export default function RootLayout({

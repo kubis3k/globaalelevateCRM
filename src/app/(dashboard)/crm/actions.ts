@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { sendPushToUsers } from '@/lib/push/webpush'
 
 type Ctx = { admin: ReturnType<typeof createAdminClient>; userId: string; tenantId: string }
 
@@ -80,6 +81,22 @@ export async function createActivity(clientId: string, formData: FormData): Prom
     subject, content: str(formData, 'content'), due_date: str(formData, 'dueDate'), created_by: c.userId,
   })
   if (error) return { error: error.message }
+  // Notify CRM managers about new tasks that carry a deadline (best-effort).
+  try {
+    const due = str(formData, 'dueDate')
+    if (due) {
+      const { data: mgrs } = await c.admin.from('tenant_users').select('user_id')
+        .eq('tenant_id', c.tenantId).in('role', ['admin', 'manager'])
+      const recipients = (mgrs || []).map((r: any) => r.user_id).filter((id: string) => id && id !== c.userId)
+      if (recipients.length) {
+        await sendPushToUsers(c.admin, recipients, 'crm', {
+          title: 'Nový CRM úkol',
+          body: `${subject} • termín ${new Date(due).toLocaleDateString('cs-CZ')}`,
+          url: `/crm/clients/${clientId}`,
+        })
+      }
+    }
+  } catch (e) { console.error('[push] crm activity notify failed', e) }
   revalidatePath(`/crm/clients/${clientId}`); return {}
 }
 

@@ -5,11 +5,12 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { usePathname } from 'next/navigation'
 import {
-  LayoutDashboard, Users, FileText, DollarSign, Calendar, Briefcase, Building2, Mail, FolderOpen, Menu, X, LogOut,
+  LayoutDashboard, Users, FileText, DollarSign, Calendar, Briefcase, Building2, Mail, FolderOpen, Menu, X, LogOut, Bell,
 } from 'lucide-react'
 import { MODULES } from '@/lib/modules'
 import { cn } from '@/lib/utils'
 import { CollapsibleSidebar } from './collapsible-sidebar'
+import { PushSetupDialog } from './pwa/push-setup-dialog'
 import { ThemeToggle } from './ui/theme-toggle'
 import { Avatar } from './ui/avatar'
 import {
@@ -49,6 +50,7 @@ export function AppShell({
 }) {
   const pathname = usePathname()
   const [mobileOpen, setMobileOpen] = useState(false)
+  const [showPush, setShowPush] = useState(false)
   const logoutForm = useRef<HTMLFormElement>(null)
 
   const items = MODULES.filter((m) => allowedModules.includes(m.id))
@@ -139,6 +141,11 @@ export function AppShell({
                   <div className="text-xs font-normal text-muted-foreground">{roleLabel}</div>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => setShowPush(true)}>
+                  <Bell />
+                  Notifikace
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
                 <DropdownMenuItem variant="destructive" onClick={() => logoutForm.current?.requestSubmit()}>
                   <LogOut />
                   Odhlásit se
@@ -151,6 +158,8 @@ export function AppShell({
 
         <main className="flex-1 overflow-auto p-4 lg:p-6">{children}</main>
       </div>
+
+      <PushSetupDialog open={showPush} onClose={() => setShowPush(false)} />
     </div>
   )
 }

@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { sendPushToUsers } from '@/lib/push/webpush'
 
 export async function createEvent(formData: FormData) {
   const supabase = await createClient()
@@ -35,6 +36,35 @@ export async function createEvent(formData: FormData) {
 
   const { error } = await admin.from('calendar_events').insert(eventData)
   if (error) throw new Error(error.message)
+
+  // Push to the people this event is for (best-effort; never blocks creation).
+  try {
+    let recipients: string[] = []
+    if (eventData.assigned_to) {
+      recipients = [eventData.assigned_to]
+    } else if (eventData.assigned_role) {
+      const { data: rows } = await admin.from('tenant_users').select('user_id')
+        .eq('tenant_id', tenantUser.tenant_id).eq('role', eventData.assigned_role)
+      recipients = (rows || []).map((r: any) => r.user_id)
+    } else {
+      const { data: rows } = await admin.from('tenant_users').select('user_id')
+        .eq('tenant_id', tenantUser.tenant_id)
+      recipients = (rows || []).map((r: any) => r.user_id)
+    }
+    recipients = recipients.filter((id) => id && id !== user.id)
+    if (recipients.length) {
+      const when = new Date(eventData.start_time).toLocaleString('cs-CZ', {
+        day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit',
+      })
+      await sendPushToUsers(admin, recipients, 'calendar', {
+        title: 'Nový úkol v kalendáři',
+        body: `${eventData.title} • ${when}`,
+        url: '/calendar',
+      })
+    }
+  } catch (e) {
+    console.error('[push] calendar notify failed', e)
+  }
 
   revalidatePath('/calendar')
   revalidatePath('/dashboard')

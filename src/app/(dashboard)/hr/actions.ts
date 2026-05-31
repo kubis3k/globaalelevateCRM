@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { canManageHr } from '@/lib/permissions'
+import { sendPushToUsers } from '@/lib/push/webpush'
 
 type Ctx = { admin: ReturnType<typeof createAdminClient>; userId: string; tenantId: string; role: string }
 
@@ -122,6 +123,19 @@ export async function requestLeave(formData: FormData): Promise<{ error?: string
     working_days: workingDaysBetween(start, end), reason: str(formData, 'reason'), status: 'pending',
   })
   if (error) return { error: error.message }
+  // Notify HR managers about the new request (best-effort).
+  try {
+    const { data: mgrs } = await c.admin.from('tenant_users').select('user_id')
+      .eq('tenant_id', c.tenantId).in('role', ['admin', 'manager'])
+    const recipients = (mgrs || []).map((r: any) => r.user_id).filter((id: string) => id && id !== c.userId)
+    if (recipients.length) {
+      await sendPushToUsers(c.admin, recipients, 'hr', {
+        title: 'Nová žádost o dovolenou',
+        body: `${start} – ${end}`,
+        url: '/hr/leave',
+      })
+    }
+  } catch (e) { console.error('[push] hr leave request notify failed', e) }
   revalidatePath('/hr/leave'); revalidatePath('/hr'); return {}
 }
 
@@ -147,6 +161,16 @@ export async function reviewLeave(id: string, decision: 'approved' | 'rejected')
     })
     revalidatePath('/calendar')
   }
+  // Notify the requester of the decision (best-effort).
+  try {
+    if (req.user_id && req.user_id !== c.userId) {
+      await sendPushToUsers(c.admin, [req.user_id], 'hr', {
+        title: decision === 'approved' ? 'Dovolená schválena' : 'Dovolená zamítnuta',
+        body: `${req.start_date} – ${req.end_date}`,
+        url: '/hr/leave',
+      })
+    }
+  } catch (e) { console.error('[push] hr leave review notify failed', e) }
   revalidatePath('/hr/leave'); revalidatePath('/hr'); return {}
 }
 
