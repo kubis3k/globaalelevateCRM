@@ -135,6 +135,8 @@ export async function convertQuoteToInvoice(id: string): Promise<{ error?: strin
     tenant_id: c.tenantId, type: 'issued', status: 'draft', invoice_number: invoiceNumber,
     client_name: quote.client_name || '—', client_id: quote.client_id,
     amount: quote.total, currency: quote.currency,
+    subtotal: quote.subtotal, vat_amount: quote.vat_total,
+    vat_rate: Number(quote.subtotal) > 0 ? Math.round((Number(quote.vat_total) / Number(quote.subtotal)) * 100) : 0,
     issue_date: today.toISOString().slice(0, 10), due_date: due.toISOString().slice(0, 10),
     created_by: c.userId,
   }).select('id').maybeSingle()
