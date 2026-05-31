@@ -26,3 +26,8 @@ export function canAccessModule(allowed: readonly string[], moduleId: string): b
 export function canManageHr(role: string | null | undefined): boolean {
   return role === 'admin' || role === 'manager'
 }
+
+// Who may connect a SHARED company mailbox (personal mailboxes: any module user).
+export function canManageSharedMail(role: string | null | undefined): boolean {
+  return role === 'admin' || role === 'manager'
+}

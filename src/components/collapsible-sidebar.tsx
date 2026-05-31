@@ -4,7 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { usePathname } from 'next/navigation'
-import { LayoutDashboard, Users, FileText, DollarSign, Calendar, Briefcase, Building2 } from 'lucide-react'
+import { LayoutDashboard, Users, FileText, DollarSign, Calendar, Briefcase, Building2, Mail } from 'lucide-react'
 import { MODULES } from '@/lib/modules'
 import { cn } from '@/lib/utils'
 
@@ -16,6 +16,7 @@ const MODULE_ICONS: Record<string, React.ComponentType<{ className?: string }>> 
   calendar: Calendar,
   hr: Briefcase,
   crm: Building2,
+  mail: Mail,
 }
 
 export function CollapsibleSidebar({ allowedModules }: { allowedModules: string[] }) {
