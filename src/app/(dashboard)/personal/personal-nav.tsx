@@ -8,6 +8,7 @@ const SECTIONS = [
   { href: '/personal', label: 'Přehled' },
   { href: '/personal/notes', label: 'Poznámky' },
   { href: '/personal/tasks', label: 'Úkoly' },
+  { href: '/personal/goals', label: 'Cíle' },
   { href: '/personal/calendar', label: 'Kalendář' },
 ]
 

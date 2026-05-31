@@ -17,7 +17,7 @@ async function getCtx(): Promise<Ctx | { error: string }> {
 }
 
 const str = (fd: FormData, k: string) => { const v = (fd.get(k) as string)?.trim(); return v ? v : null }
-const revalidate = () => { revalidatePath('/personal'); revalidatePath('/personal/notes'); revalidatePath('/personal/tasks'); revalidatePath('/personal/calendar') }
+const revalidate = () => { revalidatePath('/personal'); revalidatePath('/personal/notes'); revalidatePath('/personal/tasks'); revalidatePath('/personal/calendar'); revalidatePath('/personal/goals') }
 
 // ─── Notes ─────────────────────────────────────────────────────
 export async function saveNote(formData: FormData): Promise<{ error?: string }> {
@@ -106,6 +106,39 @@ export async function saveEvent(formData: FormData): Promise<{ error?: string }>
 export async function deleteEvent(id: string): Promise<{ error?: string }> {
   const c = await getCtx(); if ('error' in c) return c
   const { error } = await c.admin.from('personal_events').delete().eq('id', id).eq('user_id', c.userId)
+  if (error) return { error: error.message }
+  revalidate(); return {}
+}
+
+// ─── Personal goals (week / month / year) ──────────────────────
+const goalTf = (fd: FormData) => { const v = str(fd, 'timeframe'); return v === 'week' || v === 'month' || v === 'year' ? v : 'month' }
+const clamp = (n: any) => Math.max(0, Math.min(100, Math.round(Number(n) || 0)))
+
+export async function savePersonalGoal(formData: FormData): Promise<{ error?: string }> {
+  const c = await getCtx(); if ('error' in c) return c
+  const title = str(formData, 'title'); if (!title) return { error: 'Zadejte název cíle.' }
+  const id = str(formData, 'id')
+  const row = { title, description: str(formData, 'description'), timeframe: goalTf(formData), target_date: str(formData, 'targetDate'), progress: clamp(formData.get('progress')) }
+  if (id) {
+    const { error } = await c.admin.from('personal_goals').update({ ...row, updated_at: new Date().toISOString() }).eq('id', id).eq('user_id', c.userId)
+    if (error) return { error: error.message }
+  } else {
+    const { error } = await c.admin.from('personal_goals').insert({ ...row, tenant_id: c.tenantId, user_id: c.userId })
+    if (error) return { error: error.message }
+  }
+  revalidate(); return {}
+}
+
+export async function setPersonalGoalProgress(id: string, progress: number): Promise<{ error?: string }> {
+  const c = await getCtx(); if ('error' in c) return c
+  const { error } = await c.admin.from('personal_goals').update({ progress: clamp(progress), updated_at: new Date().toISOString() }).eq('id', id).eq('user_id', c.userId)
+  if (error) return { error: error.message }
+  revalidate(); return {}
+}
+
+export async function deletePersonalGoal(id: string): Promise<{ error?: string }> {
+  const c = await getCtx(); if ('error' in c) return c
+  const { error } = await c.admin.from('personal_goals').delete().eq('id', id).eq('user_id', c.userId)
   if (error) return { error: error.message }
   revalidate(); return {}
 }

@@ -36,3 +36,8 @@ export function canManageSharedMail(role: string | null | undefined): boolean {
 export function canManageDocuments(role: string | null | undefined): boolean {
   return role === 'admin' || role === 'manager'
 }
+
+// Who may create/edit company milestones (everyone with the module can view).
+export function canManageMilestones(role: string | null | undefined): boolean {
+  return role === 'admin' || role === 'manager'
+}

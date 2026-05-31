@@ -5,7 +5,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { usePathname } from 'next/navigation'
 import {
-  LayoutDashboard, Users, FileText, DollarSign, Calendar, Briefcase, Building2, Mail, FolderOpen, Menu, X, LogOut, Bell, Sparkles, User,
+  LayoutDashboard, Users, FileText, DollarSign, Calendar, Briefcase, Building2, Mail, FolderOpen, Menu, X, LogOut, Bell, Sparkles, User, Target,
 } from 'lucide-react'
 import { MODULES } from '@/lib/modules'
 import { cn } from '@/lib/utils'
@@ -30,6 +30,7 @@ const MODULE_ICONS: Record<string, React.ComponentType<{ className?: string }>> 
   documents: FolderOpen,
   'globaal-ai': Sparkles,
   personal: User,
+  milestones: Target,
 }
 
 const ROLE_LABELS: Record<string, string> = {
