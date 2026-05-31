@@ -26,6 +26,11 @@ export default async function DashboardPage() {
   const transactions = transactionsResult.data || []
 
   const unpaidInvoices = invoices.filter((i: any) => i.status === 'pending' || i.status === 'overdue').length
+  const issued = invoices.filter((i: any) => i.type === 'issued')
+  const received = invoices.filter((i: any) => i.type === 'received')
+  const revenue = issued.filter((i: any) => i.status === 'paid').reduce((a: number, i: any) => a + Number(i.amount || 0), 0)
+  const receivables = issued.filter((i: any) => i.status === 'pending' || i.status === 'overdue').reduce((a: number, i: any) => a + Number(i.amount || 0), 0)
+  const payables = received.filter((i: any) => i.status === 'pending' || i.status === 'overdue').reduce((a: number, i: any) => a + Number(i.amount || 0), 0)
   const totalIncome = transactions.filter((t: any) => t.type === 'income').reduce((a: number, t: any) => a + Number(t.amount), 0)
   const totalExpense = transactions.filter((t: any) => t.type === 'expense').reduce((a: number, t: any) => a + Number(t.amount), 0)
   const balance = totalIncome - totalExpense
@@ -43,6 +48,12 @@ export default async function DashboardPage() {
         <StatCard title="Nezaplacené faktury" value={String(unpaidInvoices)} hint={unpaidInvoices === 0 ? 'Vše uhrazeno' : 'Vyžaduje pozornost'} icon={<FileText className="size-4" />} />
         <StatCard title="Aktivní zaměstnanci" value={String(teamCount)} hint="Správa týmu" icon={<Users className="size-4" />} />
         <StatCard title="Nadcházející úkoly" value={String(upcomingTasks)} hint="V kalendáři" icon={<Calendar className="size-4" />} />
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-3">
+        <StatCard title="Tržby (uhrazené faktury)" value={czk(revenue)} tone="positive" hint="Vydané a uhrazené" icon={<ArrowUpRight className="size-4" />} />
+        <StatCard title="Pohledávky" value={czk(receivables)} hint="Neuhrazené vydané faktury" icon={<FileText className="size-4" />} />
+        <StatCard title="Závazky" value={czk(payables)} tone="negative" hint="Neuhrazené přijaté faktury" icon={<ArrowDownLeft className="size-4" />} />
       </div>
 
       <div className="grid gap-4 lg:grid-cols-7">

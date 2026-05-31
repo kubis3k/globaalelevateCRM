@@ -24,11 +24,10 @@ export default async function InvoicesPage() {
   const { supabase, tenantId } = await requireModuleAccess('invoices')
   if (!tenantId) return <NoTenantView />
 
-  const { data: invoices } = await supabase
-    .from('invoices')
-    .select('*')
-    .eq('tenant_id', tenantId)
-    .order('issue_date', { ascending: false })
+  const [{ data: invoices }, { data: clients }] = await Promise.all([
+    supabase.from('invoices').select('*').eq('tenant_id', tenantId).order('issue_date', { ascending: false }),
+    supabase.from('crm_clients').select('id, name').eq('tenant_id', tenantId).order('name'),
+  ])
 
   const safe = invoices || []
 
@@ -45,7 +44,7 @@ export default async function InvoicesPage() {
               <DialogTitle>Vytvořit nový doklad</DialogTitle>
               <DialogDescription>Vyplňte údaje faktury. Doklad bude ihned zařazen do účetnictví.</DialogDescription>
             </DialogHeader>
-            <AddInvoiceForm />
+            <AddInvoiceForm clients={clients ?? []} />
           </DialogContent>
         </Dialog>
       </PageHeader>

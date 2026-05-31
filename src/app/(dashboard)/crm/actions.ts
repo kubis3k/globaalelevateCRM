@@ -96,3 +96,32 @@ export async function deleteActivity(id: string, clientId: string): Promise<{ er
   if (error) return { error: error.message }
   revalidatePath(`/crm/clients/${clientId}`); return {}
 }
+
+// ─── Deals (pipeline) ──────────────────────────────────────────
+export async function createDeal(formData: FormData): Promise<{ error?: string }> {
+  const c = await getCtx(); if ('error' in c) return c
+  const title = str(formData, 'title'); if (!title) return { error: 'Zadejte název příležitosti.' }
+  const value = str(formData, 'value')
+  const { error } = await c.admin.from('crm_deals').insert({
+    tenant_id: c.tenantId, title, client_id: opt(formData, 'clientId'),
+    value: value ? Number(value) : null, currency: str(formData, 'currency') || 'CZK',
+    stage: str(formData, 'stage') || 'lead', owner_id: opt(formData, 'ownerId'),
+    expected_close: str(formData, 'expectedClose'), note: str(formData, 'note'),
+  })
+  if (error) return { error: error.message }
+  revalidatePath('/crm/pipeline'); revalidatePath('/crm'); return {}
+}
+
+export async function setDealStage(id: string, stage: string): Promise<{ error?: string }> {
+  const c = await getCtx(); if ('error' in c) return c
+  const { error } = await c.admin.from('crm_deals').update({ stage }).eq('id', id).eq('tenant_id', c.tenantId)
+  if (error) return { error: error.message }
+  revalidatePath('/crm/pipeline'); revalidatePath('/crm'); return {}
+}
+
+export async function deleteDeal(id: string): Promise<{ error?: string }> {
+  const c = await getCtx(); if ('error' in c) return c
+  const { error } = await c.admin.from('crm_deals').delete().eq('id', id).eq('tenant_id', c.tenantId)
+  if (error) return { error: error.message }
+  revalidatePath('/crm/pipeline'); revalidatePath('/crm'); return {}
+}

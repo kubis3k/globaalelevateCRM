@@ -9,8 +9,12 @@ import { useState } from 'react'
 import { Loader2 } from 'lucide-react'
 import { toast } from '@/components/ui/toast'
 
-export function AddInvoiceForm() {
+type Client = { id: string; name: string }
+
+export function AddInvoiceForm({ clients = [] }: { clients?: Client[] }) {
   const [loading, setLoading] = useState(false)
+  const [clientId, setClientId] = useState('none')
+  const [clientName, setClientName] = useState('')
 
   async function handleSubmit(formData: FormData) {
     setLoading(true)
@@ -25,14 +29,11 @@ export function AddInvoiceForm() {
 
   return (
     <form action={handleSubmit} className="space-y-4">
-
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
           <Label htmlFor="type">Typ dokladu</Label>
           <Select name="type" defaultValue="issued">
-            <SelectTrigger>
-              <SelectValue placeholder="Vyberte typ" />
-            </SelectTrigger>
+            <SelectTrigger className="w-full"><SelectValue placeholder="Vyberte typ" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="issued">Vydaná faktura</SelectItem>
               <SelectItem value="received">Přijatá faktura</SelectItem>
@@ -42,9 +43,7 @@ export function AddInvoiceForm() {
         <div className="space-y-2">
           <Label htmlFor="status">Stav</Label>
           <Select name="status" defaultValue="pending">
-            <SelectTrigger>
-              <SelectValue placeholder="Vyberte stav" />
-            </SelectTrigger>
+            <SelectTrigger className="w-full"><SelectValue placeholder="Vyberte stav" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="draft">Koncept</SelectItem>
               <SelectItem value="pending">Čeká na úhradu</SelectItem>
@@ -61,9 +60,29 @@ export function AddInvoiceForm() {
         <Input id="invoiceNumber" name="invoiceNumber" required placeholder="FV-20240001" />
       </div>
 
+      {clients.length > 0 && (
+        <div className="space-y-2">
+          <Label htmlFor="clientId">Klient (z CRM)</Label>
+          <select
+            id="clientId"
+            name="clientId"
+            value={clientId}
+            onChange={(e) => {
+              setClientId(e.target.value)
+              const c = clients.find((x) => x.id === e.target.value)
+              if (c) setClientName(c.name)
+            }}
+            className="h-8 w-full rounded-lg border border-input bg-background px-2 text-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+          >
+            <option value="none">— ruční zadání —</option>
+            {clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+        </div>
+      )}
+
       <div className="space-y-2">
         <Label htmlFor="clientName">Odběratel / Dodavatel</Label>
-        <Input id="clientName" name="clientName" required placeholder="Název firmy" />
+        <Input id="clientName" name="clientName" required placeholder="Název firmy" value={clientName} onChange={(e) => setClientName(e.target.value)} />
       </div>
 
       <div className="grid grid-cols-2 gap-4">
@@ -74,9 +93,7 @@ export function AddInvoiceForm() {
         <div className="space-y-2">
           <Label htmlFor="currency">Měna</Label>
           <Select name="currency" defaultValue="CZK">
-            <SelectTrigger>
-              <SelectValue placeholder="Měna" />
-            </SelectTrigger>
+            <SelectTrigger className="w-full"><SelectValue placeholder="Měna" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="CZK">CZK</SelectItem>
               <SelectItem value="EUR">EUR</SelectItem>

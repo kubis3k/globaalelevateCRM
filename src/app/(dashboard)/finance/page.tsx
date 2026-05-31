@@ -28,6 +28,12 @@ export default async function FinancePage() {
     .order('date', { ascending: false })
 
   const safe = transactions || []
+  const invoiceIds = Array.from(new Set(safe.map((t: any) => t.invoice_id).filter(Boolean)))
+  const { data: linkedInvoices } = invoiceIds.length
+    ? await supabase.from('invoices').select('id, invoice_number').in('id', invoiceIds as string[])
+    : { data: [] as any[] }
+  const invNum = (id: string) => (linkedInvoices ?? []).find((i: any) => i.id === id)?.invoice_number
+
   const totalIncome = safe.filter((t) => t.type === 'income').reduce((a, t) => a + Number(t.amount), 0)
   const totalExpense = safe.filter((t) => t.type === 'expense').reduce((a, t) => a + Number(t.amount), 0)
   const balance = totalIncome - totalExpense
@@ -93,7 +99,12 @@ export default async function FinancePage() {
                         {t.type === 'income' ? 'Příjem' : 'Výdaj'}
                       </Badge>
                     </TableCell>
-                    <TableCell className="font-medium text-foreground">{t.description}</TableCell>
+                    <TableCell className="font-medium text-foreground">
+                      <span className="inline-flex items-center gap-2">
+                        {t.description}
+                        {t.invoice_id && <Badge variant="info" className="h-4 px-1.5 text-[10px]">z faktury {invNum(t.invoice_id)}</Badge>}
+                      </span>
+                    </TableCell>
                     <TableCell className="text-muted-foreground">{new Date(t.date).toLocaleDateString('cs-CZ')}</TableCell>
                     <TableCell className={`text-right font-semibold tabular-nums ${t.type === 'income' ? 'text-success' : 'text-destructive'}`}>
                       {t.type === 'income' ? '+' : '−'}{czk(Number(t.amount), t.currency)}
