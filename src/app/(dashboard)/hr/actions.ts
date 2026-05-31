@@ -94,3 +94,100 @@ export async function deleteEmployee(id: string): Promise<{ error?: string }> {
   if (error) return { error: error.message }
   revalidatePath('/hr/employees'); return {}
 }
+
+// ─── Leave ─────────────────────────────────────────────────────
+const LEAVE_LABELS: Record<string, string> = { vacation: 'Dovolená', sick: 'Nemoc', personal: 'Osobní volno', unpaid: 'Neplacené volno' }
+
+function workingDaysBetween(start: string, end: string): number {
+  const s = new Date(start + 'T00:00:00Z')
+  const e = new Date(end + 'T00:00:00Z')
+  if (e < s) return 0
+  let count = 0
+  for (const d = new Date(s); d <= e; d.setUTCDate(d.getUTCDate() + 1)) {
+    const day = d.getUTCDay()
+    if (day !== 0 && day !== 6) count++
+  }
+  return count
+}
+
+export async function requestLeave(formData: FormData): Promise<{ error?: string }> {
+  const c = await getCtx(); if ('error' in c) return c
+  const type = str(formData, 'type') || 'vacation'
+  const start = str(formData, 'startDate')
+  const end = str(formData, 'endDate')
+  if (!start || !end) return { error: 'Zadejte datum od i do.' }
+  if (end < start) return { error: 'Datum „do" musí být po datu „od".' }
+  const { error } = await c.admin.from('hr_leave_requests').insert({
+    tenant_id: c.tenantId, user_id: c.userId, type, start_date: start, end_date: end,
+    working_days: workingDaysBetween(start, end), reason: str(formData, 'reason'), status: 'pending',
+  })
+  if (error) return { error: error.message }
+  revalidatePath('/hr/leave'); revalidatePath('/hr'); return {}
+}
+
+export async function reviewLeave(id: string, decision: 'approved' | 'rejected'): Promise<{ error?: string }> {
+  const c = await getCtx(); if ('error' in c) return c
+  if (!canManageHr(c.role)) return { error: 'Nemáte oprávnění.' }
+  const { data: req } = await c.admin.from('hr_leave_requests').select('*').eq('id', id).eq('tenant_id', c.tenantId).maybeSingle()
+  if (!req) return { error: 'Žádost nenalezena.' }
+  const { error } = await c.admin.from('hr_leave_requests')
+    .update({ status: decision, reviewed_by: c.userId, reviewed_at: new Date().toISOString() })
+    .eq('id', id).eq('tenant_id', c.tenantId)
+  if (error) return { error: error.message }
+  if (decision === 'approved') {
+    // Reflect approved leave in the shared calendar (best-effort).
+    await c.admin.from('calendar_events').insert({
+      tenant_id: c.tenantId,
+      title: LEAVE_LABELS[req.type] || 'Volno',
+      description: req.reason || null,
+      start_time: new Date(req.start_date + 'T08:00:00').toISOString(),
+      end_time: new Date(req.end_date + 'T16:00:00').toISOString(),
+      assigned_to: req.user_id,
+      created_by: c.userId,
+    })
+    revalidatePath('/calendar')
+  }
+  revalidatePath('/hr/leave'); revalidatePath('/hr'); return {}
+}
+
+export async function cancelLeave(id: string): Promise<{ error?: string }> {
+  const c = await getCtx(); if ('error' in c) return c
+  const { data: req } = await c.admin.from('hr_leave_requests').select('user_id, status').eq('id', id).eq('tenant_id', c.tenantId).maybeSingle()
+  if (!req) return { error: 'Žádost nenalezena.' }
+  const owner = req.user_id === c.userId
+  if (!owner && !canManageHr(c.role)) return { error: 'Nemáte oprávnění.' }
+  if (owner && !canManageHr(c.role) && req.status !== 'pending') return { error: 'Schválenou žádost může zrušit jen manažer.' }
+  const { error } = await c.admin.from('hr_leave_requests').delete().eq('id', id).eq('tenant_id', c.tenantId)
+  if (error) return { error: error.message }
+  revalidatePath('/hr/leave'); revalidatePath('/hr'); return {}
+}
+
+// ─── Attendance ────────────────────────────────────────────────
+function todayStr() {
+  return new Date().toISOString().split('T')[0]
+}
+
+export async function clockIn(): Promise<{ error?: string }> {
+  const c = await getCtx(); if ('error' in c) return c
+  const today = todayStr()
+  const { data: existing } = await c.admin.from('hr_attendance').select('id, clock_in').eq('tenant_id', c.tenantId).eq('user_id', c.userId).eq('work_date', today).maybeSingle()
+  if (existing?.clock_in) return { error: 'Příchod už je dnes zaznamenán.' }
+  if (existing) {
+    await c.admin.from('hr_attendance').update({ clock_in: new Date().toISOString() }).eq('id', existing.id)
+  } else {
+    const { error } = await c.admin.from('hr_attendance').insert({ tenant_id: c.tenantId, user_id: c.userId, work_date: today, clock_in: new Date().toISOString() })
+    if (error) return { error: error.message }
+  }
+  revalidatePath('/hr/attendance'); return {}
+}
+
+export async function clockOut(): Promise<{ error?: string }> {
+  const c = await getCtx(); if ('error' in c) return c
+  const today = todayStr()
+  const { data: existing } = await c.admin.from('hr_attendance').select('id, clock_in, clock_out').eq('tenant_id', c.tenantId).eq('user_id', c.userId).eq('work_date', today).maybeSingle()
+  if (!existing?.clock_in) return { error: 'Nejdřív zaznamenejte příchod.' }
+  if (existing.clock_out) return { error: 'Odchod už je zaznamenán.' }
+  const { error } = await c.admin.from('hr_attendance').update({ clock_out: new Date().toISOString() }).eq('id', existing.id)
+  if (error) return { error: error.message }
+  revalidatePath('/hr/attendance'); return {}
+}
