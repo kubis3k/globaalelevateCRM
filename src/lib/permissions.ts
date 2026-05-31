@@ -20,3 +20,9 @@ export function getAllowedModules({
 export function canAccessModule(allowed: readonly string[], moduleId: string): boolean {
   return allowed.includes(moduleId)
 }
+
+// HR management/approval rights (personnel edits, leave approval, recruitment).
+// Employees without these rights get self-service views only.
+export function canManageHr(role: string | null | undefined): boolean {
+  return role === 'admin' || role === 'manager'
+}

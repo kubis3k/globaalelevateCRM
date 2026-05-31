@@ -5,7 +5,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { usePathname } from 'next/navigation'
 import {
-  LayoutDashboard, Users, FileText, DollarSign, Calendar, Menu, X, LogOut,
+  LayoutDashboard, Users, FileText, DollarSign, Calendar, Briefcase, Menu, X, LogOut,
 } from 'lucide-react'
 import { MODULES } from '@/lib/modules'
 import { cn } from '@/lib/utils'
@@ -23,6 +23,7 @@ const MODULE_ICONS: Record<string, React.ComponentType<{ className?: string }>> 
   invoices: FileText,
   finance: DollarSign,
   calendar: Calendar,
+  hr: Briefcase,
 }
 
 const ROLE_LABELS: Record<string, string> = {
