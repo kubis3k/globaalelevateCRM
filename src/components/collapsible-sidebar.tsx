@@ -4,7 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { usePathname } from 'next/navigation'
-import { LayoutDashboard, Users, FileText, DollarSign, Calendar, Briefcase, Building2, Mail, FolderOpen } from 'lucide-react'
+import { LayoutDashboard, Users, FileText, DollarSign, Calendar, Briefcase, Building2, Mail, FolderOpen, Sparkles } from 'lucide-react'
 import { MODULES } from '@/lib/modules'
 import { cn } from '@/lib/utils'
 
@@ -18,6 +18,7 @@ const MODULE_ICONS: Record<string, React.ComponentType<{ className?: string }>> 
   crm: Building2,
   mail: Mail,
   documents: FolderOpen,
+  'globaal-ai': Sparkles,
 }
 
 export function CollapsibleSidebar({ allowedModules }: { allowedModules: string[] }) {
