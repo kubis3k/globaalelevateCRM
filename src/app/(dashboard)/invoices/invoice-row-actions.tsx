@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { MoreHorizontal, Pencil, CheckCircle2, Clock, Trash2 } from 'lucide-react'
+import { MoreHorizontal, Pencil, CheckCircle2, Clock, Trash2, FileDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { buttonVariants } from '@/components/ui/button'
 import {
@@ -44,6 +44,7 @@ export function InvoiceRowActions({ invoice, clients }: { invoice: any; clients:
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
           <DropdownMenuItem onClick={() => setEditOpen(true)}><Pencil />Upravit</DropdownMenuItem>
+          <DropdownMenuItem onClick={() => window.location.assign(`/api/invoices/${invoice.id}/isdoc`)}><FileDown />Export ISDOC</DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuLabel>Změnit stav</DropdownMenuLabel>
           <DropdownMenuItem onClick={() => setStatus('paid', 'Označeno jako uhrazeno')}><CheckCircle2 />Uhrazeno</DropdownMenuItem>
