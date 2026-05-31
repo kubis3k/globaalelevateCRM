@@ -83,3 +83,38 @@ export async function getMessage(client: ImapFlow, folder: string, uid: number) 
     lock.release()
   }
 }
+
+export async function setSeen(client: ImapFlow, folder: string, uid: number, seen: boolean) {
+  const lock = await client.getMailboxLock(folder)
+  try {
+    if (seen) await client.messageFlagsAdd({ uid }, ['\\Seen'], { uid: true })
+    else await client.messageFlagsRemove({ uid }, ['\\Seen'], { uid: true })
+  } finally {
+    lock.release()
+  }
+}
+
+function specialFolder(list: any[], special: string, nameRe: RegExp): string | null {
+  return list.find((f: any) => f.specialUse === special)?.path || list.find((f: any) => nameRe.test(f.name))?.path || null
+}
+
+export async function moveToTrash(client: ImapFlow, folder: string, uid: number) {
+  const list = await client.list()
+  const trash = specialFolder(list, '\\Trash', /trash|koš/i)
+  const lock = await client.getMailboxLock(folder)
+  try {
+    if (trash && trash !== folder) {
+      await client.messageMove({ uid }, trash, { uid: true })
+    } else {
+      await client.messageFlagsAdd({ uid }, ['\\Deleted'], { uid: true })
+    }
+  } finally {
+    lock.release()
+  }
+}
+
+export async function appendToSent(client: ImapFlow, raw: Buffer) {
+  const list = await client.list()
+  const sent = specialFolder(list, '\\Sent', /sent|odeslan/i)
+  if (sent) await client.append(sent, raw, ['\\Seen'])
+}

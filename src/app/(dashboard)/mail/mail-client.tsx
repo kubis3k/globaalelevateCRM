@@ -3,6 +3,7 @@
 import { useEffect, useState, useTransition } from 'react'
 import {
   Mail, Plus, Inbox, Send, FileText, Trash2, Archive, AlertCircle, Paperclip, Loader2, RefreshCw,
+  Reply, Forward, MailOpen, PenSquare,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -13,7 +14,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { toast } from '@/components/ui/toast'
 import { confirmDialog } from '@/components/ui/confirm-dialog'
 import { cn } from '@/lib/utils'
-import { connectAccount, deleteAccount, listMailFolders, listMailMessages, getMailMessage } from './actions'
+import { connectAccount, deleteAccount, listMailFolders, listMailMessages, getMailMessage, sendMessage, markRead, deleteMessage } from './actions'
+
+type Compose = { to: string; cc: string; subject: string; body: string; inReplyTo?: string; references?: string }
 
 const selectClass = 'h-8 w-full rounded-lg border border-input bg-background px-2 text-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50'
 
@@ -42,6 +45,7 @@ export function MailClient({ accounts, canManageShared }: { accounts: Account[];
   const [loadingFolders, setLoadingFolders] = useState(false)
   const [loadingList, setLoadingList] = useState(false)
   const [loadingMsg, setLoadingMsg] = useState(false)
+  const [compose, setCompose] = useState<Compose | null>(null)
   const [, startTransition] = useTransition()
 
   // Load folders when the account changes.
@@ -76,6 +80,47 @@ export function MailClient({ accounts, canManageShared }: { accounts: Account[];
       if (res.error) { toast.error('Chyba', res.error); return }
       setOpenMsg(res.message)
       setMessages((prev) => prev.map((m) => (m.uid === uid ? { ...m, seen: true } : m)))
+    })
+  }
+
+  function quoted(m: any) {
+    return `\n\n----- Původní zpráva -----\nOd: ${m.from}\nPředmět: ${m.subject}\n\n${m.text || ''}`
+  }
+  function startReply() {
+    if (!openMsg) return
+    const refs = Array.isArray(openMsg.references) ? openMsg.references.join(' ') : (openMsg.references || '')
+    setCompose({
+      to: openMsg.from || '', cc: '',
+      subject: /^re:/i.test(openMsg.subject) ? openMsg.subject : `Re: ${openMsg.subject}`,
+      body: quoted(openMsg),
+      inReplyTo: openMsg.messageId || undefined,
+      references: `${refs} ${openMsg.messageId || ''}`.trim() || undefined,
+    })
+  }
+  function startForward() {
+    if (!openMsg) return
+    setCompose({ to: '', cc: '', subject: /^fwd:/i.test(openMsg.subject) ? openMsg.subject : `Fwd: ${openMsg.subject}`, body: quoted(openMsg) })
+  }
+  function markUnread() {
+    if (!openMsg) return
+    startTransition(async () => {
+      const res = await markRead(accountId, folder, openMsg.uid, false)
+      if (res?.error) { toast.error('Chyba', res.error); return }
+      setMessages((prev) => prev.map((m) => (m.uid === openMsg.uid ? { ...m, seen: false } : m)))
+      toast.success('Označeno jako nepřečtené')
+    })
+  }
+  async function deleteOpen() {
+    if (!openMsg) return
+    const ok = await confirmDialog({ title: 'Smazat zprávu?', description: 'Přesune se do koše.', confirmLabel: 'Smazat', destructive: true })
+    if (!ok) return
+    startTransition(async () => {
+      const res = await deleteMessage(accountId, folder, openMsg.uid)
+      if (res?.error) { toast.error('Chyba', res.error); return }
+      const uid = openMsg.uid
+      setMessages((prev) => prev.filter((m) => m.uid !== uid))
+      setOpenMsg(null)
+      toast.success('Přesunuto do koše')
     })
   }
 
@@ -129,7 +174,8 @@ export function MailClient({ accounts, canManageShared }: { accounts: Account[];
         {current && (
           <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-destructive" onClick={() => removeAccount(current)}>Odpojit</Button>
         )}
-        <Button size="sm" className="ml-auto" onClick={() => setShowConnect(true)}><Plus className="size-4" />Připojit další</Button>
+        <Button size="sm" className="ml-auto" onClick={() => setCompose({ to: '', cc: '', subject: '', body: '' })}><PenSquare className="size-4" />Napsat</Button>
+        <Button variant="outline" size="sm" onClick={() => setShowConnect(true)}><Plus className="size-4" />Připojit další</Button>
       </div>
 
       <div className="grid gap-3 lg:grid-cols-[180px_320px_1fr]">
@@ -186,6 +232,12 @@ export function MailClient({ accounts, canManageShared }: { accounts: Account[];
           ) : (
             <div className="flex h-full max-h-[70vh] flex-col">
               <div className="border-b border-border p-4">
+                <div className="mb-3 flex flex-wrap gap-1.5">
+                  <Button variant="outline" size="sm" onClick={startReply}><Reply className="size-3.5" />Odpovědět</Button>
+                  <Button variant="outline" size="sm" onClick={startForward}><Forward className="size-3.5" />Přeposlat</Button>
+                  <Button variant="ghost" size="sm" onClick={markUnread}><MailOpen className="size-3.5" />Nepřečtené</Button>
+                  <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-destructive" onClick={deleteOpen}><Trash2 className="size-3.5" />Smazat</Button>
+                </div>
                 <h3 className="text-base font-semibold text-foreground">{openMsg.subject}</h3>
                 <div className="mt-1 text-sm text-muted-foreground">Od: {openMsg.from}</div>
                 <div className="text-xs text-muted-foreground">Komu: {openMsg.to} · {new Date(openMsg.date).toLocaleString('cs-CZ')}</div>
@@ -210,7 +262,44 @@ export function MailClient({ accounts, canManageShared }: { accounts: Account[];
       </div>
 
       {showConnect && <ConnectDialog canManageShared={canManageShared} onClose={() => setShowConnect(false)} />}
+      {compose && <ComposeDialog accountId={accountId} initial={compose} onClose={() => setCompose(null)} onSent={refresh} />}
     </div>
+  )
+}
+
+function ComposeDialog({ accountId, initial, onClose, onSent }: { accountId: string; initial: Compose; onClose: () => void; onSent: () => void }) {
+  const [pending, startTransition] = useTransition()
+  const [form, setForm] = useState(initial)
+  function onSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    startTransition(async () => {
+      const res = await sendMessage(accountId, { to: form.to, cc: form.cc, subject: form.subject, body: form.body, inReplyTo: initial.inReplyTo, references: initial.references })
+      if (res?.error) { toast.error('Odeslání selhalo', res.error); return }
+      toast.success('Odesláno')
+      onClose()
+      onSent()
+    })
+  }
+  return (
+    <Dialog open onOpenChange={(o) => { if (!o) onClose() }}>
+      <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-xl">
+        <DialogHeader><DialogTitle>Nová zpráva</DialogTitle></DialogHeader>
+        <form onSubmit={onSubmit} className="space-y-3">
+          <div className="space-y-1.5"><Label className="text-xs text-muted-foreground">Komu</Label><Input value={form.to} onChange={(e) => setForm((f) => ({ ...f, to: e.target.value }))} required placeholder="prijemce@firma.cz" /></div>
+          <div className="space-y-1.5"><Label className="text-xs text-muted-foreground">Kopie (Cc)</Label><Input value={form.cc} onChange={(e) => setForm((f) => ({ ...f, cc: e.target.value }))} /></div>
+          <div className="space-y-1.5"><Label className="text-xs text-muted-foreground">Předmět</Label><Input value={form.subject} onChange={(e) => setForm((f) => ({ ...f, subject: e.target.value }))} required /></div>
+          <div className="space-y-1.5">
+            <Label className="text-xs text-muted-foreground">Zpráva</Label>
+            <textarea value={form.body} onChange={(e) => setForm((f) => ({ ...f, body: e.target.value }))} rows={10}
+              className="w-full rounded-lg border border-input bg-background p-2.5 text-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50" />
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="outline" size="lg" onClick={onClose}>Zrušit</Button>
+            <Button type="submit" size="lg" disabled={pending}><Send className="size-4" />{pending ? 'Odesílám…' : 'Odeslat'}</Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
   )
 }
 

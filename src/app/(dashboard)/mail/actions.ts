@@ -5,7 +5,10 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { canManageSharedMail } from '@/lib/permissions'
 import { encryptSecret, decryptSecret } from '@/lib/mail/crypto'
-import { withImap, listFolders, listMessages, getMessage, type MailConn } from '@/lib/mail/imap'
+import { withImap, listFolders, listMessages, getMessage, setSeen, moveToTrash, type MailConn } from '@/lib/mail/imap'
+import { sendMail } from '@/lib/mail/smtp'
+
+const escapeHtml = (s: string) => s.replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch] as string))
 
 type Ctx = { admin: ReturnType<typeof createAdminClient>; userId: string; tenantId: string; role: string }
 
@@ -114,4 +117,47 @@ export async function getMailMessage(accountId: string, folder: string, uid: num
   } catch (e: any) {
     return { error: e?.message || 'Nepodařilo se načíst zprávu.' }
   }
+}
+
+export async function sendMessage(accountId: string, payload: {
+  to: string; cc?: string; subject: string; body: string; inReplyTo?: string; references?: string
+}): Promise<{ error?: string }> {
+  const c = await getCtx(); if ('error' in c) return c
+  const acc = await loadAccount(c, accountId)
+  if (!acc) return { error: 'Schránka nenalezena.' }
+  if (!payload.to?.trim() || !payload.subject?.trim()) return { error: 'Vyplňte příjemce a předmět.' }
+  try {
+    await sendMail(
+      { email: acc.email, password: acc.password, imap_host: acc.imap_host, imap_port: acc.imap_port, smtp_host: acc.smtp_host, smtp_port: acc.smtp_port, display_name: acc.display_name },
+      {
+        to: payload.to,
+        cc: payload.cc,
+        subject: payload.subject,
+        text: payload.body || '',
+        html: payload.body ? `<div style="white-space:pre-wrap;font-family:sans-serif;font-size:14px">${escapeHtml(payload.body)}</div>` : undefined,
+        inReplyTo: payload.inReplyTo,
+        references: payload.references,
+      }
+    )
+    revalidatePath('/mail')
+    return {}
+  } catch (e: any) {
+    return { error: e?.message || 'Odeslání selhalo.' }
+  }
+}
+
+export async function markRead(accountId: string, folder: string, uid: number, seen: boolean): Promise<{ error?: string }> {
+  const c = await getCtx(); if ('error' in c) return c
+  const acc = await loadAccount(c, accountId)
+  if (!acc) return { error: 'Schránka nenalezena.' }
+  try { await withImap(acc, (client) => setSeen(client, folder, uid, seen)); return {} }
+  catch (e: any) { return { error: e?.message || 'Akce selhala.' } }
+}
+
+export async function deleteMessage(accountId: string, folder: string, uid: number): Promise<{ error?: string }> {
+  const c = await getCtx(); if ('error' in c) return c
+  const acc = await loadAccount(c, accountId)
+  if (!acc) return { error: 'Schránka nenalezena.' }
+  try { await withImap(acc, (client) => moveToTrash(client, folder, uid)); return {} }
+  catch (e: any) { return { error: e?.message || 'Smazání selhalo.' } }
 }
