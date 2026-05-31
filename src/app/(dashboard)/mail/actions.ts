@@ -54,11 +54,15 @@ export async function connectAccount(formData: FormData): Promise<{ error?: stri
   try {
     await withImap({ email, password, imap_host, imap_port }, (client) => client.list())
   } catch (e: any) {
-    const detail = e?.authenticationFailed
-      ? 'ověření odmítnuto — zkontrolujte e-mail a app-specific password (ne běžné heslo) a že je v Zoho povolen IMAP přístup'
-      : (e?.responseText || e?.serverResponseCode || e?.response || e?.code || e?.message || 'neznámá chyba')
+    const server = [e?.responseText, e?.serverResponseCode, e?.response, e?.code]
+      .filter(Boolean).join(' · ')
+    if (e?.authenticationFailed) {
+      return {
+        error: `Připojení selhalo: Zoho odmítlo přihlášení${server ? ` [${server}]` : ''}. Firemní Zoho u IMAP/SMTP většinou vyžaduje app-specific password (ne běžné heslo): accounts.zoho.eu → Security → nejdřív zapni Two-Factor Authentication, pak App Passwords → Generate → vlož vygenerovaný kód místo hesla. Ověř i, že přihlašuješ na hlavní adresu účtu (ne alias).`,
+      }
+    }
     return {
-      error: `Připojení selhalo: ${detail}. Tip: u placeného/organizačního Zoho zkuste v „Pokročilé" host imappro.zoho.eu (IMAP) a smtppro.zoho.eu (SMTP).`,
+      error: `Připojení selhalo: ${server || e?.message || 'neznámá chyba'}.`,
     }
   }
 

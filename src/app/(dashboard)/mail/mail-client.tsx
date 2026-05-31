@@ -324,7 +324,7 @@ function ConnectDialog({ canManageShared, onClose }: { canManageShared: boolean;
         <DialogHeader>
           <DialogTitle>Připojit schránku (Zoho)</DialogTitle>
           <DialogDescription>
-            Použij e-mail a <strong>app password</strong> ze Zoho (Nastavení → Zabezpečení → App Passwords). IMAP přístup musí být v Zoho povolen.
+            Firemní Zoho vyžaduje <strong>app password</strong>: na <strong>accounts.zoho.eu → Security</strong> zapni Two-Factor Authentication, pak <strong>App Passwords → Generate</strong> a vlož vygenerovaný kód místo hesla. IMAP přístup musí být v Zoho povolen.
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={onSubmit} className="space-y-3">
