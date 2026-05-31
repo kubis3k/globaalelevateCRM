@@ -11,7 +11,7 @@ const inter = Inter({
 })
 
 export const metadata: Metadata = {
-  title: "Globaal Elevate Production s.r.o.",
+  title: "Globaal Elevate Production",
   description: "Firemní ERP systém",
 }
 

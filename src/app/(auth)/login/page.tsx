@@ -37,7 +37,7 @@ export default async function LoginPage({ searchParams }: Props) {
 
         <div className="mb-7 text-center">
           <h1 className="text-base font-semibold tracking-tight text-foreground">
-            Globaal Elevate Production s.r.o.
+            Globaal Elevate Production
           </h1>
           <p className="mt-0.5 text-sm text-muted-foreground">
             Interní přihlášení do systému
@@ -77,7 +77,7 @@ export default async function LoginPage({ searchParams }: Props) {
         </div>
 
         <p className="mt-6 text-center text-xs text-muted-foreground">
-          © 2025 Globaal Elevate Production s.r.o.
+          © 2026 Globaal Elevate Production
         </p>
       </div>
     </div>
