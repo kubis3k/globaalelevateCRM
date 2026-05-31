@@ -5,6 +5,7 @@ import { Label } from '@/components/ui/label'
 import { AlertCircle } from 'lucide-react'
 import Image from 'next/image'
 import { ThemeToggle } from '@/components/ui/theme-toggle'
+import { PasswordInput } from './password-input'
 
 type Props = {
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>
@@ -17,102 +18,65 @@ export default async function LoginPage({ searchParams }: Props) {
     : null
 
   return (
-    /*
-     * bg-slate-50  → light mode (bílá/světle šedá)
-     * dark:bg-[#0d1117] → dark mode (hluboká navy)
-     */
-    <div className="relative flex min-h-screen flex-col items-center justify-center bg-slate-50 dark:bg-[#0d1117] px-4 py-12 transition-colors duration-300">
-
-      {/* Theme toggle – top right */}
-      <div className="absolute top-4 right-4">
+    <div className="relative flex min-h-dvh flex-col items-center justify-center bg-background px-4 py-12">
+      <div className="absolute right-4 top-4">
         <ThemeToggle />
       </div>
 
       <div className="w-full max-w-sm">
-
-        {/* Logo – .logo-smart handles both themes via CSS */}
-        <div className="flex justify-center mb-5">
+        <div className="mb-5 flex justify-center">
           <Image
             src="/logo.png"
             alt="Globaal Elevate"
-            width={180}
-            height={60}
+            width={176}
+            height={56}
             className="logo-smart object-contain"
             priority
           />
         </div>
 
-        {/* Company name */}
-        <div className="text-center mb-7">
-          <h1 className="text-base font-bold text-slate-900 dark:text-white tracking-tight">
+        <div className="mb-7 text-center">
+          <h1 className="text-base font-semibold tracking-tight text-foreground">
             Globaal Elevate Production s.r.o.
           </h1>
-          <p className="text-slate-500 dark:text-slate-500 text-sm mt-0.5">
+          <p className="mt-0.5 text-sm text-muted-foreground">
             Interní přihlášení do systému
           </p>
         </div>
 
-        {/* Form card */}
-        <div className="rounded-2xl border border-slate-200 dark:border-white/8 bg-white dark:bg-white/4 backdrop-blur-sm p-6 shadow-md dark:shadow-black/40">
-
+        <div className="rounded-xl border border-border bg-card p-6 shadow-sm">
           <form action={login} className="space-y-4">
             {error && (
-              <div className="flex items-center gap-3 rounded-xl bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 px-4 py-3 text-sm text-red-600 dark:text-red-400">
-                <AlertCircle className="h-4 w-4 shrink-0" />
+              <div className="flex items-center gap-2.5 rounded-lg border border-destructive/20 bg-destructive/10 px-3 py-2.5 text-sm text-destructive">
+                <AlertCircle className="size-4 shrink-0" />
                 <p>{error}</p>
               </div>
             )}
 
             <div className="space-y-1.5">
-              <Label
-                htmlFor="username"
-                className="text-sm font-medium text-slate-700 dark:text-slate-300"
-              >
-                Uživatelské jméno
-              </Label>
+              <Label htmlFor="username">Uživatelské jméno</Label>
               <Input
                 id="username"
                 name="username"
                 placeholder="např. jan.novak"
                 required
                 autoComplete="username"
-                className="h-10 rounded-lg
-                  border-slate-200 bg-white text-slate-900 placeholder:text-slate-400
-                  dark:border-white/10 dark:bg-white/6 dark:text-white dark:placeholder:text-slate-600
-                  focus-visible:ring-indigo-500 focus-visible:border-indigo-500"
+                className="h-9"
               />
             </div>
 
             <div className="space-y-1.5">
-              <Label
-                htmlFor="password"
-                className="text-sm font-medium text-slate-700 dark:text-slate-300"
-              >
-                Heslo
-              </Label>
-              <Input
-                id="password"
-                name="password"
-                type="password"
-                required
-                autoComplete="current-password"
-                className="h-10 rounded-lg
-                  border-slate-200 bg-white text-slate-900
-                  dark:border-white/10 dark:bg-white/6 dark:text-white
-                  focus-visible:ring-indigo-500 focus-visible:border-indigo-500"
-              />
+              <Label htmlFor="password">Heslo</Label>
+              <PasswordInput id="password" name="password" required autoComplete="current-password" />
             </div>
 
-            <Button
-              type="submit"
-              className="w-full h-10 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold rounded-lg shadow-sm shadow-indigo-600/20 transition-all duration-200 mt-1"
-            >
+            <Button type="submit" size="lg" className="mt-1 w-full">
               Přihlásit se
             </Button>
           </form>
         </div>
 
-        <p className="text-center text-xs text-slate-400 dark:text-slate-700 mt-6">
+        <p className="mt-6 text-center text-xs text-muted-foreground">
           © 2025 Globaal Elevate Production s.r.o.
         </p>
       </div>

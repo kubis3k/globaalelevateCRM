@@ -1,13 +1,16 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { CalendarPlus, Trash, Calendar as CalendarIcon, Clock, User, Shield, ChevronLeft, ChevronRight, Bell, AlertCircle } from 'lucide-react'
+import { CalendarPlus, Trash, Calendar as CalendarIcon, Clock, User, Shield, ChevronLeft, ChevronRight, Bell } from 'lucide-react'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { PageHeader } from '@/components/ui/page-header'
+import { confirmDialog } from '@/components/ui/confirm-dialog'
+import { toast } from '@/components/ui/toast'
 import { createEvent, deleteEvent } from '@/app/(dashboard)/calendar/actions'
 import { createClient } from '@/lib/supabase/client'
 import { cn } from '@/lib/utils'
@@ -20,420 +23,263 @@ type CalendarViewProps = {
   tenantId: string
 }
 
-const MONTHS = [
-  'Leden', 'Únor', 'Březen', 'Duben', 'Květen', 'Červen',
-  'Července', 'Srpen', 'Září', 'Říjen', 'Listopad', 'Prosinec'
-]
-
+const MONTHS = ['Leden', 'Únor', 'Březen', 'Duben', 'Květen', 'Červen', 'Července', 'Srpen', 'Září', 'Říjen', 'Listopad', 'Prosinec']
 const DAYS_OF_WEEK = ['Po', 'Út', 'St', 'Čt', 'Pá', 'So', 'Ne']
 
 const ROLE_LABELS: Record<string, string> = {
-  admin: 'Administrátor',
-  manager: 'Manažer',
-  employee: 'Zaměstnanec',
-  external: 'Externista'
+  admin: 'Administrátor', manager: 'Manažer', employee: 'Zaměstnanec', external: 'Externista',
 }
-
-const ROLE_COLORS: Record<string, { bg: string, text: string, border: string }> = {
-  admin: { bg: 'bg-red-50 dark:bg-red-950/20', text: 'text-red-700 dark:text-red-400', border: 'border-red-200 dark:border-red-900/30' },
-  manager: { bg: 'bg-amber-50 dark:bg-amber-950/20', text: 'text-amber-700 dark:text-amber-400', border: 'border-amber-200 dark:border-amber-900/30' },
-  employee: { bg: 'bg-emerald-50 dark:bg-emerald-950/20', text: 'text-emerald-700 dark:text-emerald-400', border: 'border-emerald-200 dark:border-emerald-900/30' },
-  external: { bg: 'bg-zinc-50 dark:bg-zinc-800/40', text: 'text-zinc-700 dark:text-zinc-400', border: 'border-zinc-200 dark:border-zinc-850' }
+const ROLE_CHIP: Record<string, string> = {
+  admin: 'bg-destructive/10 text-destructive border-destructive/20',
+  manager: 'bg-warning/15 text-warning-foreground border-warning/25 dark:text-warning',
+  employee: 'bg-success/12 text-success border-success/20',
+  external: 'bg-muted text-muted-foreground border-border',
 }
 
 export function CalendarView({ initialEvents, teamMembers, currentUserId, currentUserRole, tenantId }: CalendarViewProps) {
   const supabase = createClient()
   const [events, setEvents] = useState(initialEvents)
   const [currentDate, setCurrentDate] = useState(new Date())
-  const [selectedDayEvents, setSelectedDayEvents] = useState<any[]>([])
-  const [selectedDateStr, setSelectedDateStr] = useState<string>('')
+  const [selectedDateStr, setSelectedDateStr] = useState('')
   const [isOpen, setIsOpen] = useState(false)
   const [isDetailOpen, setIsDetailOpen] = useState(false)
   const [activeEventDetail, setActiveEventDetail] = useState<any>(null)
-  
-  // States for the add form
   const [formLoading, setFormLoading] = useState(false)
-  const [formError, setFormError] = useState('')
   const [selectedStartTime, setSelectedStartTime] = useState('')
   const [selectedEndTime, setSelectedEndTime] = useState('')
-
-  // Notifications Permission
   const [notificationPermission, setNotificationPermission] = useState('default')
 
   useEffect(() => {
-    if (typeof window !== 'undefined' && 'Notification' in window) {
-      setNotificationPermission(Notification.permission)
-    }
+    if (typeof window !== 'undefined' && 'Notification' in window) setNotificationPermission(Notification.permission)
   }, [])
 
   const requestNotificationPermission = async () => {
     if (typeof window !== 'undefined' && 'Notification' in window) {
-      const permission = await Notification.requestPermission()
-      setNotificationPermission(permission)
+      setNotificationPermission(await Notification.requestPermission())
     }
   }
 
   const triggerLocalNotification = (title: string, body: string) => {
     if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
-      new window.Notification(title, {
-        body,
-        icon: '/favicon.ico'
-      })
+      new window.Notification(title, { body, icon: '/favicon.ico' })
     }
   }
 
-  // Subscribe to Realtime database changes
-  useEffect(() => {
-    setEvents(initialEvents)
-  }, [initialEvents])
+  useEffect(() => { setEvents(initialEvents) }, [initialEvents])
 
   useEffect(() => {
     const channel = supabase
       .channel('calendar-realtime-changes')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'calendar_events', filter: `tenant_id=eq.${tenantId}` },
-        (payload) => {
-          if (payload.eventType === 'INSERT') {
-            const newEvent = payload.new
-            setEvents(prev => {
-              if (prev.some(e => e.id === newEvent.id)) return prev
-              return [...prev, newEvent].sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime())
-            })
-
-            // Check if user is assigned or role is assigned and trigger notification
-            const isAssignedToMe = newEvent.assigned_to === currentUserId
-            const isAssignedToMyRole = newEvent.assigned_role === currentUserRole
-
-            if (isAssignedToMe || isAssignedToMyRole) {
-              triggerLocalNotification(
-                `Nová událost: ${newEvent.title}`,
-                newEvent.description || 'Byla vám přiřazena nová událost v kalendáři.'
-              )
-            }
-          } else if (payload.eventType === 'DELETE') {
-            setEvents(prev => prev.filter(e => e.id !== payload.old.id))
-          } else if (payload.eventType === 'UPDATE') {
-            setEvents(prev => prev.map(e => e.id === payload.new.id ? { ...e, ...payload.new } : e))
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'calendar_events', filter: `tenant_id=eq.${tenantId}` }, (payload) => {
+        if (payload.eventType === 'INSERT') {
+          const newEvent = payload.new
+          setEvents((prev) => (prev.some((e) => e.id === newEvent.id) ? prev : [...prev, newEvent].sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime())))
+          if (newEvent.assigned_to === currentUserId || newEvent.assigned_role === currentUserRole) {
+            triggerLocalNotification(`Nová událost: ${newEvent.title}`, newEvent.description || 'Byla vám přiřazena nová událost v kalendáři.')
           }
+        } else if (payload.eventType === 'DELETE') {
+          setEvents((prev) => prev.filter((e) => e.id !== payload.old.id))
+        } else if (payload.eventType === 'UPDATE') {
+          setEvents((prev) => prev.map((e) => (e.id === payload.new.id ? { ...e, ...payload.new } : e)))
         }
-      )
+      })
       .subscribe()
-
-    return () => {
-      supabase.removeChannel(channel)
-    }
+    return () => { supabase.removeChannel(channel) }
   }, [supabase, tenantId, currentUserId, currentUserRole])
 
-  // Calendar dates generation logic
   const year = currentDate.getFullYear()
   const month = currentDate.getMonth()
-
   const getDaysInMonth = (y: number, m: number) => new Date(y, m + 1, 0).getDate()
   const getFirstDayOfMonth = (y: number, m: number) => {
     const day = new Date(y, m, 1).getDay()
-    return day === 0 ? 6 : day - 1 // Make Monday = 0
+    return day === 0 ? 6 : day - 1
   }
-
   const daysInMonth = getDaysInMonth(year, month)
   const firstDayIndex = getFirstDayOfMonth(year, month)
-
   const prevMonthDays = getDaysInMonth(year, month - 1)
-  const calendarCells = []
-
-  // Add previous month filler days
-  for (let i = firstDayIndex - 1; i >= 0; i--) {
-    calendarCells.push({
-      day: prevMonthDays - i,
-      isCurrentMonth: false,
-      date: new Date(year, month - 1, prevMonthDays - i)
-    })
-  }
-
-  // Add current month days
-  for (let i = 1; i <= daysInMonth; i++) {
-    calendarCells.push({
-      day: i,
-      isCurrentMonth: true,
-      date: new Date(year, month, i)
-    })
-  }
-
-  // Add next month filler days
-  const totalCells = 42 // 6 rows of 7 days
-  const nextDaysCount = totalCells - calendarCells.length
-  for (let i = 1; i <= nextDaysCount; i++) {
-    calendarCells.push({
-      day: i,
-      isCurrentMonth: false,
-      date: new Date(year, month + 1, i)
-    })
-  }
-
-  const handlePrevMonth = () => {
-    setCurrentDate(new Date(year, month - 1, 1))
-  }
-
-  const handleNextMonth = () => {
-    setCurrentDate(new Date(year, month + 1, 1))
-  }
-
-  const handleToday = () => {
-    setCurrentDate(new Date())
-  }
+  const calendarCells: { day: number; isCurrentMonth: boolean; date: Date }[] = []
+  for (let i = firstDayIndex - 1; i >= 0; i--) calendarCells.push({ day: prevMonthDays - i, isCurrentMonth: false, date: new Date(year, month - 1, prevMonthDays - i) })
+  for (let i = 1; i <= daysInMonth; i++) calendarCells.push({ day: i, isCurrentMonth: true, date: new Date(year, month, i) })
+  for (let i = 1; i <= 42 - calendarCells.length; i++) calendarCells.push({ day: i, isCurrentMonth: false, date: new Date(year, month + 1, i) })
 
   const isToday = (date: Date) => {
-    const today = new Date()
-    return date.getDate() === today.getDate() &&
-      date.getMonth() === today.getMonth() &&
-      date.getFullYear() === today.getFullYear()
+    const t = new Date()
+    return date.getDate() === t.getDate() && date.getMonth() === t.getMonth() && date.getFullYear() === t.getFullYear()
   }
-
-  const getEventsForDay = (date: Date) => {
-    return events.filter(e => {
-      const eventDate = new Date(e.start_time)
-      return eventDate.getDate() === date.getDate() &&
-        eventDate.getMonth() === date.getMonth() &&
-        eventDate.getFullYear() === date.getFullYear()
+  const getEventsForDay = (date: Date) =>
+    events.filter((e) => {
+      const d = new Date(e.start_time)
+      return d.getDate() === date.getDate() && d.getMonth() === date.getMonth() && d.getFullYear() === date.getFullYear()
     })
-  }
 
   const handleDayClick = (cellDate: Date) => {
-    const dayEvents = getEventsForDay(cellDate)
-    setSelectedDayEvents(dayEvents)
-    
-    // Format date string for the form
-    const localDateStr = cellDate.toLocaleDateString('cs-CZ', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
-    setSelectedDateStr(localDateStr)
-    
-    // Pre-populate datetime fields
+    setSelectedDateStr(cellDate.toLocaleDateString('cs-CZ', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }))
     const datePart = cellDate.toISOString().split('T')[0]
     setSelectedStartTime(`${datePart}T09:00`)
     setSelectedEndTime(`${datePart}T10:00`)
-    
     setIsOpen(true)
   }
 
-  const handleEventClick = (e: any, ev: any) => {
-    e.stopPropagation() // Prevent day click trigger
+  const handleEventClick = (e: React.MouseEvent, ev: any) => {
+    e.stopPropagation()
     setActiveEventDetail(ev)
     setIsDetailOpen(true)
   }
 
   const handleAddEvent = async (formData: FormData) => {
     setFormLoading(true)
-    setFormError('')
     try {
       await createEvent(formData)
+      toast.success('Událost uložena')
       setIsOpen(false)
-      // Local state is updated via Supabase Realtime channel automatically
     } catch (e: any) {
-      setFormError(e.message || 'Chyba při ukládání události.')
+      toast.error('Chyba', e?.message || 'Událost se nepodařilo uložit.')
+    } finally {
       setFormLoading(false)
     }
   }
 
   const handleDelete = async (id: string) => {
-    if (confirm('Opravdu chcete tuto událost smazat?')) {
-      try {
-        await deleteEvent(id)
-        setIsDetailOpen(false)
-        setActiveEventDetail(null)
-      } catch (err: any) {
-        alert(err.message || 'Událost se nepodařilo smazat.')
-      }
+    const ok = await confirmDialog({ title: 'Smazat událost?', description: 'Tato akce je nevratná.', confirmLabel: 'Smazat', destructive: true })
+    if (!ok) return
+    try {
+      await deleteEvent(id)
+      toast.success('Událost smazána')
+      setIsDetailOpen(false)
+      setActiveEventDetail(null)
+    } catch (err: any) {
+      toast.error('Chyba', err?.message || 'Událost se nepodařilo smazat.')
     }
   }
 
   return (
     <div className="space-y-6">
-      {/* Top action header */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div>
-          <h2 className="text-2xl font-bold tracking-tight">Sdílený kalendář</h2>
-          <p className="text-zinc-500">Události, úkoly a deadliny vaší firmy.</p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          {notificationPermission !== 'granted' && (
-            <Button variant="outline" onClick={requestNotificationPermission} className="border-indigo-200 text-indigo-700 hover:bg-indigo-50 dark:border-indigo-900/50 dark:text-indigo-400 dark:hover:bg-indigo-950/20">
-              <Bell className="mr-2 h-4 w-4 animate-bounce" />
-              Povolit notifikace
-            </Button>
-          )}
-          
-          <Dialog open={isOpen} onOpenChange={setIsOpen}>
-            <DialogTrigger asChild>
-              <Button onClick={() => handleDayClick(new Date())} className="bg-indigo-600 hover:bg-indigo-700 shadow-sm">
-                <CalendarPlus className="mr-2 h-4 w-4" />
-                Nová událost
+      <PageHeader title="Sdílený kalendář" description="Události, úkoly a deadliny vaší firmy.">
+        {notificationPermission !== 'granted' && (
+          <Button variant="outline" size="lg" onClick={requestNotificationPermission}>
+            <Bell className="size-4" />
+            Povolit notifikace
+          </Button>
+        )}
+        <Dialog open={isOpen} onOpenChange={setIsOpen}>
+          <DialogTrigger render={<Button size="lg" onClick={() => handleDayClick(new Date())} />}>
+            <CalendarPlus className="size-4" />
+            Nová událost
+          </DialogTrigger>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Naplánovat událost</DialogTitle>
+              <DialogDescription>{selectedDateStr ? `Vybrané datum: ${selectedDateStr}` : 'Zadejte podrobnosti události.'}</DialogDescription>
+            </DialogHeader>
+            <form action={handleAddEvent} className="space-y-4 pt-1">
+              <div className="space-y-1.5">
+                <Label htmlFor="title">Název události / úkolu</Label>
+                <Input id="title" name="title" required placeholder="Např. Porada týmu" />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="description">Popis</Label>
+                <Input id="description" name="description" placeholder="Detaily…" />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label htmlFor="start_time">Začátek</Label>
+                  <Input id="start_time" name="start_time" type="datetime-local" required value={selectedStartTime} onChange={(e) => setSelectedStartTime(e.target.value)} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="end_time">Konec</Label>
+                  <Input id="end_time" name="end_time" type="datetime-local" required value={selectedEndTime} onChange={(e) => setSelectedEndTime(e.target.value)} />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label htmlFor="assigned_to">Člen týmu (volitelné)</Label>
+                  <Select name="assigned_to">
+                    <SelectTrigger className="w-full"><SelectValue placeholder="Vyberte člena" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Nepřiřazovat</SelectItem>
+                      {teamMembers.map((u) => (
+                        <SelectItem key={u.user_id} value={u.user_id}>{u.profiles?.full_name || u.profiles?.username}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="assigned_role">Role firmy (volitelné)</Label>
+                  <Select name="assigned_role">
+                    <SelectTrigger className="w-full"><SelectValue placeholder="Vyberte roli" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Nepřiřazovat</SelectItem>
+                      {Object.entries(ROLE_LABELS).map(([key, label]) => (
+                        <SelectItem key={key} value={key}>{label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <Button type="submit" size="lg" className="mt-1 w-full" disabled={formLoading}>
+                {formLoading ? 'Ukládám…' : 'Uložit událost'}
               </Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-[450px]">
-              <DialogHeader>
-                <DialogTitle>Naplánovat událost</DialogTitle>
-                <DialogDescription>
-                  {selectedDateStr ? `Vybrané datum: ${selectedDateStr}` : 'Zadejte podrobnosti události.'}
-                </DialogDescription>
-              </DialogHeader>
-              
-              <form action={handleAddEvent} className="space-y-4 pt-2">
-                {formError && <div className="text-sm text-red-600 bg-red-50 dark:bg-red-950/20 p-3 rounded-lg font-medium border border-red-150 dark:border-red-900/30 flex items-center gap-2"><AlertCircle className="h-4 w-4"/> {formError}</div>}
-                
-                <div className="space-y-1.5">
-                  <Label htmlFor="title">Název události / Úkolu</Label>
-                  <Input id="title" name="title" required placeholder="Např. Porada týmu" className="focus-visible:ring-indigo-600" />
-                </div>
+            </form>
+          </DialogContent>
+        </Dialog>
+      </PageHeader>
 
-                <div className="space-y-1.5">
-                  <Label htmlFor="description">Popis</Label>
-                  <Input id="description" name="description" placeholder="Detaily..." className="focus-visible:ring-indigo-600" />
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-1.5">
-                    <Label htmlFor="start_time">Začátek</Label>
-                    <Input 
-                      id="start_time" 
-                      name="start_time" 
-                      type="datetime-local" 
-                      required 
-                      value={selectedStartTime}
-                      onChange={(e) => setSelectedStartTime(e.target.value)}
-                      className="focus-visible:ring-indigo-600" 
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label htmlFor="end_time">Konec</Label>
-                    <Input 
-                      id="end_time" 
-                      name="end_time" 
-                      type="datetime-local" 
-                      required 
-                      value={selectedEndTime}
-                      onChange={(e) => setSelectedEndTime(e.target.value)}
-                      className="focus-visible:ring-indigo-600" 
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-1.5">
-                    <Label htmlFor="assigned_to">Člen týmu (Volitelné)</Label>
-                    <Select name="assigned_to">
-                      <SelectTrigger className="focus-visible:ring-indigo-600">
-                        <SelectValue placeholder="Vyberte člena" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none">Nepřiřazovat</SelectItem>
-                        {teamMembers.map(u => (
-                          <SelectItem key={u.user_id} value={u.user_id}>{u.profiles?.full_name || u.profiles?.username}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label htmlFor="assigned_role">Role firmy (Volitelné)</Label>
-                    <Select name="assigned_role">
-                      <SelectTrigger className="focus-visible:ring-indigo-600">
-                        <SelectValue placeholder="Vyberte roli" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none">Nepřiřazovat</SelectItem>
-                        {Object.entries(ROLE_LABELS).map(([key, label]) => (
-                          <SelectItem key={key} value={key}>{label}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-
-                <Button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-700 mt-2" disabled={formLoading}>
-                  {formLoading ? 'Ukládám...' : 'Uložit událost'}
-                </Button>
-              </form>
-            </DialogContent>
-          </Dialog>
-        </div>
-      </div>
-
-      {/* Calendar layout card */}
-      <Card className="shadow-sm border-zinc-200 dark:border-zinc-800">
-        {/* Navigation Toolbar */}
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4 border-b border-zinc-100 dark:border-zinc-850">
-          <div className="flex items-center gap-1.5">
-            <span className="text-xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">
-              {MONTHS[month]} {year}
-            </span>
-          </div>
+      <Card className="overflow-hidden">
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 border-b border-border pb-4">
+          <span className="text-lg font-semibold tracking-tight text-foreground">{MONTHS[month]} {year}</span>
           <div className="flex items-center gap-1">
-            <Button variant="outline" size="sm" onClick={handleToday} className="h-8 text-xs font-semibold">Dnes</Button>
-            <div className="flex border rounded-md">
-              <Button variant="ghost" size="icon" onClick={handlePrevMonth} className="h-8 w-8 rounded-r-none border-r"><ChevronLeft className="h-4 w-4"/></Button>
-              <Button variant="ghost" size="icon" onClick={handleNextMonth} className="h-8 w-8 rounded-l-none"><ChevronRight className="h-4 w-4"/></Button>
+            <Button variant="outline" size="sm" onClick={() => setCurrentDate(new Date())}>Dnes</Button>
+            <div className="flex overflow-hidden rounded-lg border border-border">
+              <Button variant="ghost" size="icon-sm" aria-label="Předchozí měsíc" onClick={() => setCurrentDate(new Date(year, month - 1, 1))} className="rounded-none border-r border-border"><ChevronLeft className="size-4" /></Button>
+              <Button variant="ghost" size="icon-sm" aria-label="Další měsíc" onClick={() => setCurrentDate(new Date(year, month + 1, 1))} className="rounded-none"><ChevronRight className="size-4" /></Button>
             </div>
           </div>
         </CardHeader>
         <CardContent className="p-0">
-          {/* Day Names Grid */}
-          <div className="grid grid-cols-7 text-center font-semibold text-xs border-b bg-zinc-50/50 dark:bg-zinc-900/20 py-2.5 text-zinc-500">
-            {DAYS_OF_WEEK.map(d => (
-              <div key={d}>{d}</div>
-            ))}
+          <div className="grid grid-cols-7 border-b border-border bg-muted/40 py-2 text-center text-xs font-semibold text-muted-foreground">
+            {DAYS_OF_WEEK.map((d) => <div key={d}>{d}</div>)}
           </div>
-
-          {/* Month Grid Cells */}
-          <div className="grid grid-cols-7 bg-zinc-200 dark:bg-zinc-850 gap-[1px]">
+          <div className="grid grid-cols-7 gap-px bg-border">
             {calendarCells.map((cell, index) => {
               const dayEvents = getEventsForDay(cell.date)
               const cellIsToday = isToday(cell.date)
-
               return (
-                <div 
-                  key={index} 
+                <div
+                  key={index}
                   onClick={() => handleDayClick(cell.date)}
                   className={cn(
-                    "min-h-[100px] sm:min-h-[120px] p-2 bg-white dark:bg-[#0d1117]/60 hover:bg-zinc-50 dark:hover:bg-white/4 flex flex-col cursor-pointer transition-colors duration-150 group",
-                    !cell.isCurrentMonth && "text-zinc-300 dark:text-zinc-700 bg-zinc-50/30 dark:bg-zinc-900/10"
+                    'group flex min-h-[100px] cursor-pointer flex-col bg-card p-2 transition-colors hover:bg-muted/50 sm:min-h-[120px]',
+                    !cell.isCurrentMonth && 'bg-muted/30'
                   )}
                 >
-                  <div className="flex items-center justify-between mb-1">
+                  <div className="mb-1 flex items-center justify-between">
                     <span className={cn(
-                      "text-xs font-semibold flex items-center justify-center h-6 w-6 rounded-full transition-transform group-hover:scale-105",
-                      cellIsToday 
-                        ? "bg-indigo-600 text-white shadow-sm" 
-                        : cell.isCurrentMonth ? "text-zinc-900 dark:text-zinc-150" : "text-zinc-400 dark:text-zinc-700"
+                      'flex size-6 items-center justify-center rounded-full text-xs font-semibold',
+                      cellIsToday ? 'bg-primary text-primary-foreground' : cell.isCurrentMonth ? 'text-foreground' : 'text-muted-foreground/50'
                     )}>
                       {cell.day}
                     </span>
                     {dayEvents.length > 0 && (
-                      <span className="text-[10px] text-zinc-400 font-medium sm:block hidden">
+                      <span className="hidden text-[10px] font-medium text-muted-foreground sm:block">
                         {dayEvents.length} {dayEvents.length === 1 ? 'akce' : dayEvents.length < 5 ? 'akce' : 'akcí'}
                       </span>
                     )}
                   </div>
-                  
-                  {/* Event list preview */}
-                  <div className="space-y-1 flex-1 overflow-y-auto max-h-[70px] sm:max-h-[90px] pr-0.5">
-                    {dayEvents.slice(0, 3).map(ev => {
-                      const roleColor = ev.assigned_role ? ROLE_COLORS[ev.assigned_role] : null
-
-                      return (
-                        <div 
-                          key={ev.id}
-                          onClick={(e) => handleEventClick(e, ev)}
-                          className={cn(
-                            "text-[10px] px-1.5 py-0.5 rounded border truncate transition-all hover:translate-x-0.5 shadow-sm font-medium",
-                            roleColor 
-                              ? `${roleColor.bg} ${roleColor.text} ${roleColor.border}`
-                              : "bg-slate-50 text-slate-800 border-slate-200 dark:bg-slate-900/30 dark:text-slate-350 dark:border-slate-800"
-                          )}
-                        >
-                          {ev.title}
-                        </div>
-                      )
-                    })}
+                  <div className="max-h-[70px] flex-1 space-y-1 overflow-y-auto pr-0.5 sm:max-h-[90px]">
+                    {dayEvents.slice(0, 3).map((ev) => (
+                      <div
+                        key={ev.id}
+                        onClick={(e) => handleEventClick(e, ev)}
+                        className={cn(
+                          'truncate rounded border px-1.5 py-0.5 text-[10px] font-medium transition-transform hover:translate-x-0.5',
+                          ev.assigned_role ? ROLE_CHIP[ev.assigned_role] : 'border-border bg-muted text-foreground'
+                        )}
+                      >
+                        {ev.title}
+                      </div>
+                    ))}
                     {dayEvents.length > 3 && (
-                      <div className="text-[9px] font-semibold text-indigo-600 dark:text-indigo-400 pl-1 text-center bg-indigo-50/50 dark:bg-indigo-950/20 rounded py-0.5">
+                      <div className="rounded bg-primary/10 py-0.5 text-center text-[9px] font-semibold text-primary">
                         + {dayEvents.length - 3} další
                       </div>
                     )}
@@ -445,67 +291,55 @@ export function CalendarView({ initialEvents, teamMembers, currentUserId, curren
         </CardContent>
       </Card>
 
-      {/* Event Details dialog */}
       <Dialog open={isDetailOpen} onOpenChange={setIsDetailOpen}>
-        <DialogContent className="sm:max-w-[400px]">
+        <DialogContent className="sm:max-w-md">
           {activeEventDetail && (
             <>
               <DialogHeader>
-                <DialogTitle className="text-lg font-bold">{activeEventDetail.title}</DialogTitle>
-                <DialogDescription>
-                  Detail naplánované události.
-                </DialogDescription>
+                <DialogTitle>{activeEventDetail.title}</DialogTitle>
+                <DialogDescription>Detail naplánované události.</DialogDescription>
               </DialogHeader>
-              <div className="space-y-4 py-2 text-sm">
-                <div className="flex items-start gap-3 bg-zinc-50 dark:bg-zinc-900/30 p-3 rounded-lg border">
-                  <div className="text-zinc-500 font-medium">Popis:</div>
-                  <div className="text-zinc-800 dark:text-zinc-200">{activeEventDetail.description || 'Bez popisu'}</div>
+              <div className="space-y-4 text-sm">
+                <div className="rounded-lg border border-border bg-muted/40 p-3">
+                  <div className="text-xs font-medium text-muted-foreground">Popis</div>
+                  <div className="mt-0.5 text-foreground">{activeEventDetail.description || 'Bez popisu'}</div>
                 </div>
-
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1">
-                    <div className="text-zinc-400 font-medium text-xs flex items-center gap-1"><CalendarIcon className="h-3.5 w-3.5"/> Datum</div>
-                    <div className="font-semibold">{new Date(activeEventDetail.start_time).toLocaleDateString('cs-CZ')}</div>
+                    <div className="flex items-center gap-1 text-xs font-medium text-muted-foreground"><CalendarIcon className="size-3.5" /> Datum</div>
+                    <div className="font-semibold tabular-nums text-foreground">{new Date(activeEventDetail.start_time).toLocaleDateString('cs-CZ')}</div>
                   </div>
                   <div className="space-y-1">
-                    <div className="text-zinc-400 font-medium text-xs flex items-center gap-1"><Clock className="h-3.5 w-3.5"/> Čas</div>
-                    <div className="font-semibold">
-                      {new Date(activeEventDetail.start_time).toLocaleTimeString('cs-CZ', { hour: '2-digit', minute: '2-digit' })} - 
-                      {new Date(activeEventDetail.end_time).toLocaleTimeString('cs-CZ', { hour: '2-digit', minute: '2-digit' })}
+                    <div className="flex items-center gap-1 text-xs font-medium text-muted-foreground"><Clock className="size-3.5" /> Čas</div>
+                    <div className="font-semibold tabular-nums text-foreground">
+                      {new Date(activeEventDetail.start_time).toLocaleTimeString('cs-CZ', { hour: '2-digit', minute: '2-digit' })} – {new Date(activeEventDetail.end_time).toLocaleTimeString('cs-CZ', { hour: '2-digit', minute: '2-digit' })}
                     </div>
                   </div>
                 </div>
-
-                <div className="grid grid-cols-2 gap-4 pt-2 border-t">
-                  {activeEventDetail.assigned_to && (
-                    <div className="space-y-1">
-                      <div className="text-zinc-400 font-medium text-xs flex items-center gap-1"><User className="h-3.5 w-3.5"/> Uživatel</div>
-                      <div className="font-medium bg-slate-50 dark:bg-slate-900/50 px-2.5 py-1 rounded border text-xs">
-                        {teamMembers.find(t => t.user_id === activeEventDetail.assigned_to)?.profiles?.full_name || 'Načítám...'}
+                {(activeEventDetail.assigned_to || activeEventDetail.assigned_role) && (
+                  <div className="grid grid-cols-2 gap-4 border-t border-border pt-3">
+                    {activeEventDetail.assigned_to && (
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-1 text-xs font-medium text-muted-foreground"><User className="size-3.5" /> Uživatel</div>
+                        <div className="w-fit rounded-md border border-border bg-muted px-2 py-0.5 text-xs font-medium text-foreground">
+                          {teamMembers.find((t) => t.user_id === activeEventDetail.assigned_to)?.profiles?.full_name || '—'}
+                        </div>
                       </div>
-                    </div>
-                  )}
-
-                  {activeEventDetail.assigned_role && (
-                    <div className="space-y-1">
-                      <div className="text-zinc-400 font-medium text-xs flex items-center gap-1"><Shield className="h-3.5 w-3.5"/> Role</div>
-                      <div className={cn(
-                        "font-medium px-2.5 py-1 rounded border text-xs w-fit",
-                        ROLE_COLORS[activeEventDetail.assigned_role]?.bg,
-                        ROLE_COLORS[activeEventDetail.assigned_role]?.text,
-                        ROLE_COLORS[activeEventDetail.assigned_role]?.border
-                      )}>
-                        {ROLE_LABELS[activeEventDetail.assigned_role]}
+                    )}
+                    {activeEventDetail.assigned_role && (
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-1 text-xs font-medium text-muted-foreground"><Shield className="size-3.5" /> Role</div>
+                        <div className={cn('w-fit rounded-md border px-2 py-0.5 text-xs font-medium', ROLE_CHIP[activeEventDetail.assigned_role])}>
+                          {ROLE_LABELS[activeEventDetail.assigned_role]}
+                        </div>
                       </div>
-                    </div>
-                  )}
-                </div>
-
-                <div className="flex gap-2 pt-3 border-t justify-end">
+                    )}
+                  </div>
+                )}
+                <div className="flex justify-end gap-2 border-t border-border pt-3">
                   <Button variant="outline" size="sm" onClick={() => setIsDetailOpen(false)}>Zavřít</Button>
                   <Button variant="destructive" size="sm" onClick={() => handleDelete(activeEventDetail.id)}>
-                    <Trash className="mr-1.5 h-3.5 w-3.5" />
-                    Smazat
+                    <Trash className="size-3.5" /> Smazat
                   </Button>
                 </div>
               </div>

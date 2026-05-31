@@ -1,27 +1,23 @@
 import { requireModuleAccess } from '@/lib/supabase/tenant'
 import { NoTenantView } from '@/components/ui/no-tenant-view'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
-import { DollarSign, FileText, Users, Calendar } from 'lucide-react'
+import { StatCard } from '@/components/ui/stat-card'
+import { EmptyState } from '@/components/ui/empty-state'
+import { DollarSign, FileText, Users, Calendar, ArrowDownLeft, ArrowUpRight, Activity } from 'lucide-react'
 import { CashflowChart } from '../finance/cashflow-chart'
+
+const czk = (n: number) =>
+  new Intl.NumberFormat('cs-CZ', { style: 'currency', currency: 'CZK', maximumFractionDigits: 0 }).format(n)
 
 export default async function DashboardPage() {
   const { supabase, tenantId } = await requireModuleAccess('dashboard')
-  
-  if (!tenantId) {
-    return <NoTenantView />
-  }
+  if (!tenantId) return <NoTenantView />
 
-  // Data fetching safely
-  const [
-    teamResult,
-    invoicesResult,
-    upcomingTasksResult,
-    transactionsResult
-  ] = await Promise.all([
+  const [teamResult, invoicesResult, upcomingTasksResult, transactionsResult] = await Promise.all([
     supabase.from('tenant_users').select('*', { count: 'exact', head: true }).eq('tenant_id', tenantId),
     supabase.from('invoices').select('amount, status, type').eq('tenant_id', tenantId),
     supabase.from('calendar_events').select('*', { count: 'exact', head: true }).eq('tenant_id', tenantId).gte('start_time', new Date().toISOString()),
-    supabase.from('transactions').select('amount, type, date').eq('tenant_id', tenantId).order('date', { ascending: true })
+    supabase.from('transactions').select('amount, type, date, description').eq('tenant_id', tenantId).order('date', { ascending: true }),
   ])
 
   const teamCount = teamResult.count || 0
@@ -29,75 +25,69 @@ export default async function DashboardPage() {
   const upcomingTasks = upcomingTasksResult.count || 0
   const transactions = transactionsResult.data || []
 
-  // Invoices processing
   const unpaidInvoices = invoices.filter((i: any) => i.status === 'pending' || i.status === 'overdue').length
-
-  // Finance processing
-  const totalIncome = transactions.filter((t: any) => t.type === 'income').reduce((acc: number, t: any) => acc + Number(t.amount), 0)
-  const totalExpense = transactions.filter((t: any) => t.type === 'expense').reduce((acc: number, t: any) => acc + Number(t.amount), 0)
+  const totalIncome = transactions.filter((t: any) => t.type === 'income').reduce((a: number, t: any) => a + Number(t.amount), 0)
+  const totalExpense = transactions.filter((t: any) => t.type === 'expense').reduce((a: number, t: any) => a + Number(t.amount), 0)
   const balance = totalIncome - totalExpense
+  const recent = [...transactions].slice(-6).reverse()
 
   return (
     <div className="space-y-6">
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <StatCard title="Zůstatek Cash-flow" value={`${new Intl.NumberFormat('cs-CZ', { style: 'currency', currency: 'CZK' }).format(balance)}`} description="Dle aktuálních transakcí" icon={<DollarSign className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />} />
-        <StatCard title="Nezaplacené faktury" value={unpaidInvoices.toString()} description={unpaidInvoices === 0 ? "Vše uhrazeno" : "Vyžaduje vaši pozornost"} icon={<FileText className={unpaidInvoices > 0 ? "h-4 w-4 text-rose-600 dark:text-rose-400" : "h-4 w-4 text-emerald-600 dark:text-emerald-400"} />} />
-        <StatCard title="Aktivní zaměstnanci" value={(teamCount || 0).toString()} description="Správa týmu" icon={<Users className="h-4 w-4 text-amber-600 dark:text-amber-400" />} />
-        <StatCard title="Nadcházející úkoly" value={(upcomingTasks || 0).toString()} description="V kalendáři" icon={<Calendar className="h-4 w-4 text-blue-600 dark:text-blue-400" />} />
+      <div className="space-y-0.5">
+        <h1 className="text-xl font-semibold tracking-tight text-foreground">Přehled</h1>
+        <p className="text-sm text-muted-foreground">Souhrn klíčových ukazatelů vaší organizace.</p>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
-        <Card className="col-span-4 shadow-sm border-zinc-200 dark:border-zinc-800">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <StatCard title="Zůstatek cash-flow" value={czk(balance)} hint="Dle aktuálních transakcí" tone={balance >= 0 ? 'neutral' : 'negative'} icon={<DollarSign className="size-4" />} />
+        <StatCard title="Nezaplacené faktury" value={String(unpaidInvoices)} hint={unpaidInvoices === 0 ? 'Vše uhrazeno' : 'Vyžaduje pozornost'} icon={<FileText className="size-4" />} />
+        <StatCard title="Aktivní zaměstnanci" value={String(teamCount)} hint="Správa týmu" icon={<Users className="size-4" />} />
+        <StatCard title="Nadcházející úkoly" value={String(upcomingTasks)} hint="V kalendáři" icon={<Calendar className="size-4" />} />
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-7">
+        <Card className="lg:col-span-4">
           <CardHeader>
-            <CardTitle>Cash Flow přehled</CardTitle>
+            <CardTitle>Cash-flow přehled</CardTitle>
+            <CardDescription>Vývoj kumulativního zůstatku v čase</CardDescription>
           </CardHeader>
           <CardContent>
-            <CashflowChart data={transactions || []} />
+            <CashflowChart data={transactions} />
           </CardContent>
         </Card>
-        
-        <Card className="col-span-3 shadow-sm border-zinc-200 dark:border-zinc-800 flex flex-col">
+
+        <Card className="lg:col-span-3">
           <CardHeader>
             <CardTitle>Poslední transakce</CardTitle>
             <CardDescription>Nejnovější pohyby na účtu</CardDescription>
           </CardHeader>
-          <CardContent className="flex-1">
-            <div className="space-y-4">
-              {transactions?.slice(-5).reverse().map((t: any, i: number) => (
-                <div key={i} className="flex items-center justify-between border-b border-zinc-100 dark:border-zinc-800 pb-2 last:border-0">
-                  <div className="flex flex-col">
-                    <span className="text-sm font-medium text-zinc-900 dark:text-zinc-100">{t.type === 'income' ? 'Příjem' : 'Výdaj'}</span>
-                    <span className="text-xs text-zinc-500">{new Date(t.date).toLocaleDateString('cs-CZ')}</span>
-                  </div>
-                  <span className={`text-sm font-bold ${t.type === 'income' ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
-                    {t.type === 'income' ? '+' : '-'}{new Intl.NumberFormat('cs-CZ', { style: 'currency', currency: 'CZK' }).format(t.amount)}
-                  </span>
-                </div>
-              ))}
-              {!transactions || transactions.length === 0 && (
-                <div className="text-sm text-zinc-500 text-center py-4">Zatím žádné transakce</div>
-              )}
-            </div>
+          <CardContent>
+            {recent.length === 0 ? (
+              <EmptyState icon={Activity} title="Zatím žádné transakce" />
+            ) : (
+              <div className="divide-y divide-border">
+                {recent.map((t: any, i: number) => {
+                  const income = t.type === 'income'
+                  return (
+                    <div key={i} className="flex items-center gap-3 py-2.5 first:pt-0 last:pb-0">
+                      <span className={`flex size-8 shrink-0 items-center justify-center rounded-lg ${income ? 'bg-success/12 text-success' : 'bg-destructive/10 text-destructive'}`}>
+                        {income ? <ArrowUpRight className="size-4" /> : <ArrowDownLeft className="size-4" />}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-sm font-medium text-foreground">{t.description || (income ? 'Příjem' : 'Výdaj')}</div>
+                        <div className="text-xs text-muted-foreground">{new Date(t.date).toLocaleDateString('cs-CZ')}</div>
+                      </div>
+                      <span className={`shrink-0 text-sm font-semibold tabular-nums ${income ? 'text-success' : 'text-destructive'}`}>
+                        {income ? '+' : '−'}{czk(Number(t.amount))}
+                      </span>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
     </div>
-  )
-}
-
-function StatCard({ title, value, description, icon }: { title: string, value: string, description: string, icon: React.ReactNode }) {
-  return (
-    <Card className="shadow-sm border-zinc-200 dark:border-zinc-800 hover:border-indigo-200 dark:hover:border-indigo-900 transition-colors">
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-sm font-medium text-zinc-500 dark:text-zinc-400">{title}</CardTitle>
-        <div className="h-10 w-10 rounded-xl bg-zinc-100 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-800 flex items-center justify-center shadow-sm">
-          {icon}
-        </div>
-      </CardHeader>
-      <CardContent>
-        <div className="text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">{value}</div>
-        <p className="text-xs text-zinc-500 mt-1">{description}</p>
-      </CardContent>
-    </Card>
   )
 }

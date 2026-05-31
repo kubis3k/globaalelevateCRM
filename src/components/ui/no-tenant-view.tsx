@@ -1,15 +1,12 @@
-import { AlertCircle } from 'lucide-react'
+import { Building2 } from "lucide-react"
+import { EmptyState } from "./empty-state"
 
 export function NoTenantView() {
   return (
-    <div className="flex flex-col items-center justify-center min-h-[50vh] px-4 text-center">
-      <div className="h-16 w-16 rounded-2xl bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/30 flex items-center justify-center shadow-sm mb-6 animate-pulse">
-        <AlertCircle className="h-8 w-8 text-amber-600 dark:text-amber-500" />
-      </div>
-      <h3 className="text-xl font-bold text-slate-900 dark:text-white tracking-tight">Organizace nenalezena</h3>
-      <p className="text-slate-500 dark:text-slate-400 max-w-md mt-2 text-sm">
-        Váš uživatelský účet zatím není přiřazen k žádné firmě v systému. Kontaktujte prosím administrátora, aby vás do firmy přidal.
-      </p>
-    </div>
+    <EmptyState
+      icon={Building2}
+      title="Organizace nenalezena"
+      description="Váš účet zatím není přiřazen k žádné firmě v systému. Kontaktujte prosím administrátora, aby vás do firmy přidal."
+    />
   )
 }
