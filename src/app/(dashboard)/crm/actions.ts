@@ -142,3 +142,24 @@ export async function deleteDeal(id: string): Promise<{ error?: string }> {
   if (error) return { error: error.message }
   revalidatePath('/crm/pipeline'); revalidatePath('/crm'); return {}
 }
+
+// ─── ARES lookup (Czech business registry) ─────────────────────
+// Autofill company details from IČO. Public REST API, no auth required.
+export async function lookupAres(ico: string): Promise<{ error?: string; data?: { name: string; dic: string | null; address: string | null } }> {
+  const clean = (ico || '').replace(/\s/g, '')
+  if (!/^\d{8}$/.test(clean)) return { error: 'IČO musí mít 8 číslic.' }
+  try {
+    const res = await fetch(`https://ares.gov.cz/ekonomicke-subjekty-v-be/rest/ekonomicke-subjekty/${clean}`, {
+      headers: { accept: 'application/json' },
+      cache: 'no-store',
+    })
+    if (res.status === 404) return { error: 'Firma s tímto IČO nenalezena.' }
+    if (!res.ok) return { error: `ARES je nedostupný (${res.status}).` }
+    const j: any = await res.json()
+    const name = j?.obchodniJmeno || ''
+    if (!name) return { error: 'ARES nevrátil název firmy.' }
+    return { data: { name, dic: j?.dic || null, address: j?.sidlo?.textovaAdresa || null } }
+  } catch (e: any) {
+    return { error: `Chyba spojení s ARES: ${e?.message || 'neznámá chyba'}` }
+  }
+}

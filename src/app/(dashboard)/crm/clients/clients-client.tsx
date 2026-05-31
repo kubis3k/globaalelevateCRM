@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import Link from 'next/link'
-import { Plus, Edit2, Trash2, Building2 } from 'lucide-react'
+import { Plus, Edit2, Trash2, Building2, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -14,7 +14,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { toast } from '@/components/ui/toast'
 import { confirmDialog } from '@/components/ui/confirm-dialog'
 import { cn } from '@/lib/utils'
-import { createCrmClient, updateCrmClient, deleteCrmClient } from '../actions'
+import { createCrmClient, updateCrmClient, deleteCrmClient, lookupAres } from '../actions'
 
 const selectClass = 'h-8 w-full rounded-lg border border-input bg-background px-2 text-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50'
 const STATUS: Record<string, { variant: 'success' | 'secondary' | 'info'; label: string }> = {
@@ -91,6 +91,26 @@ function Field({ label, children, className }: { label: string; children: React.
 function ClientDialog({ client, people, onClose }: { client: any | null; people: Person[]; onClose: () => void }) {
   const [pending, startTransition] = useTransition()
   const isEdit = !!client
+  const [ico, setIco] = useState(client?.ico || '')
+  const [name, setName] = useState(client?.name || '')
+  const [dic, setDic] = useState(client?.dic || '')
+  const [address, setAddress] = useState(client?.address || '')
+  const [aresLoading, setAresLoading] = useState(false)
+
+  async function fetchAres() {
+    if (!ico.trim()) { toast.error('Zadejte IČO'); return }
+    setAresLoading(true)
+    const res = await lookupAres(ico.trim())
+    setAresLoading(false)
+    if (res?.error) { toast.error('ARES', res.error); return }
+    if (res.data) {
+      setName(res.data.name)
+      if (res.data.dic) setDic(res.data.dic)
+      if (res.data.address) setAddress(res.data.address)
+      toast.success('Načteno z ARES')
+    }
+  }
+
   function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     const fd = new FormData(e.currentTarget)
@@ -106,10 +126,15 @@ function ClientDialog({ client, people, onClose }: { client: any | null; people:
       <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
         <DialogHeader><DialogTitle>{isEdit ? `Upravit: ${client.name}` : 'Nový klient'}</DialogTitle></DialogHeader>
         <form onSubmit={onSubmit} className="space-y-3">
-          <Field label="Název firmy"><Input name="name" required defaultValue={client?.name || ''} placeholder="Firma s.r.o." /></Field>
+          <Field label="Název firmy"><Input name="name" required value={name} onChange={(e) => setName(e.target.value)} placeholder="Firma s.r.o." /></Field>
           <div className="grid gap-3 sm:grid-cols-2">
-            <Field label="IČO"><Input name="ico" defaultValue={client?.ico || ''} /></Field>
-            <Field label="DIČ"><Input name="dic" defaultValue={client?.dic || ''} /></Field>
+            <Field label="IČO">
+              <div className="flex gap-1.5">
+                <Input name="ico" value={ico} onChange={(e) => setIco(e.target.value)} placeholder="8 číslic" />
+                <Button type="button" variant="outline" size="sm" disabled={aresLoading} onClick={fetchAres} title="Načíst z ARES">{aresLoading ? <Loader2 className="size-3.5 animate-spin" /> : 'ARES'}</Button>
+              </div>
+            </Field>
+            <Field label="DIČ"><Input name="dic" value={dic} onChange={(e) => setDic(e.target.value)} /></Field>
             <Field label="E-mail"><Input type="email" name="email" defaultValue={client?.email || ''} /></Field>
             <Field label="Telefon"><Input name="phone" defaultValue={client?.phone || ''} /></Field>
             <Field label="Web"><Input name="website" defaultValue={client?.website || ''} placeholder="https://" /></Field>
@@ -124,7 +149,7 @@ function ClientDialog({ client, people, onClose }: { client: any | null; people:
                 <option value="active">Aktivní</option><option value="lead">Lead</option><option value="inactive">Neaktivní</option>
               </select>
             </Field>
-            <Field label="Adresa" className="sm:col-span-2"><Input name="address" defaultValue={client?.address || ''} /></Field>
+            <Field label="Adresa" className="sm:col-span-2"><Input name="address" value={address} onChange={(e) => setAddress(e.target.value)} /></Field>
           </div>
           <Field label="Poznámka"><Input name="note" defaultValue={client?.note || ''} /></Field>
           <div className="flex justify-end gap-2 pt-1">
