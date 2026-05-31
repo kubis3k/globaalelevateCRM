@@ -329,7 +329,7 @@ function ConnectDialog({ canManageShared, onClose }: { canManageShared: boolean;
         </DialogHeader>
         <form onSubmit={onSubmit} className="space-y-3">
           <div className="space-y-1.5"><Label className="text-xs text-muted-foreground">E-mail</Label><Input name="email" type="email" required placeholder="vy@firma.cz" /></div>
-          <div className="space-y-1.5"><Label className="text-xs text-muted-foreground">App password</Label><Input name="password" type="password" required placeholder="Zoho app-specific password" /></div>
+          <div className="space-y-1.5"><Label className="text-xs text-muted-foreground">Heslo</Label><Input name="password" type="password" required placeholder="Heslo k e-mailu (nebo app password při 2FA)" /></div>
           <div className="space-y-1.5"><Label className="text-xs text-muted-foreground">Název (volitelné)</Label><Input name="displayName" placeholder="Např. Info schránka" /></div>
           <div className="space-y-1.5">
             <Label className="text-xs text-muted-foreground">Typ schránky</Label>
@@ -344,9 +344,9 @@ function ConnectDialog({ canManageShared, onClose }: { canManageShared: boolean;
           </button>
           {advanced && (
             <div className="grid grid-cols-2 gap-3 rounded-lg border border-border p-3">
-              <div className="space-y-1.5"><Label className="text-xs text-muted-foreground">IMAP host</Label><Input name="imapHost" defaultValue="imap.zoho.eu" /></div>
+              <div className="space-y-1.5"><Label className="text-xs text-muted-foreground">IMAP host</Label><Input name="imapHost" defaultValue="imappro.zoho.eu" /></div>
               <div className="space-y-1.5"><Label className="text-xs text-muted-foreground">IMAP port</Label><Input name="imapPort" type="number" defaultValue={993} /></div>
-              <div className="space-y-1.5"><Label className="text-xs text-muted-foreground">SMTP host</Label><Input name="smtpHost" defaultValue="smtp.zoho.eu" /></div>
+              <div className="space-y-1.5"><Label className="text-xs text-muted-foreground">SMTP host</Label><Input name="smtpHost" defaultValue="smtppro.zoho.eu" /></div>
               <div className="space-y-1.5"><Label className="text-xs text-muted-foreground">SMTP port</Label><Input name="smtpPort" type="number" defaultValue={465} /></div>
             </div>
           )}

@@ -45,9 +45,9 @@ export async function connectAccount(formData: FormData): Promise<{ error?: stri
   const password = (formData.get('password') as string) || ''
   if (!email || !password) return { error: 'Vyplňte e-mail a app password.' }
 
-  const imap_host = (formData.get('imapHost') as string)?.trim() || 'imap.zoho.eu'
+  const imap_host = (formData.get('imapHost') as string)?.trim() || 'imappro.zoho.eu'
   const imap_port = Number(formData.get('imapPort')) || 993
-  const smtp_host = (formData.get('smtpHost') as string)?.trim() || 'smtp.zoho.eu'
+  const smtp_host = (formData.get('smtpHost') as string)?.trim() || 'smtppro.zoho.eu'
   const smtp_port = Number(formData.get('smtpPort')) || 465
 
   // Verify the credentials before saving (clear, immediate feedback).
