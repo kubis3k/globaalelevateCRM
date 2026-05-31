@@ -31,3 +31,8 @@ export function canManageHr(role: string | null | undefined): boolean {
 export function canManageSharedMail(role: string | null | undefined): boolean {
   return role === 'admin' || role === 'manager'
 }
+
+// Who may delete documents uploaded by others (anyone may upload + download).
+export function canManageDocuments(role: string | null | undefined): boolean {
+  return role === 'admin' || role === 'manager'
+}

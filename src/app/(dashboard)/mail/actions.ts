@@ -5,8 +5,10 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { canManageSharedMail } from '@/lib/permissions'
 import { encryptSecret, decryptSecret } from '@/lib/mail/crypto'
-import { withImap, listFolders, listMessages, getMessage, setSeen, moveToTrash, type MailConn } from '@/lib/mail/imap'
+import { withImap, listFolders, listMessages, getMessage, getAttachment, setSeen, moveToTrash, type MailConn } from '@/lib/mail/imap'
 import { sendMail } from '@/lib/mail/smtp'
+import { MAX_DOCUMENT_BYTES } from '@/lib/documents'
+import { storeDocument } from '@/lib/documents-store'
 
 const escapeHtml = (s: string) => s.replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch] as string))
 
@@ -152,6 +154,37 @@ export async function sendMessage(accountId: string, payload: {
     return {}
   } catch (e: any) {
     return { error: e?.message || 'Odeslání selhalo.' }
+  }
+}
+
+// Saves one attachment of a message straight into the Documents module.
+export async function saveAttachmentToDocuments(
+  accountId: string, folder: string, uid: number, index: number,
+  meta?: { category?: string; note?: string },
+): Promise<{ error?: string; name?: string }> {
+  const c = await getCtx(); if ('error' in c) return c
+  const acc = await loadAccount(c, accountId)
+  if (!acc) return { error: 'Schránka nenalezena.' }
+  try {
+    const att = await withImap(acc, (client) => getAttachment(client, folder, uid, index))
+    if (!att || !att.content) return { error: 'Příloha nenalezena.' }
+    if ((att.size ?? att.content.length) > MAX_DOCUMENT_BYTES) return { error: 'Příloha je větší než 25 MB.' }
+    const res = await storeDocument(c.admin, {
+      tenantId: c.tenantId,
+      uploadedBy: c.userId,
+      name: att.filename,
+      category: meta?.category || 'email',
+      body: att.content,
+      contentType: att.contentType,
+      size: att.size ?? att.content.length,
+      source: 'mail',
+      sourceRef: meta?.note?.trim() || null,
+    })
+    if (res.error) return { error: res.error }
+    revalidatePath('/documents')
+    return { name: att.filename }
+  } catch (e: any) {
+    return { error: e?.message || 'Uložení selhalo.' }
   }
 }
 

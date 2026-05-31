@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react'
 import {
   Users, Shield, Plus, Trash2, Edit2, Check, UserPlus,
-  LayoutDashboard, FileText, DollarSign, Calendar, Briefcase, Building2, Mail,
+  LayoutDashboard, FileText, DollarSign, Calendar, Briefcase, Building2, Mail, FolderOpen,
 } from 'lucide-react'
 import {
   addTeamMember, removeTeamMember, createCustomRole, updateCustomRole,
@@ -23,7 +23,7 @@ import { confirmDialog } from '@/components/ui/confirm-dialog'
 import { toast } from '@/components/ui/toast'
 
 const MODULE_ICONS: Record<string, React.ComponentType<{ className?: string; style?: React.CSSProperties }>> = {
-  dashboard: LayoutDashboard, team: Users, invoices: FileText, finance: DollarSign, calendar: Calendar, hr: Briefcase, crm: Building2, mail: Mail,
+  dashboard: LayoutDashboard, team: Users, invoices: FileText, finance: DollarSign, calendar: Calendar, hr: Briefcase, crm: Building2, mail: Mail, documents: FolderOpen,
 }
 
 const ROLE_LABELS: Record<string, string> = {

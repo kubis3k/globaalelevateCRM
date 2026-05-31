@@ -3,7 +3,7 @@
 import { useEffect, useState, useTransition } from 'react'
 import {
   Mail, Plus, Inbox, Send, FileText, Trash2, Archive, AlertCircle, Paperclip, Loader2, RefreshCw,
-  Reply, Forward, MailOpen, PenSquare,
+  Reply, Forward, MailOpen, PenSquare, FolderInput,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -14,7 +14,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { toast } from '@/components/ui/toast'
 import { confirmDialog } from '@/components/ui/confirm-dialog'
 import { cn } from '@/lib/utils'
-import { connectAccount, deleteAccount, listMailFolders, listMailMessages, getMailMessage, sendMessage, markRead, deleteMessage } from './actions'
+import { connectAccount, deleteAccount, listMailFolders, listMailMessages, getMailMessage, sendMessage, markRead, deleteMessage, saveAttachmentToDocuments } from './actions'
 
 type Compose = { to: string; cc: string; subject: string; body: string; inReplyTo?: string; references?: string }
 
@@ -46,6 +46,7 @@ export function MailClient({ accounts, canManageShared }: { accounts: Account[];
   const [loadingList, setLoadingList] = useState(false)
   const [loadingMsg, setLoadingMsg] = useState(false)
   const [compose, setCompose] = useState<Compose | null>(null)
+  const [savingAtt, setSavingAtt] = useState<number | null>(null)
   const [, startTransition] = useTransition()
 
   // Load folders when the account changes.
@@ -121,6 +122,17 @@ export function MailClient({ accounts, canManageShared }: { accounts: Account[];
       setMessages((prev) => prev.filter((m) => m.uid !== uid))
       setOpenMsg(null)
       toast.success('Přesunuto do koše')
+    })
+  }
+
+  function saveAttachment(i: number) {
+    if (!openMsg) return
+    setSavingAtt(i)
+    const note = `${openMsg.from || ''} — ${openMsg.subject || ''}`.trim()
+    saveAttachmentToDocuments(accountId, folder, openMsg.uid, i, { note }).then((res) => {
+      setSavingAtt(null)
+      if (res?.error) { toast.error('Nepodařilo se uložit', res.error); return }
+      toast.success('Uloženo do Dokumentů', res.name)
     })
   }
 
@@ -242,9 +254,16 @@ export function MailClient({ accounts, canManageShared }: { accounts: Account[];
                 <div className="mt-1 text-sm text-muted-foreground">Od: {openMsg.from}</div>
                 <div className="text-xs text-muted-foreground">Komu: {openMsg.to} · {new Date(openMsg.date).toLocaleString('cs-CZ')}</div>
                 {openMsg.attachments?.length > 0 && (
-                  <div className="mt-2 flex flex-wrap gap-1.5">
+                  <div className="mt-3 space-y-1.5">
                     {openMsg.attachments.map((a: any, i: number) => (
-                      <Badge key={i} variant="secondary" className="gap-1"><Paperclip className="size-3" />{a.filename}</Badge>
+                      <div key={i} className="flex items-center gap-2 rounded-lg border border-border bg-muted/40 px-2.5 py-1.5 text-sm">
+                        <Paperclip className="size-3.5 shrink-0 text-muted-foreground" />
+                        <span className="truncate text-foreground">{a.filename}</span>
+                        <Button variant="ghost" size="sm" className="ml-auto shrink-0" disabled={savingAtt === i} onClick={() => saveAttachment(i)}>
+                          {savingAtt === i ? <Loader2 className="size-3.5 animate-spin" /> : <FolderInput className="size-3.5" />}
+                          Do dokumentů
+                        </Button>
+                      </div>
                     ))}
                   </div>
                 )}

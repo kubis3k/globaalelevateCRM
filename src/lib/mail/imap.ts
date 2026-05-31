@@ -84,6 +84,27 @@ export async function getMessage(client: ImapFlow, folder: string, uid: number) 
   }
 }
 
+// Fetches a single attachment's bytes by its index in the parsed attachment
+// list (same ordering as getMessage's `attachments`). Returns null if missing.
+export async function getAttachment(client: ImapFlow, folder: string, uid: number, index: number) {
+  const lock = await client.getMailboxLock(folder)
+  try {
+    const msg = await client.fetchOne(String(uid), { uid: true, source: true }, { uid: true })
+    if (!msg || !msg.source) return null
+    const parsed = await simpleParser(msg.source as Buffer)
+    const att = (parsed.attachments || [])[index]
+    if (!att) return null
+    return {
+      filename: att.filename || 'priloha',
+      content: att.content as Buffer,
+      contentType: att.contentType || 'application/octet-stream',
+      size: att.size ?? (att.content as Buffer)?.length ?? null,
+    }
+  } finally {
+    lock.release()
+  }
+}
+
 export async function setSeen(client: ImapFlow, folder: string, uid: number, seen: boolean) {
   const lock = await client.getMailboxLock(folder)
   try {
