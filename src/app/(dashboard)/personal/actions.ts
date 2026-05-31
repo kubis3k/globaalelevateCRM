@@ -1,0 +1,111 @@
+'use server'
+
+import { revalidatePath } from 'next/cache'
+import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
+
+type Ctx = { admin: ReturnType<typeof createAdminClient>; userId: string; tenantId: string }
+
+async function getCtx(): Promise<Ctx | { error: string }> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Nejste přihlášen.' }
+  const admin = createAdminClient()
+  const { data: tu } = await admin.from('tenant_users').select('tenant_id').eq('user_id', user.id).maybeSingle()
+  if (!tu?.tenant_id) return { error: 'Organizace nenalezena.' }
+  return { admin, userId: user.id, tenantId: tu.tenant_id }
+}
+
+const str = (fd: FormData, k: string) => { const v = (fd.get(k) as string)?.trim(); return v ? v : null }
+const revalidate = () => { revalidatePath('/personal'); revalidatePath('/personal/notes'); revalidatePath('/personal/tasks'); revalidatePath('/personal/calendar') }
+
+// ─── Notes ─────────────────────────────────────────────────────
+export async function saveNote(formData: FormData): Promise<{ error?: string }> {
+  const c = await getCtx(); if ('error' in c) return c
+  const id = str(formData, 'id')
+  const row = { title: str(formData, 'title'), content: str(formData, 'content') || '', pinned: formData.get('pinned') === 'on' || formData.get('pinned') === 'true' }
+  if (!row.title && !row.content) return { error: 'Vyplňte název nebo obsah.' }
+  if (id) {
+    const { error } = await c.admin.from('personal_notes').update({ ...row, updated_at: new Date().toISOString() }).eq('id', id).eq('user_id', c.userId)
+    if (error) return { error: error.message }
+  } else {
+    const { error } = await c.admin.from('personal_notes').insert({ ...row, tenant_id: c.tenantId, user_id: c.userId })
+    if (error) return { error: error.message }
+  }
+  revalidate(); return {}
+}
+
+export async function togglePinNote(id: string, pinned: boolean): Promise<{ error?: string }> {
+  const c = await getCtx(); if ('error' in c) return c
+  const { error } = await c.admin.from('personal_notes').update({ pinned }).eq('id', id).eq('user_id', c.userId)
+  if (error) return { error: error.message }
+  revalidate(); return {}
+}
+
+export async function deleteNote(id: string): Promise<{ error?: string }> {
+  const c = await getCtx(); if ('error' in c) return c
+  const { error } = await c.admin.from('personal_notes').delete().eq('id', id).eq('user_id', c.userId)
+  if (error) return { error: error.message }
+  revalidate(); return {}
+}
+
+// ─── Tasks ─────────────────────────────────────────────────────
+export async function saveTask(formData: FormData): Promise<{ error?: string }> {
+  const c = await getCtx(); if ('error' in c) return c
+  const id = str(formData, 'id')
+  const title = str(formData, 'title'); if (!title) return { error: 'Zadejte název úkolu.' }
+  const row = { title, note: str(formData, 'note'), due_date: str(formData, 'dueDate'), priority: str(formData, 'priority') || 'normal' }
+  if (id) {
+    const { error } = await c.admin.from('personal_tasks').update(row).eq('id', id).eq('user_id', c.userId)
+    if (error) return { error: error.message }
+  } else {
+    const { error } = await c.admin.from('personal_tasks').insert({ ...row, tenant_id: c.tenantId, user_id: c.userId })
+    if (error) return { error: error.message }
+  }
+  revalidate(); return {}
+}
+
+export async function toggleTask(id: string, done: boolean): Promise<{ error?: string }> {
+  const c = await getCtx(); if ('error' in c) return c
+  const { error } = await c.admin.from('personal_tasks').update({ done, completed_at: done ? new Date().toISOString() : null }).eq('id', id).eq('user_id', c.userId)
+  if (error) return { error: error.message }
+  revalidate(); return {}
+}
+
+export async function deleteTask(id: string): Promise<{ error?: string }> {
+  const c = await getCtx(); if ('error' in c) return c
+  const { error } = await c.admin.from('personal_tasks').delete().eq('id', id).eq('user_id', c.userId)
+  if (error) return { error: error.message }
+  revalidate(); return {}
+}
+
+// ─── Personal calendar events ──────────────────────────────────
+export async function saveEvent(formData: FormData): Promise<{ error?: string }> {
+  const c = await getCtx(); if ('error' in c) return c
+  const id = str(formData, 'id')
+  const title = str(formData, 'title'); if (!title) return { error: 'Zadejte název události.' }
+  const start = str(formData, 'startTime'); const end = str(formData, 'endTime')
+  if (!start) return { error: 'Zadejte začátek.' }
+  const allDay = formData.get('allDay') === 'on' || formData.get('allDay') === 'true'
+  const row = {
+    title, description: str(formData, 'description'),
+    start_time: new Date(start).toISOString(),
+    end_time: new Date(end || start).toISOString(),
+    all_day: allDay,
+  }
+  if (id) {
+    const { error } = await c.admin.from('personal_events').update(row).eq('id', id).eq('user_id', c.userId)
+    if (error) return { error: error.message }
+  } else {
+    const { error } = await c.admin.from('personal_events').insert({ ...row, tenant_id: c.tenantId, user_id: c.userId })
+    if (error) return { error: error.message }
+  }
+  revalidate(); return {}
+}
+
+export async function deleteEvent(id: string): Promise<{ error?: string }> {
+  const c = await getCtx(); if ('error' in c) return c
+  const { error } = await c.admin.from('personal_events').delete().eq('id', id).eq('user_id', c.userId)
+  if (error) return { error: error.message }
+  revalidate(); return {}
+}
