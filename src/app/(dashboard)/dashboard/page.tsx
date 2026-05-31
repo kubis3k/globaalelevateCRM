@@ -4,7 +4,7 @@ import { NoTenantView } from '@/components/ui/no-tenant-view'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { StatCard } from '@/components/ui/stat-card'
 import { EmptyState } from '@/components/ui/empty-state'
-import { DollarSign, FileText, Users, Calendar, ArrowDownLeft, ArrowUpRight, Activity } from 'lucide-react'
+import { DollarSign, FileText, Users, Calendar, ArrowDownLeft, ArrowUpRight, Activity, FolderKanban } from 'lucide-react'
 import { CashflowChart } from '../finance/cashflow-chart'
 
 const czk = (n: number) =>
@@ -55,6 +55,20 @@ export default async function DashboardPage() {
     )
     .slice(0, 6)
 
+  const showProjects = allowedModules.includes('projects')
+  const { data: activeProjects } = showProjects
+    ? await supabase.from('projects').select('id, name, status').eq('tenant_id', tenantId).in('status', ['planning', 'active', 'on_hold']).order('created_at', { ascending: false }).limit(6)
+    : { data: [] as any[] }
+  const activeProjectIds = (activeProjects || []).map((p: any) => p.id)
+  const { data: activeProjectTasks } = showProjects && activeProjectIds.length
+    ? await supabase.from('project_tasks').select('project_id, status').in('project_id', activeProjectIds)
+    : { data: [] as any[] }
+  const projectsSummary = (activeProjects || []).map((p: any) => {
+    const t = (activeProjectTasks || []).filter((x: any) => x.project_id === p.id)
+    const d = t.filter((x: any) => x.status === 'done').length
+    return { id: p.id, name: p.name, total: t.length, done: d, pct: t.length ? Math.round((d / t.length) * 100) : 0 }
+  })
+
   return (
     <div className="space-y-6">
       <div className="space-y-0.5">
@@ -99,6 +113,35 @@ export default async function DashboardPage() {
                 </div>
               ))}
             </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {showProjects && (
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0">
+            <div>
+              <CardTitle>Aktivní projekty</CardTitle>
+              <CardDescription>Rozpracované zakázky a jejich průběh</CardDescription>
+            </div>
+            <Link href="/projects/board" className="text-sm font-medium text-primary hover:underline">Otevřít →</Link>
+          </CardHeader>
+          <CardContent>
+            {projectsSummary.length === 0 ? (
+              <EmptyState icon={FolderKanban} title="Žádné aktivní projekty" />
+            ) : (
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {projectsSummary.map((p) => (
+                  <Link key={p.id} href={`/projects/${p.id}`} className="block rounded-lg border border-border p-3 transition-colors hover:bg-muted/50">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="truncate text-sm font-medium text-foreground">{p.name}</span>
+                      <span className="shrink-0 text-xs tabular-nums text-muted-foreground">{p.done}/{p.total}</span>
+                    </div>
+                    <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted"><div className="h-full rounded-full bg-primary transition-all" style={{ width: `${p.pct}%` }} /></div>
+                  </Link>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
       )}

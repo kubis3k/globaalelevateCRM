@@ -66,6 +66,13 @@ export function companyTools(allowed: string[], role: string): ToolDef[] {
       input_schema: { type: 'object', properties: {} },
     })
   }
+  if (has('projects')) {
+    tools.push({
+      name: 'list_projects',
+      description: 'Vrátí projekty/zakázky firmy se stavem, klientem, termínem, rozpočtem a počtem úkolů (hotové/otevřené). Pro dotazy na rozpracovanost zakázek a co je potřeba dořešit.',
+      input_schema: { type: 'object', properties: { only_active: { type: 'boolean', description: 'Jen aktivní/rozpracované projekty (planning, active, on_hold)' } } },
+    })
+  }
   return tools
 }
 
@@ -121,6 +128,31 @@ export async function executeCompanyTool(ctx: AiToolCtx, name: string, input: an
           .select('title, description, timeframe, target_date, progress')
           .eq('user_id', ctx.userId).eq('archived', false).limit(100)
         return JSON.stringify(cap(data, 100))
+      }
+      case 'list_projects': {
+        let q = admin.from('projects')
+          .select('id, name, status, priority, client_id, due_date, budget, currency, created_at')
+          .eq('tenant_id', tenantId)
+        if (input?.only_active) q = q.in('status', ['planning', 'active', 'on_hold'])
+        const { data: projects } = await q.order('created_at', { ascending: false }).limit(50)
+        const list = projects || []
+        const projectIds = list.map((p: any) => p.id)
+        const clientIds = [...new Set(list.map((p: any) => p.client_id).filter(Boolean))]
+        const [{ data: tasks }, { data: clients }] = await Promise.all([
+          projectIds.length ? admin.from('project_tasks').select('project_id, status').in('project_id', projectIds) : Promise.resolve({ data: [] as any[] }),
+          clientIds.length ? admin.from('crm_clients').select('id, name').in('id', clientIds) : Promise.resolve({ data: [] as any[] }),
+        ])
+        const out = list.map((p: any) => {
+          const pts = (tasks || []).filter((t: any) => t.project_id === p.id)
+          const done = pts.filter((t: any) => t.status === 'done').length
+          return {
+            name: p.name, status: p.status, priority: p.priority,
+            client: (clients || []).find((c: any) => c.id === p.client_id)?.name || null,
+            due_date: p.due_date, budget: p.budget, currency: p.currency,
+            tasks_total: pts.length, tasks_done: done, tasks_open: pts.length - done,
+          }
+        })
+        return JSON.stringify(cap(out))
       }
       default:
         return `Neznámý nástroj: ${name}`

@@ -24,6 +24,7 @@ const TYPES: { key: keyof Prefs; label: string; desc: string }[] = [
   { key: 'email', label: 'Pošta', desc: 'Nový příchozí e-mail' },
   { key: 'crm', label: 'CRM', desc: 'Úkoly a termíny' },
   { key: 'hr', label: 'HR', desc: 'Dovolená a schválení' },
+  { key: 'projects', label: 'Projekty', desc: 'Přiřazené úkoly' },
 ]
 
 export function PushSetupDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
@@ -31,7 +32,7 @@ export function PushSetupDialog({ open, onClose }: { open: boolean; onClose: () 
   const [subscribed, setSubscribed] = useState(false)
   const [isIOS, setIsIOS] = useState(false)
   const [standalone, setStandalone] = useState(true)
-  const [prefs, setPrefs] = useState<Prefs>({ calendar: true, email: true, crm: true, hr: true })
+  const [prefs, setPrefs] = useState<Prefs>({ calendar: true, email: true, crm: true, hr: true, projects: true })
   const [working, setWorking] = useState(false)
   const [, startTransition] = useTransition()
 

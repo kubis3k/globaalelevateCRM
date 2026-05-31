@@ -43,16 +43,17 @@ export async function unsubscribeUser(endpoint: string): Promise<{ error?: strin
   return {}
 }
 
-export type Prefs = { calendar: boolean; email: boolean; crm: boolean; hr: boolean }
+export type Prefs = { calendar: boolean; email: boolean; crm: boolean; hr: boolean; projects: boolean }
 
 export async function getNotificationPrefs(): Promise<Prefs> {
-  const c = await getCtx(); if ('error' in c) return { calendar: true, email: true, crm: true, hr: true }
-  const { data } = await c.admin.from('notification_prefs').select('calendar, email, crm, hr').eq('user_id', c.userId).maybeSingle()
+  const c = await getCtx(); if ('error' in c) return { calendar: true, email: true, crm: true, hr: true, projects: true }
+  const { data } = await c.admin.from('notification_prefs').select('calendar, email, crm, hr, projects').eq('user_id', c.userId).maybeSingle()
   return {
     calendar: data?.calendar ?? true,
     email: data?.email ?? true,
     crm: data?.crm ?? true,
     hr: data?.hr ?? true,
+    projects: data?.projects ?? true,
   }
 }
 
@@ -65,6 +66,7 @@ export async function saveNotificationPrefs(prefs: Prefs): Promise<{ error?: str
     email: !!prefs.email,
     crm: !!prefs.crm,
     hr: !!prefs.hr,
+    projects: !!prefs.projects,
     updated_at: new Date().toISOString(),
   }, { onConflict: 'user_id' })
   if (error) return { error: error.message }
