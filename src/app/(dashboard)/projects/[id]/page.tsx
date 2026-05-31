@@ -10,11 +10,13 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
   const { data: project } = await supabase.from('projects').select('*').eq('id', id).eq('tenant_id', tenantId).maybeSingle()
   if (!project) notFound()
 
-  const [{ data: tasks }, { data: tenantUsers }, { data: clients }] = await Promise.all([
+  const [{ data: tasks }, { data: tenantUsers }, { data: clients }, { data: timeRows }] = await Promise.all([
     supabase.from('project_tasks').select('*').eq('tenant_id', tenantId).eq('project_id', id).order('created_at', { ascending: true }),
     supabase.from('tenant_users').select('user_id').eq('tenant_id', tenantId),
     supabase.from('crm_clients').select('id, name').eq('tenant_id', tenantId).order('name'),
+    supabase.from('time_entries').select('minutes').eq('tenant_id', tenantId).eq('project_id', id),
   ])
+  const loggedMinutes = (timeRows ?? []).reduce((a: number, r: any) => a + (r.minutes || 0), 0)
 
   const ids = (tenantUsers ?? []).map((t: any) => t.user_id)
   const { data: profiles } = ids.length ? await supabase.from('profiles').select('id, username, full_name').in('id', ids) : { data: [] as any[] }
@@ -26,7 +28,7 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
 
   return (
     <ProjectDetail
-      project={{ ...project, owner_name: nameOf(project.owner_id), client_name: clientName }}
+      project={{ ...project, owner_name: nameOf(project.owner_id), client_name: clientName, logged_minutes: loggedMinutes }}
       tasks={tasksFull}
       clients={clients ?? []}
       people={people}

@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react'
 import Link from 'next/link'
 import {
-  ArrowLeft, Plus, Trash2, Pencil, FolderKanban, Building2, User, CalendarDays, Wallet, Flag,
+  ArrowLeft, Plus, Trash2, Pencil, FolderKanban, Building2, User, CalendarDays, Wallet, Flag, Clock,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -82,6 +82,7 @@ export function ProjectDetail({ project, tasks, clients, people }: { project: an
             {project.owner_name && <span className="inline-flex items-center gap-1"><User className="size-3.5" />{project.owner_name}</span>}
             {project.due_date && <span className="inline-flex items-center gap-1"><CalendarDays className="size-3.5" />do {new Date(project.due_date).toLocaleDateString('cs-CZ')}</span>}
             {project.budget != null && <span className="inline-flex items-center gap-1"><Wallet className="size-3.5" />{czk(Number(project.budget), project.currency)}</span>}
+            {project.logged_minutes > 0 && <span className="inline-flex items-center gap-1"><Clock className="size-3.5" />{(project.logged_minutes / 60).toLocaleString('cs-CZ', { maximumFractionDigits: 1 })} h</span>}
           </div>
           {project.description && <p className="mt-3 text-sm text-foreground/90">{project.description}</p>}
           {/* Progress */}

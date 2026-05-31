@@ -14,6 +14,7 @@ export const MODULES = [
   { id: 'team',      label: 'Tým',       href: '/team',      color: '#8b5cf6' },
   { id: 'crm',       label: 'CRM',       href: '/crm',       color: '#06b6d4' },
   { id: 'projects',  label: 'Projekty',  href: '/projects',  color: '#7c3aed' },
+  { id: 'time',      label: 'Výkazy',    href: '/time',      color: '#eab308' },
 ] as const
 
 export type ModuleId = (typeof MODULES)[number]['id']

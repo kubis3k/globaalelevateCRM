@@ -73,6 +73,13 @@ export function companyTools(allowed: string[], role: string): ToolDef[] {
       input_schema: { type: 'object', properties: { only_active: { type: 'boolean', description: 'Jen aktivní/rozpracované projekty (planning, active, on_hold)' } } },
     })
   }
+  if (has('time')) {
+    tools.push({
+      name: 'get_time_entries',
+      description: 'Vrátí výkazy práce (odpracované hodiny) na projektech — datum, projekt, kdo, hodiny, fakturovatelnost. Z dat si spočítej součty a fakturovatelnou hodnotu.',
+      input_schema: { type: 'object', properties: { only_billable: { type: 'boolean', description: 'Jen fakturovatelné záznamy' } } },
+    })
+  }
   return tools
 }
 
@@ -150,6 +157,29 @@ export async function executeCompanyTool(ctx: AiToolCtx, name: string, input: an
             client: (clients || []).find((c: any) => c.id === p.client_id)?.name || null,
             due_date: p.due_date, budget: p.budget, currency: p.currency,
             tasks_total: pts.length, tasks_done: done, tasks_open: pts.length - done,
+          }
+        })
+        return JSON.stringify(cap(out))
+      }
+      case 'get_time_entries': {
+        let q = admin.from('time_entries')
+          .select('work_date, minutes, billable, hourly_rate, currency, project_id, user_id, description')
+          .eq('tenant_id', tenantId)
+        if (input?.only_billable) q = q.eq('billable', true)
+        const { data: entries } = await q.order('work_date', { ascending: false }).limit(50)
+        const list = entries || []
+        const projectIds = [...new Set(list.map((e: any) => e.project_id).filter(Boolean))]
+        const userIds = [...new Set(list.map((e: any) => e.user_id).filter(Boolean))]
+        const [{ data: projects }, { data: profiles }] = await Promise.all([
+          projectIds.length ? admin.from('projects').select('id, name').in('id', projectIds) : Promise.resolve({ data: [] as any[] }),
+          userIds.length ? admin.from('profiles').select('id, username, full_name').in('id', userIds) : Promise.resolve({ data: [] as any[] }),
+        ])
+        const out = list.map((e: any) => {
+          const p = (profiles || []).find((x: any) => x.id === e.user_id)
+          return {
+            date: e.work_date, hours: Math.round((e.minutes / 60) * 100) / 100, billable: e.billable,
+            project: (projects || []).find((x: any) => x.id === e.project_id)?.name || null,
+            person: p?.full_name || p?.username || null, description: e.description,
           }
         })
         return JSON.stringify(cap(out))

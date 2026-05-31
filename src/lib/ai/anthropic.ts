@@ -20,6 +20,7 @@ const MODULE_HINTS: Record<string, string> = {
   milestones: 'firemní cíle (týden/měsíc/rok)',
   personal: 'osobní cíle uživatele',
   projects: 'projekty/zakázky (stav, úkoly)',
+  time: 'výkazy práce (odpracované hodiny, fakturovatelnost)',
 }
 
 // Stable within a day (date only) so the prompt-cache breakpoint survives across
