@@ -80,6 +80,13 @@ export function companyTools(allowed: string[], role: string): ToolDef[] {
       input_schema: { type: 'object', properties: { only_billable: { type: 'boolean', description: 'Jen fakturovatelné záznamy' } } },
     })
   }
+  if (has('quotes')) {
+    tools.push({
+      name: 'list_quotes',
+      description: 'Vrátí cenové nabídky — číslo, klient, stav (draft/sent/accepted/rejected), platnost a celkovou částku vč. DPH. Pro dotazy na vystavené nabídky a jejich stav.',
+      input_schema: { type: 'object', properties: { only_open: { type: 'boolean', description: 'Jen nevyřízené nabídky (draft, sent)' } } },
+    })
+  }
   return tools
 }
 
@@ -183,6 +190,14 @@ export async function executeCompanyTool(ctx: AiToolCtx, name: string, input: an
           }
         })
         return JSON.stringify(cap(out))
+      }
+      case 'list_quotes': {
+        let q = admin.from('quotes')
+          .select('number, client_name, status, issue_date, valid_until, subtotal, vat_total, total, currency')
+          .eq('tenant_id', tenantId)
+        if (input?.only_open) q = q.in('status', ['draft', 'sent'])
+        const { data } = await q.order('created_at', { ascending: false }).limit(50)
+        return JSON.stringify(cap(data))
       }
       default:
         return `Neznámý nástroj: ${name}`
