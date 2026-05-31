@@ -7,7 +7,7 @@ import { getAssignedEvents } from './assigned'
 const PRIORITY: Record<string, string> = { low: 'Nízká', normal: 'Běžná', high: 'Vysoká' }
 
 export default async function PersonalOverviewPage() {
-  const { supabase, user, tenantId, role } = await requireModuleAccess('personal')
+  const { supabase, user, tenantId, role, customRoleId } = await requireModuleAccess('personal')
   if (!tenantId) return null
   const uid = user.id
   const todayStr = new Date().toISOString().slice(0, 10)
@@ -20,7 +20,7 @@ export default async function PersonalOverviewPage() {
     supabase.from('personal_events').select('id, title, start_time, all_day').eq('user_id', uid).gte('start_time', todayStr).order('start_time', { ascending: true }).limit(6),
     supabase.from('personal_tasks').select('id, title, due_date, priority').eq('user_id', uid).eq('done', false).order('due_date', { ascending: true }).limit(6),
     supabase.from('personal_notes').select('id, title, content').eq('user_id', uid).eq('pinned', true).order('updated_at', { ascending: false }).limit(6),
-    getAssignedEvents(supabase, tenantId, uid, role, todayStr),
+    getAssignedEvents(supabase, tenantId, uid, role, customRoleId, todayStr),
   ])
 
   // Merge personal + assigned-shared upcoming events into one list.

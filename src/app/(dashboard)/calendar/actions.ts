@@ -22,6 +22,7 @@ export async function createEvent(formData: FormData) {
 
   const assigned_to = formData.get('assigned_to') as string
   const assigned_role = formData.get('assigned_role') as string
+  const assigned_custom_role_id = formData.get('assigned_custom_role_id') as string
 
   const eventData = {
     tenant_id: tenantUser.tenant_id,
@@ -31,6 +32,7 @@ export async function createEvent(formData: FormData) {
     end_time: formData.get('end_time') as string,
     assigned_to: assigned_to && assigned_to !== 'none' ? assigned_to : null,
     assigned_role: assigned_role && assigned_role !== 'none' ? assigned_role : null,
+    assigned_custom_role_id: assigned_custom_role_id && assigned_custom_role_id !== 'none' ? assigned_custom_role_id : null,
     created_by: user.id
   }
 
@@ -42,6 +44,10 @@ export async function createEvent(formData: FormData) {
     let recipients: string[] = []
     if (eventData.assigned_to) {
       recipients = [eventData.assigned_to]
+    } else if (eventData.assigned_custom_role_id) {
+      const { data: rows } = await admin.from('tenant_users').select('user_id')
+        .eq('tenant_id', tenantUser.tenant_id).eq('custom_role_id', eventData.assigned_custom_role_id)
+      recipients = (rows || []).map((r: any) => r.user_id)
     } else if (eventData.assigned_role) {
       const { data: rows } = await admin.from('tenant_users').select('user_id')
         .eq('tenant_id', tenantUser.tenant_id).eq('role', eventData.assigned_role)

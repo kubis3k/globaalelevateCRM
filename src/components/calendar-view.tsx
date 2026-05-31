@@ -18,8 +18,10 @@ import { cn } from '@/lib/utils'
 type CalendarViewProps = {
   initialEvents: any[]
   teamMembers: any[]
+  companyRoles: { id: string; name: string }[]
   currentUserId: string
   currentUserRole: string
+  currentUserCustomRoleId: string | null
   tenantId: string
 }
 
@@ -36,8 +38,15 @@ const ROLE_CHIP: Record<string, string> = {
   external: 'bg-muted text-muted-foreground border-border',
 }
 
-export function CalendarView({ initialEvents, teamMembers, currentUserId, currentUserRole, tenantId }: CalendarViewProps) {
+export function CalendarView({ initialEvents, teamMembers, companyRoles, currentUserId, currentUserRole, currentUserCustomRoleId, tenantId }: CalendarViewProps) {
   const supabase = createClient()
+  const roleNameById = new Map(companyRoles.map((r) => [r.id, r.name]))
+  const eventRoleName = (ev: any): string | null =>
+    ev?.assigned_custom_role_id ? (roleNameById.get(ev.assigned_custom_role_id) || 'Role')
+      : (ev?.assigned_role ? ROLE_LABELS[ev.assigned_role] : null)
+  const eventChipClass = (ev: any): string =>
+    ev?.assigned_custom_role_id ? 'bg-primary/10 text-primary border-primary/20'
+      : (ev?.assigned_role ? (ROLE_CHIP[ev.assigned_role] || 'border-border bg-muted text-foreground') : 'border-border bg-muted text-foreground')
   const [events, setEvents] = useState(initialEvents)
   const [currentDate, setCurrentDate] = useState(new Date())
   const [selectedDateStr, setSelectedDateStr] = useState('')
@@ -74,7 +83,7 @@ export function CalendarView({ initialEvents, teamMembers, currentUserId, curren
         if (payload.eventType === 'INSERT') {
           const newEvent = payload.new
           setEvents((prev) => (prev.some((e) => e.id === newEvent.id) ? prev : [...prev, newEvent].sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime())))
-          if (newEvent.assigned_to === currentUserId || newEvent.assigned_role === currentUserRole) {
+          if (newEvent.assigned_to === currentUserId || newEvent.assigned_role === currentUserRole || (newEvent.assigned_custom_role_id && newEvent.assigned_custom_role_id === currentUserCustomRoleId)) {
             triggerLocalNotification(`Nová událost: ${newEvent.title}`, newEvent.description || 'Byla vám přiřazena nová událost v kalendáři.')
           }
         } else if (payload.eventType === 'DELETE') {
@@ -85,7 +94,7 @@ export function CalendarView({ initialEvents, teamMembers, currentUserId, curren
       })
       .subscribe()
     return () => { supabase.removeChannel(channel) }
-  }, [supabase, tenantId, currentUserId, currentUserRole])
+  }, [supabase, tenantId, currentUserId, currentUserRole, currentUserCustomRoleId])
 
   const year = currentDate.getFullYear()
   const month = currentDate.getMonth()
@@ -204,13 +213,15 @@ export function CalendarView({ initialEvents, teamMembers, currentUserId, curren
                   </Select>
                 </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor="assigned_role">Role firmy (volitelné)</Label>
-                  <Select name="assigned_role">
+                  <Label htmlFor="assigned_custom_role_id">Role firmy (volitelné)</Label>
+                  <Select name="assigned_custom_role_id">
                     <SelectTrigger className="w-full"><SelectValue placeholder="Vyberte roli" /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="none">Nepřiřazovat</SelectItem>
-                      {Object.entries(ROLE_LABELS).map(([key, label]) => (
-                        <SelectItem key={key} value={key}>{label}</SelectItem>
+                      {companyRoles.length === 0 ? (
+                        <SelectItem value="none" disabled>Žádné role — vytvoř je v Týmu</SelectItem>
+                      ) : companyRoles.map((r) => (
+                        <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -272,7 +283,7 @@ export function CalendarView({ initialEvents, teamMembers, currentUserId, curren
                         onClick={(e) => handleEventClick(e, ev)}
                         className={cn(
                           'truncate rounded border px-1.5 py-0.5 text-[10px] font-medium transition-transform hover:translate-x-0.5',
-                          ev.assigned_role ? ROLE_CHIP[ev.assigned_role] : 'border-border bg-muted text-foreground'
+                          eventChipClass(ev)
                         )}
                       >
                         {ev.title}
@@ -316,7 +327,7 @@ export function CalendarView({ initialEvents, teamMembers, currentUserId, curren
                     </div>
                   </div>
                 </div>
-                {(activeEventDetail.assigned_to || activeEventDetail.assigned_role) && (
+                {(activeEventDetail.assigned_to || eventRoleName(activeEventDetail)) && (
                   <div className="grid grid-cols-2 gap-4 border-t border-border pt-3">
                     {activeEventDetail.assigned_to && (
                       <div className="space-y-1">
@@ -326,11 +337,11 @@ export function CalendarView({ initialEvents, teamMembers, currentUserId, curren
                         </div>
                       </div>
                     )}
-                    {activeEventDetail.assigned_role && (
+                    {eventRoleName(activeEventDetail) && (
                       <div className="space-y-1">
                         <div className="flex items-center gap-1 text-xs font-medium text-muted-foreground"><Shield className="size-3.5" /> Role</div>
-                        <div className={cn('w-fit rounded-md border px-2 py-0.5 text-xs font-medium', ROLE_CHIP[activeEventDetail.assigned_role])}>
-                          {ROLE_LABELS[activeEventDetail.assigned_role]}
+                        <div className={cn('w-fit rounded-md border px-2 py-0.5 text-xs font-medium', eventChipClass(activeEventDetail))}>
+                          {eventRoleName(activeEventDetail)}
                         </div>
                       </div>
                     )}

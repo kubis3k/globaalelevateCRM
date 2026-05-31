@@ -3,7 +3,7 @@ import { NoTenantView } from '@/components/ui/no-tenant-view'
 import { CalendarView } from '@/components/calendar-view'
 
 export default async function CalendarPage() {
-  const { supabase, user, tenantId, role } = await requireModuleAccess('calendar')
+  const { supabase, user, tenantId, role, customRoleId } = await requireModuleAccess('calendar')
 
   if (!tenantId) return <NoTenantView />
 
@@ -31,12 +31,21 @@ export default async function CalendarPage() {
     .eq('tenant_id', tenantId)
     .order('start_time', { ascending: true })
 
+  // Company (custom) roles — the actual roles to assign events to.
+  const { data: roles } = await supabase
+    .from('custom_roles')
+    .select('id, name')
+    .eq('tenant_id', tenantId)
+    .order('name', { ascending: true })
+
   return (
     <CalendarView
       initialEvents={events || []}
       teamMembers={teamMembers}
+      companyRoles={roles || []}
       currentUserId={user.id}
       currentUserRole={role || 'employee'}
+      currentUserCustomRoleId={customRoleId || null}
       tenantId={tenantId}
     />
   )
