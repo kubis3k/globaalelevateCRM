@@ -5,7 +5,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { usePathname } from 'next/navigation'
 import {
-  LayoutDashboard, Users, FileText, DollarSign, Calendar, Briefcase, Menu, X, LogOut,
+  LayoutDashboard, Users, FileText, DollarSign, Calendar, Briefcase, Building2, Menu, X, LogOut,
 } from 'lucide-react'
 import { MODULES } from '@/lib/modules'
 import { cn } from '@/lib/utils'
@@ -24,6 +24,7 @@ const MODULE_ICONS: Record<string, React.ComponentType<{ className?: string }>> 
   finance: DollarSign,
   calendar: Calendar,
   hr: Briefcase,
+  crm: Building2,
 }
 
 const ROLE_LABELS: Record<string, string> = {
