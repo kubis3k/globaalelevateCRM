@@ -74,3 +74,22 @@ export async function deleteCategory(id: string): Promise<{ error?: string }> {
   if (error) return { error: error.message }
   refresh(); return {}
 }
+
+export type ImportRow = { date: string; amount: number; type: string; description: string | null }
+
+// Bulk import of bank-statement rows (parsed + previewed client-side).
+export async function importTransactions(rows: ImportRow[]): Promise<{ error?: string; count?: number }> {
+  const c = await getCtx(); if ('error' in c) return c
+  const clean = (rows || []).filter((r) => r && r.date && Number.isFinite(r.amount) && r.amount !== 0)
+  if (!clean.length) return { error: 'Žádné platné řádky k importu.' }
+  if (clean.length > 1000) return { error: 'Najednou lze importovat nejvýše 1000 řádků.' }
+  const payload = clean.map((r) => ({
+    tenant_id: c.tenantId, created_by: c.userId,
+    type: r.type === 'income' ? 'income' : 'expense',
+    amount: Math.abs(Number(r.amount)), currency: 'CZK',
+    date: r.date, description: r.description || null,
+  }))
+  const { error } = await c.admin.from('transactions').insert(payload)
+  if (error) return { error: error.message }
+  refresh(); return { count: payload.length }
+}

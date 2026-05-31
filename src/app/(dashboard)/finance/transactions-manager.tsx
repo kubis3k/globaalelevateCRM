@@ -2,7 +2,7 @@
 
 import { Fragment, useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { Plus, Pencil, Trash2, Receipt, Check, X } from 'lucide-react'
+import { Plus, Pencil, Trash2, Receipt, Check, X, Upload } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -14,7 +14,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { toast } from '@/components/ui/toast'
 import { confirmDialog } from '@/components/ui/confirm-dialog'
 import { cn } from '@/lib/utils'
-import { createTransaction, updateTransaction, deleteTransaction, createCategory } from './actions'
+import { createTransaction, updateTransaction, deleteTransaction, createCategory, importTransactions } from './actions'
 
 type Tx = { id: string; type: string; amount: number; currency: string; date: string; description: string | null; invoice_id: string | null; category_id: string | null }
 type Cat = { id: string; name: string }
@@ -22,10 +22,39 @@ type Cat = { id: string; name: string }
 const selectClass = 'h-8 w-full rounded-lg border border-input bg-background px-2 text-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50'
 const czk = (n: number, currency = 'CZK') => new Intl.NumberFormat('cs-CZ', { style: 'currency', currency }).format(n)
 
+type ParsedRow = { date: string; amount: number; type: string; description: string | null }
+function normDate(s: string): string | null {
+  const t = s.trim()
+  let m = t.match(/^(\d{1,2})\.\s*(\d{1,2})\.\s*(\d{4})$/)
+  if (m) return `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`
+  m = t.match(/^(\d{4})-(\d{2})-(\d{2})$/)
+  return m ? t : null
+}
+function normAmount(s: string): number | null {
+  let t = s.replace(/\s/g, '').replace(/[^\d,.-]/g, '')
+  if (t.includes(',') && t.includes('.')) t = t.replace(/\./g, '').replace(',', '.')
+  else t = t.replace(',', '.')
+  const n = Number(t)
+  return Number.isFinite(n) ? n : null
+}
+function parseCsv(text: string): ParsedRow[] {
+  const out: ParsedRow[] = []
+  for (const line of text.split(/\r?\n/)) {
+    const parts = line.split(/[;\t]/).map((p) => p.trim())
+    if (parts.length < 2) continue
+    const date = normDate(parts[0])
+    const amount = normAmount(parts[1])
+    if (!date || amount === null || amount === 0) continue
+    out.push({ date, amount: Math.abs(amount), type: amount < 0 ? 'expense' : 'income', description: parts.slice(2).join(' ').trim() || null })
+  }
+  return out
+}
+
 export function TransactionsManager({ transactions, categories: initialCats, invNumbers }: { transactions: Tx[]; categories: Cat[]; invNumbers: Record<string, string> }) {
   const router = useRouter()
   const [categories, setCategories] = useState<Cat[]>(initialCats)
   const [dialog, setDialog] = useState<{ tx?: Tx } | null>(null)
+  const [showImport, setShowImport] = useState(false)
   const [isPending, start] = useTransition()
 
   const groups = useMemo(() => {
@@ -60,7 +89,10 @@ export function TransactionsManager({ transactions, categories: initialCats, inv
     <Card>
       <CardHeader className="flex flex-row items-center justify-between space-y-0">
         <CardTitle>Transakce</CardTitle>
-        <Button size="lg" onClick={() => setDialog({})}><Plus className="size-4" />Nová transakce</Button>
+        <div className="flex gap-2">
+          <Button variant="outline" size="lg" onClick={() => setShowImport(true)}><Upload className="size-4" />Import CSV</Button>
+          <Button size="lg" onClick={() => setDialog({})}><Plus className="size-4" />Nová transakce</Button>
+        </div>
       </CardHeader>
       <CardContent>
         {transactions.length === 0 ? (
@@ -127,7 +159,68 @@ export function TransactionsManager({ transactions, categories: initialCats, inv
           onClose={() => setDialog(null)}
         />
       )}
+
+      {showImport && <ImportDialog onClose={() => setShowImport(false)} onDone={() => router.refresh()} />}
     </Card>
+  )
+}
+
+function ImportDialog({ onClose, onDone }: { onClose: () => void; onDone: () => void }) {
+  const [text, setText] = useState('')
+  const [pending, start] = useTransition()
+  const rows = useMemo(() => parseCsv(text), [text])
+  const income = rows.filter((r) => r.type === 'income').reduce((a, r) => a + r.amount, 0)
+  const expense = rows.filter((r) => r.type === 'expense').reduce((a, r) => a + r.amount, 0)
+
+  function run() {
+    if (!rows.length) { toast.error('Chyba', 'Žádné platné řádky.'); return }
+    start(async () => {
+      const res = await importTransactions(rows)
+      if (res?.error) { toast.error('Chyba', res.error); return }
+      toast.success(`Importováno ${res.count} transakcí`); onClose(); onDone()
+    })
+  }
+
+  return (
+    <Dialog open onOpenChange={(o) => { if (!o) onClose() }}>
+      <DialogContent className="max-h-[88vh] overflow-y-auto sm:max-w-xl">
+        <DialogHeader>
+          <DialogTitle>Import výpisu (CSV)</DialogTitle>
+          <DialogDescription>Řádky ve formátu: datum ; částka ; popis. Záporná částka = výdaj. Oddělovač „;" nebo tabulátor.</DialogDescription>
+        </DialogHeader>
+        <textarea
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          rows={6}
+          placeholder={'01.05.2026;-1250,50;Nákup materiálu\n03.05.2026;48000;Platba faktury 2026-014'}
+          className="w-full rounded-lg border border-input bg-background p-2 font-mono text-xs outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+        />
+        {rows.length > 0 && (
+          <div className="space-y-2">
+            <div className="flex justify-between text-sm"><span className="text-muted-foreground">Rozpoznáno řádků</span><span className="font-medium tabular-nums text-foreground">{rows.length}</span></div>
+            <div className="flex justify-between text-sm"><span className="text-muted-foreground">Příjmy / výdaje</span><span className="tabular-nums"><span className="text-success">+{czk(income)}</span> · <span className="text-destructive">−{czk(expense)}</span></span></div>
+            <div className="max-h-40 overflow-y-auto rounded-lg border border-border">
+              <table className="w-full text-xs">
+                <tbody className="divide-y divide-border">
+                  {rows.slice(0, 12).map((r, i) => (
+                    <tr key={i}>
+                      <td className="px-2 py-1 whitespace-nowrap text-muted-foreground">{new Date(r.date).toLocaleDateString('cs-CZ')}</td>
+                      <td className="px-2 py-1">{r.description || '—'}</td>
+                      <td className={cn('px-2 py-1 text-right tabular-nums', r.type === 'income' ? 'text-success' : 'text-destructive')}>{r.type === 'income' ? '+' : '−'}{czk(r.amount)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {rows.length > 12 && <div className="px-2 py-1 text-center text-[11px] text-muted-foreground">… a dalších {rows.length - 12}</div>}
+            </div>
+          </div>
+        )}
+        <div className="flex justify-end gap-2 pt-1">
+          <Button type="button" variant="outline" size="lg" onClick={onClose}>Zrušit</Button>
+          <Button type="button" size="lg" disabled={pending || !rows.length} onClick={run}>{pending ? 'Importuji…' : `Importovat ${rows.length || ''}`}</Button>
+        </div>
+      </DialogContent>
+    </Dialog>
   )
 }
 
