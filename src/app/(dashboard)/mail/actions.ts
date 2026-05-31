@@ -54,7 +54,12 @@ export async function connectAccount(formData: FormData): Promise<{ error?: stri
   try {
     await withImap({ email, password, imap_host, imap_port }, (client) => client.list())
   } catch (e: any) {
-    return { error: 'Připojení selhalo: ' + (e?.message || 'zkontrolujte e-mail, app password a povolený IMAP přístup v Zoho.') }
+    const detail = e?.authenticationFailed
+      ? 'ověření odmítnuto — zkontrolujte e-mail a app-specific password (ne běžné heslo) a že je v Zoho povolen IMAP přístup'
+      : (e?.responseText || e?.serverResponseCode || e?.response || e?.code || e?.message || 'neznámá chyba')
+    return {
+      error: `Připojení selhalo: ${detail}. Tip: u placeného/organizačního Zoho zkuste v „Pokročilé" host imappro.zoho.eu (IMAP) a smtppro.zoho.eu (SMTP).`,
+    }
   }
 
   const { error } = await c.admin.from('mail_accounts').insert({
