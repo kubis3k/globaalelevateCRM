@@ -12,7 +12,7 @@ import {
 import { MODULES } from '@/lib/modules'
 import { cn } from '@/lib/utils'
 
-const MODULE_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
+export const MODULE_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   personal: User,
   dashboard: LayoutDashboard,
   milestones: Target,

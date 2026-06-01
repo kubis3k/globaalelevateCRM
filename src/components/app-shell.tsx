@@ -4,12 +4,10 @@ import { useRef, useState } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { usePathname } from 'next/navigation'
-import {
-  LayoutDashboard, Users, FileText, DollarSign, Calendar, Briefcase, Building2, Mail, FolderOpen, Menu, X, LogOut, Bell, Sparkles, User, Target,
-} from 'lucide-react'
+import { Menu, X, LogOut, Bell } from 'lucide-react'
 import { MODULES } from '@/lib/modules'
 import { cn } from '@/lib/utils'
-import { CollapsibleSidebar } from './collapsible-sidebar'
+import { CollapsibleSidebar, MODULE_ICONS } from './collapsible-sidebar'
 import { PushSetupDialog } from './pwa/push-setup-dialog'
 import { ThemeToggle } from './ui/theme-toggle'
 import { Avatar } from './ui/avatar'
@@ -17,21 +15,6 @@ import {
   DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem,
   DropdownMenuLabel, DropdownMenuSeparator,
 } from './ui/dropdown-menu'
-
-const MODULE_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
-  dashboard: LayoutDashboard,
-  team: Users,
-  invoices: FileText,
-  finance: DollarSign,
-  calendar: Calendar,
-  hr: Briefcase,
-  crm: Building2,
-  mail: Mail,
-  documents: FolderOpen,
-  'globaal-ai': Sparkles,
-  personal: User,
-  milestones: Target,
-}
 
 const ROLE_LABELS: Record<string, string> = {
   admin: 'Administrátor',
