@@ -4,10 +4,10 @@ import { useRef, useState } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { usePathname } from 'next/navigation'
-import { Menu, X, LogOut, Bell } from 'lucide-react'
+import { Menu, X, LogOut, Bell, ChevronRight } from 'lucide-react'
 import { MODULES } from '@/lib/modules'
 import { cn } from '@/lib/utils'
-import { CollapsibleSidebar, MODULE_ICONS } from './collapsible-sidebar'
+import { CollapsibleSidebar, MODULE_ICONS, NAV } from './collapsible-sidebar'
 import { PushSetupDialog } from './pwa/push-setup-dialog'
 import { ThemeToggle } from './ui/theme-toggle'
 import { Avatar } from './ui/avatar'
@@ -37,9 +37,10 @@ export function AppShell({
   const pathname = usePathname()
   const [mobileOpen, setMobileOpen] = useState(false)
   const [showPush, setShowPush] = useState(false)
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({})
   const logoutForm = useRef<HTMLFormElement>(null)
 
-  const items = MODULES.filter((m) => allowedModules.includes(m.id))
+  const mActive = (href: string) => pathname === href || pathname.startsWith(href + '/')
   const current = MODULES.find(
     (m) => pathname === m.href || (m.href !== '/dashboard' && pathname.startsWith(m.href))
   )
@@ -68,26 +69,52 @@ export function AppShell({
                 <X className="size-4" />
               </button>
             </div>
-            <nav className="mt-2 flex flex-col gap-0.5">
-              {items.map(({ id, href, label }) => {
-                const Icon = MODULE_ICONS[id]
-                const active = pathname === href || (href !== '/dashboard' && pathname.startsWith(href))
+            <nav className="mt-2 flex flex-1 flex-col gap-0.5 overflow-y-auto">
+              {NAV.map((e) => {
+                if (e.type === 'module') {
+                  if (!allowedModules.includes(e.id)) return null
+                  const m = MODULES.find((x) => x.id === e.id)
+                  if (!m) return null
+                  const Icon = MODULE_ICONS[e.id]
+                  const active = mActive(m.href)
+                  return (
+                    <Link key={e.id} href={m.href} onClick={() => setMobileOpen(false)} aria-current={active ? 'page' : undefined}
+                      className={cn('flex h-9 items-center gap-3 rounded-lg px-3 text-sm font-medium transition-colors', e.pinBottom && 'mt-auto',
+                        active ? 'bg-sidebar-accent text-sidebar-accent-foreground' : 'text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground')}>
+                      {Icon && <Icon className="size-4 shrink-0" />}{m.label}
+                    </Link>
+                  )
+                }
+                const members = e.members.filter((id) => allowedModules.includes(id))
+                if (!members.length) return null
+                const GroupIco = e.icon
+                const groupActive = members.some((id) => mActive(MODULES.find((x) => x.id === id)?.href || ''))
+                const isOpen = openGroups[e.id] ?? groupActive
                 return (
-                  <Link
-                    key={href}
-                    href={href}
-                    onClick={() => setMobileOpen(false)}
-                    aria-current={active ? 'page' : undefined}
-                    className={cn(
-                      'flex h-9 items-center gap-3 rounded-lg px-3 text-sm font-medium transition-colors',
-                      active
-                        ? 'bg-sidebar-accent text-sidebar-accent-foreground'
-                        : 'text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground'
+                  <div key={e.id}>
+                    <button type="button" aria-expanded={isOpen} onClick={() => setOpenGroups((o) => ({ ...o, [e.id]: !(o[e.id] ?? groupActive) }))}
+                      className="flex h-9 w-full items-center gap-3 rounded-lg px-3 text-sm font-medium text-sidebar-foreground/70 transition-colors hover:bg-sidebar-accent/50 hover:text-sidebar-foreground">
+                      <GroupIco className="size-4 shrink-0" />
+                      <span className="flex-1 truncate text-left">{e.label}</span>
+                      <ChevronRight className={cn('size-3.5 text-sidebar-foreground/50 transition-transform', isOpen && 'rotate-90')} />
+                    </button>
+                    {isOpen && (
+                      <div className="mt-0.5 mb-1 ml-[1.65rem] flex flex-col gap-0.5 border-l border-sidebar-border/70 pl-2">
+                        {members.map((id) => {
+                          const m = MODULES.find((x) => x.id === id)
+                          if (!m) return null
+                          const Icon = MODULE_ICONS[id]
+                          const active = mActive(m.href)
+                          return (
+                            <Link key={id} href={m.href} onClick={() => setMobileOpen(false)} aria-current={active ? 'page' : undefined}
+                              className={cn('flex h-8 items-center gap-2.5 rounded-md px-2 text-[13px] transition-colors', active ? 'font-medium text-sidebar-accent-foreground' : 'text-sidebar-foreground/55 hover:text-sidebar-foreground')}>
+                              {Icon && <Icon className="size-3.5 shrink-0" />}<span className="truncate">{m.label}</span>
+                            </Link>
+                          )
+                        })}
+                      </div>
                     )}
-                  >
-                    {Icon && <Icon className="size-4 shrink-0" />}
-                    {label}
-                  </Link>
+                  </div>
                 )
               })}
             </nav>
