@@ -1,36 +1,44 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Play, Pause, Download, Save, Upload, FolderOpen, Loader2, Trash2, Film } from 'lucide-react'
+import { Play, Pause, Download, Save, Upload, FolderOpen, Loader2, Trash2, Film, Plus, ChevronUp, ChevronDown, Layers as LayersIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { EmptyState } from '@/components/ui/empty-state'
 import { toast } from '@/components/ui/toast'
+import { cn } from '@/lib/utils'
 import { getDocumentUrl, uploadDocument } from '../documents/actions'
 
 type DocImage = { id: string; name: string; category: string }
 type Particle = { x: number; y: number; vx: number; vy: number; r: number; o: number }
+type Layer = { id: string; name: string; fit: string; scale: number; x: number; y: number; opacity: number; entrance: string; loop: string }
 
 const selectClass = 'h-8 w-full rounded-lg border border-input bg-background px-2 text-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50'
 
 const FORMATS = [
-  { k: '16:9', l: 'Na šířku (16:9)', w: 1280, h: 720 },
-  { k: '1:1', l: 'Čtverec (1:1)', w: 1080, h: 1080 },
-  { k: '9:16', l: 'Na výšku (9:16)', w: 720, h: 1280 },
-  { k: '4:5', l: 'Panel (4:5)', w: 1080, h: 1350 },
+  { k: '16:9', l: 'Na šířku (16:9)', w: 1280, h: 720, g: 'Standardní' },
+  { k: '1:1', l: 'Čtverec (1:1)', w: 1080, h: 1080, g: 'Standardní' },
+  { k: '9:16', l: 'Na výšku (9:16)', w: 720, h: 1280, g: 'Standardní' },
+  { k: '4:5', l: 'Panel (4:5)', w: 1080, h: 1350, g: 'Standardní' },
+  { k: 'led-up', l: 'LED horní 15×1 (1920×128)', w: 1920, h: 128, g: 'LED stěny' },
+  { k: 'led-center', l: 'LED střed 10×3 (1280×384)', w: 1280, h: 384, g: 'LED stěny' },
+  { k: 'led-side', l: 'LED boční 2×5 (256×640)', w: 256, h: 640, g: 'LED stěny' },
+  { k: 'resolume', l: 'Resolume / Full HD (1920×1080)', w: 1920, h: 1080, g: 'LED stěny' },
 ]
+const FORMAT_GROUPS = ['Standardní', 'LED stěny']
 const BACKGROUNDS = [{ k: 'gradient', l: 'Gradient' }, { k: 'particles', l: 'Částice' }, { k: 'waves', l: 'Vlny' }, { k: 'solid', l: 'Jednolitá' }]
-const FITS = [{ k: 'contain', l: 'Vejít (logo na střed)' }, { k: 'cover', l: 'Vyplnit (přes celou plochu)' }]
+const FITS = [{ k: 'contain', l: 'Vejít (na střed)' }, { k: 'cover', l: 'Vyplnit (celá plocha)' }]
 const ENTRANCES = [{ k: 'none', l: 'Žádný' }, { k: 'fade', l: 'Prolnutí' }, { k: 'scale', l: 'Zvětšení' }, { k: 'slideUp', l: 'Zezdola' }, { k: 'slideLeft', l: 'Zleva' }]
 const LOOPS = [
   { k: 'none', l: 'Žádná' }, { k: 'wave', l: 'Vlnění (pozadí)' }, { k: 'zoom', l: 'Pomalý zoom' },
   { k: 'pan', l: 'Posun' }, { k: 'float', l: 'Plování' }, { k: 'pulse', l: 'Pulz' }, { k: 'rotate', l: 'Rotace' },
 ]
 
-type Params = { format: string; bg: string; colorA: string; colorB: string; fit: string; scale: number; entrance: string; loop: string; duration: number; fps: number }
+type Params = { format: string; bg: string; colorA: string; colorB: string; duration: number; fps: number }
 const dimsOf = (format: string) => { const f = FORMATS.find((x) => x.k === format) || FORMATS[0]; return { w: f.w, h: f.h } }
+function genId() { const c = globalThis.crypto as Crypto | undefined; return c?.randomUUID ? c.randomUUID() : `l-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}` }
 
 function drawBackground(ctx: CanvasRenderingContext2D, p: Params, t: number, particles: Particle[], w: number, h: number) {
   const { bg, colorA, colorB } = p
@@ -66,8 +74,7 @@ function drawBackground(ctx: CanvasRenderingContext2D, p: Params, t: number, par
 }
 
 function drawWave(ctx: CanvasRenderingContext2D, img: HTMLImageElement, t: number, w: number, h: number, off: HTMLCanvasElement) {
-  const P = Math.max(8, Math.round(w * 0.045))
-  const ow = w + 2 * P
+  const P = Math.max(8, Math.round(w * 0.045)); const ow = w + 2 * P
   if (off.width !== ow || off.height !== h) { off.width = ow; off.height = h }
   const octx = off.getContext('2d'); if (!octx) return
   octx.clearRect(0, 0, ow, h)
@@ -76,44 +83,41 @@ function drawWave(ctx: CanvasRenderingContext2D, img: HTMLImageElement, t: numbe
   octx.drawImage(img, (ow - dw) / 2, (h - dh) / 2, dw, dh)
   const slices = Math.ceil(h / 8), sh = h / slices
   for (let i = 0; i < slices; i++) {
-    const y = i * sh
-    const dxv = Math.sin(i * 0.4 + t * 1.8) * P
-    const hh = Math.min(sh + 1, h - y)
+    const y = i * sh, dxv = Math.sin(i * 0.4 + t * 1.8) * P, hh = Math.min(sh + 1, h - y)
     ctx.drawImage(off, P + dxv, y, w, hh, 0, y, w, hh)
   }
 }
 
-function drawLayer(ctx: CanvasRenderingContext2D, img: HTMLImageElement, p: Params, t: number, w: number, h: number, off: HTMLCanvasElement) {
+function drawLayer(ctx: CanvasRenderingContext2D, layer: Layer, img: HTMLImageElement, t: number, w: number, h: number, off: HTMLCanvasElement) {
   const prog = Math.min(1, t / 0.8), eo = 1 - Math.pow(1 - prog, 3)
-  const fade = (p.entrance === 'fade' || p.entrance === 'scale' || p.entrance === 'slideUp' || p.entrance === 'slideLeft') ? prog : 1
+  const fade = layer.entrance !== 'none' ? prog : 1
   let edx = 0, edy = 0, esc = 1
-  if (p.entrance === 'scale') esc = 0.6 + 0.4 * eo
-  if (p.entrance === 'slideUp') edy = (1 - eo) * h * 0.15
-  if (p.entrance === 'slideLeft') edx = -(1 - eo) * w * 0.2
-
+  if (layer.entrance === 'scale') esc = 0.6 + 0.4 * eo
+  if (layer.entrance === 'slideUp') edy = (1 - eo) * h * 0.15
+  if (layer.entrance === 'slideLeft') edx = -(1 - eo) * w * 0.2
+  const offX = layer.x * w, offY = layer.y * h
   ctx.save()
-  ctx.globalAlpha = Math.max(0, Math.min(1, fade))
+  ctx.globalAlpha = Math.max(0, Math.min(1, fade * layer.opacity))
 
-  if (p.fit === 'cover') {
-    if (p.loop === 'wave') { drawWave(ctx, img, t, w, h, off); ctx.restore(); return }
+  if (layer.fit === 'cover') {
+    if (layer.loop === 'wave') { drawWave(ctx, img, t, w, h, off); ctx.restore(); return }
     let zoom = 1, dx = 0, dy = 0
-    if (p.loop === 'zoom') zoom = 1.04 + 0.06 * (0.5 + 0.5 * Math.sin(t * 0.5))
-    if (p.loop === 'pan') { zoom = 1.12; dx = Math.sin(t * 0.3) * w * 0.04; dy = Math.cos(t * 0.25) * h * 0.04 }
-    if (p.loop === 'float') dy += Math.sin(t * 1.8) * h * 0.01
-    if (p.loop === 'pulse') zoom *= 1 + 0.03 * Math.sin(t * 2.2)
+    if (layer.loop === 'zoom') zoom = 1.04 + 0.06 * (0.5 + 0.5 * Math.sin(t * 0.5))
+    if (layer.loop === 'pan') { zoom = 1.12; dx = Math.sin(t * 0.3) * w * 0.04; dy = Math.cos(t * 0.25) * h * 0.04 }
+    if (layer.loop === 'float') dy += Math.sin(t * 1.8) * h * 0.01
+    if (layer.loop === 'pulse') zoom *= 1 + 0.03 * Math.sin(t * 2.2)
     const s = Math.max(w / img.width, h / img.height) * zoom
     const dw = img.width * s, dh = img.height * s
-    ctx.drawImage(img, (w - dw) / 2 + dx + edx, (h - dh) / 2 + dy + edy, dw, dh)
+    ctx.drawImage(img, (w - dw) / 2 + dx + edx + offX, (h - dh) / 2 + dy + edy + offY, dw, dh)
     ctx.restore(); return
   }
 
-  // contain — image as a centered logo, sized by the slider
-  let dx = edx, dy = edy, sc = esc, rot = 0
-  if (p.loop === 'float') dy += Math.sin(t * 1.8) * h * 0.012
-  if (p.loop === 'pulse') sc *= 1 + 0.04 * Math.sin(t * 2.2)
-  if (p.loop === 'rotate') rot = t * 0.35
-  if (p.loop === 'zoom') sc *= 1.04 + 0.06 * (0.5 + 0.5 * Math.sin(t * 0.5))
-  const baseH = h * p.scale, ratio = (img.width || 1) / (img.height || 1)
+  let dx = edx + offX, dy = edy + offY, sc = esc, rot = 0
+  if (layer.loop === 'float') dy += Math.sin(t * 1.8) * h * 0.012
+  if (layer.loop === 'pulse') sc *= 1 + 0.04 * Math.sin(t * 2.2)
+  if (layer.loop === 'rotate') rot = t * 0.35
+  if (layer.loop === 'zoom') sc *= 1.04 + 0.06 * (0.5 + 0.5 * Math.sin(t * 0.5))
+  const baseH = h * layer.scale, ratio = (img.width || 1) / (img.height || 1)
   const dh = baseH * sc, dw = dh * ratio
   ctx.translate(w / 2 + dx, h / 2 + dy); ctx.rotate(rot)
   ctx.drawImage(img, -dw / 2, -dh / 2, dw, dh)
@@ -121,24 +125,26 @@ function drawLayer(ctx: CanvasRenderingContext2D, img: HTMLImageElement, p: Para
 }
 
 export function AnimationStudio({ documentImages }: { documentImages: DocImage[] }) {
-  const [params, setParams] = useState<Params>({ format: '16:9', bg: 'gradient', colorA: '#0f172a', colorB: '#6366f1', fit: 'contain', scale: 0.4, entrance: 'fade', loop: 'float', duration: 5, fps: 30 })
+  const [params, setParams] = useState<Params>({ format: '16:9', bg: 'gradient', colorA: '#0f172a', colorB: '#6366f1', duration: 5, fps: 30 })
+  const [layers, setLayers] = useState<Layer[]>([])
+  const [selectedId, setSelectedId] = useState<string | null>(null)
   const [playing, setPlaying] = useState(true)
-  const [logoName, setLogoName] = useState<string | null>(null)
-  const [logoReady, setLogoReady] = useState(false)
   const [picker, setPicker] = useState(false)
   const [exporting, setExporting] = useState(false)
   const [exported, setExported] = useState<Blob | null>(null)
   const [saving, setSaving] = useState(false)
+  const [, setTick] = useState(0)
 
   const dims = dimsOf(params.format)
   const portrait = dims.h > dims.w
+  const selected = layers.find((l) => l.id === selectedId) || null
 
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const offRef = useRef<HTMLCanvasElement | null>(null)
   const paramsRef = useRef(params); paramsRef.current = params
+  const layersRef = useRef(layers); layersRef.current = layers
   const playingRef = useRef(playing); playingRef.current = playing
-  const logoRef = useRef<HTMLImageElement | null>(null)
-  const objUrlRef = useRef<string | null>(null)
+  const imagesRef = useRef<Record<string, { img: HTMLImageElement; url: string }>>({})
   const particlesRef = useRef<Particle[]>([])
   const rafRef = useRef<number>(0)
   const startRef = useRef<number>(0)
@@ -157,7 +163,10 @@ export function AnimationStudio({ documentImages }: { documentImages: DocImage[]
     const ctx = canvas.getContext('2d'); if (!ctx) return
     const w = canvas.width, h = canvas.height
     drawBackground(ctx, paramsRef.current, t, particlesRef.current, w, h)
-    if (logoRef.current && offRef.current) drawLayer(ctx, logoRef.current, paramsRef.current, t, w, h, offRef.current)
+    for (const layer of layersRef.current) {
+      const entry = imagesRef.current[layer.id]
+      if (entry?.img && offRef.current) drawLayer(ctx, layer, entry.img, t, w, h, offRef.current)
+    }
   }, [])
 
   useEffect(() => {
@@ -174,30 +183,47 @@ export function AnimationStudio({ documentImages }: { documentImages: DocImage[]
     return () => cancelAnimationFrame(rafRef.current)
   }, [playing, renderAt])
 
-  // Redraw a static frame when params/format/logo change while paused
-  useEffect(() => { if (!playingRef.current) renderAt(tRef.current) }, [params, logoReady, renderAt])
+  useEffect(() => { if (!playingRef.current) renderAt(tRef.current) }, [params, layers, renderAt])
 
-  function setLogoFromBlob(blob: Blob, name: string) {
-    if (objUrlRef.current) URL.revokeObjectURL(objUrlRef.current)
-    const url = URL.createObjectURL(blob); objUrlRef.current = url
+  function addLayerFromBlob(blob: Blob, name: string) {
+    const id = genId()
+    const url = URL.createObjectURL(blob)
     const img = new Image()
-    img.onload = () => { logoRef.current = img; setLogoName(name); setLogoReady((v) => !v) }
-    img.onerror = () => toast.error('Chyba', 'Obrázek se nepodařilo načíst.')
+    img.onload = () => {
+      imagesRef.current[id] = { img, url }
+      // First layer defaults to a full background; later layers to centered logos.
+      const isFirst = layersRef.current.length === 0
+      const layer: Layer = { id, name, fit: isFirst ? 'cover' : 'contain', scale: 0.4, x: 0, y: 0, opacity: 1, entrance: isFirst ? 'none' : 'fade', loop: isFirst ? 'wave' : 'float' }
+      setLayers((prev) => [...prev, layer])
+      setSelectedId(id)
+      setTick((n) => n + 1)
+    }
+    img.onerror = () => { URL.revokeObjectURL(url); toast.error('Chyba', 'Obrázek se nepodařilo načíst.') }
     img.src = url
   }
-  function onUploadFile(e: React.ChangeEvent<HTMLInputElement>) { const f = e.target.files?.[0]; if (f) setLogoFromBlob(f, f.name) }
+  function onUploadFile(e: React.ChangeEvent<HTMLInputElement>) { const f = e.target.files?.[0]; if (f) addLayerFromBlob(f, f.name); e.target.value = '' }
   async function importFromDocuments(doc: DocImage) {
     setPicker(false)
     try {
       const res = await getDocumentUrl(doc.id)
       if (res.error || !res.url) { toast.error('Chyba', res.error || 'Nepodařilo se načíst.'); return }
       const blob = await (await fetch(res.url)).blob()
-      setLogoFromBlob(blob, doc.name); toast.success('Vloženo', doc.name)
+      addLayerFromBlob(blob, doc.name); toast.success('Vrstva přidána', doc.name)
     } catch (e: any) { toast.error('Chyba', e?.message || 'Import selhal.') }
   }
-  function removeLogo() {
-    logoRef.current = null; setLogoName(null); setLogoReady((v) => !v)
-    if (objUrlRef.current) { URL.revokeObjectURL(objUrlRef.current); objUrlRef.current = null }
+  function removeLayer(id: string) {
+    const e = imagesRef.current[id]; if (e) { URL.revokeObjectURL(e.url); delete imagesRef.current[id] }
+    setLayers((prev) => prev.filter((l) => l.id !== id))
+    if (selectedId === id) setSelectedId(null)
+  }
+  function updateLayer(id: string, patch: Partial<Layer>) { setLayers((prev) => prev.map((l) => (l.id === id ? { ...l, ...patch } : l))) }
+  function move(id: string, dir: 'front' | 'back') {
+    setLayers((prev) => {
+      const i = prev.findIndex((l) => l.id === id); if (i < 0) return prev
+      const j = dir === 'front' ? i + 1 : i - 1
+      if (j < 0 || j >= prev.length) return prev
+      const copy = [...prev];[copy[i], copy[j]] = [copy[j], copy[i]]; return copy
+    })
   }
 
   function pickMime() {
@@ -228,13 +254,13 @@ export function AnimationStudio({ documentImages }: { documentImages: DocImage[]
   function download() {
     if (!exported) return
     const url = URL.createObjectURL(exported); const a = document.createElement('a')
-    a.href = url; a.download = `animace-${Date.now()}.webm`; a.click(); setTimeout(() => URL.revokeObjectURL(url), 2000)
+    a.href = url; a.download = `animace-${params.format}-${Date.now()}.webm`; a.click(); setTimeout(() => URL.revokeObjectURL(url), 2000)
   }
   async function saveToDocuments() {
     if (!exported) return
     setSaving(true)
     try {
-      const name = `Animace ${new Date().toLocaleDateString('cs-CZ')}.webm`
+      const name = `Animace ${params.format} ${new Date().toLocaleDateString('cs-CZ')}.webm`
       const fd = new FormData()
       fd.set('file', new File([exported], name, { type: 'video/webm' })); fd.set('name', name); fd.set('category', 'other')
       const res = await uploadDocument(fd)
@@ -242,17 +268,14 @@ export function AnimationStudio({ documentImages }: { documentImages: DocImage[]
     } finally { setSaving(false) }
   }
 
+  const display = [...layers].reverse() // front layer on top of the list
+
   return (
-    <div className="grid gap-4 lg:grid-cols-[1fr_18rem]">
+    <div className="grid gap-4 lg:grid-cols-[1fr_20rem]">
       <div className="space-y-3">
-        <div className="flex justify-center overflow-hidden rounded-xl border border-border bg-black p-2 shadow-xs">
-          <canvas
-            ref={canvasRef}
-            width={dims.w}
-            height={dims.h}
-            className="block w-full"
-            style={{ aspectRatio: `${dims.w} / ${dims.h}`, maxHeight: '72vh', width: portrait ? 'auto' : '100%' }}
-          />
+        <div className="flex justify-center overflow-auto rounded-xl border border-border bg-black p-2 shadow-xs">
+          <canvas ref={canvasRef} width={dims.w} height={dims.h} className="block w-full"
+            style={{ aspectRatio: `${dims.w} / ${dims.h}`, maxHeight: '72vh', width: portrait ? 'auto' : '100%' }} />
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Button size="lg" variant="outline" onClick={() => setPlaying((v) => !v)}>
@@ -269,53 +292,23 @@ export function AnimationStudio({ documentImages }: { documentImages: DocImage[]
             </div>
           )}
         </div>
-        <p className="text-xs text-muted-foreground">Export běží v prohlížeči (WebM). Nejlépe Chrome/Edge. {params.duration}s @ {params.fps} fps · {params.format}.</p>
+        <p className="text-xs text-muted-foreground">Plátno {dims.w}×{dims.h}px · {params.duration}s @ {params.fps} fps · export WebM (Chrome/Edge).</p>
       </div>
 
       <div className="space-y-4 rounded-xl border border-border bg-card p-4">
         <div className="space-y-1.5">
-          <Label className="text-xs font-semibold text-foreground">Formát</Label>
+          <Label className="text-xs font-semibold text-foreground">Formát plátna</Label>
           <select value={params.format} onChange={(e) => setParams((p) => ({ ...p, format: e.target.value }))} className={selectClass}>
-            {FORMATS.map((f) => <option key={f.k} value={f.k}>{f.l}</option>)}
+            {FORMAT_GROUPS.map((g) => (
+              <optgroup key={g} label={g}>
+                {FORMATS.filter((f) => f.g === g).map((f) => <option key={f.k} value={f.k}>{f.l}</option>)}
+              </optgroup>
+            ))}
           </select>
         </div>
 
         <div className="space-y-1.5 border-t border-border pt-3">
-          <Label className="text-xs font-semibold text-foreground">Logo / grafika</Label>
-          {logoName ? (
-            <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/40 px-2 py-1.5 text-sm">
-              <span className="min-w-0 flex-1 truncate text-foreground">{logoName}</span>
-              <button onClick={removeLogo} aria-label="Odebrat" className="rounded p-1 text-muted-foreground hover:text-destructive"><Trash2 className="size-4" /></button>
-            </div>
-          ) : (
-            <p className="text-xs text-muted-foreground">Vlož 3D logo / grafiku z Dokumentů nebo nahraj soubor.</p>
-          )}
-          <div className="grid grid-cols-2 gap-2">
-            <Button variant="outline" size="sm" onClick={() => setPicker(true)}><FolderOpen className="size-4" />Z Dokumentů</Button>
-            <label className="inline-flex h-7 cursor-pointer items-center justify-center gap-1 rounded-[min(var(--radius-md),12px)] border border-input bg-background px-2.5 text-[0.8rem] font-medium hover:bg-muted">
-              <Upload className="size-3.5" />Nahrát<input type="file" accept="image/*" className="hidden" onChange={onUploadFile} />
-            </label>
-          </div>
-          {logoName && (
-            <div className="space-y-2 pt-1">
-              <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground">Výplň</Label>
-                <select value={params.fit} onChange={(e) => setParams((p) => ({ ...p, fit: e.target.value }))} className={selectClass}>
-                  {FITS.map((f) => <option key={f.k} value={f.k}>{f.l}</option>)}
-                </select>
-              </div>
-              {params.fit === 'contain' && (
-                <div className="space-y-1.5">
-                  <Label className="text-xs text-muted-foreground">Velikost loga: {Math.round(params.scale * 100)} %</Label>
-                  <input type="range" min={10} max={100} step={5} value={Math.round(params.scale * 100)} onChange={(e) => setParams((p) => ({ ...p, scale: Number(e.target.value) / 100 }))} className="w-full accent-primary" />
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-
-        <div className="space-y-1.5 border-t border-border pt-3">
-          <Label className="text-xs font-semibold text-foreground">Pozadí (za grafikou)</Label>
+          <Label className="text-xs font-semibold text-foreground">Pozadí (spodní vrstva)</Label>
           <select value={params.bg} onChange={(e) => setParams((p) => ({ ...p, bg: e.target.value }))} className={selectClass}>
             {BACKGROUNDS.map((b) => <option key={b.k} value={b.k}>{b.l}</option>)}
           </select>
@@ -325,22 +318,85 @@ export function AnimationStudio({ documentImages }: { documentImages: DocImage[]
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-2 border-t border-border pt-3">
-          <div className="space-y-1.5">
-            <Label className="text-xs text-muted-foreground">Nástup</Label>
-            <select value={params.entrance} onChange={(e) => setParams((p) => ({ ...p, entrance: e.target.value }))} className={selectClass}>
-              {ENTRANCES.map((x) => <option key={x.k} value={x.k}>{x.l}</option>)}
-            </select>
+        {/* Layers */}
+        <div className="space-y-2 border-t border-border pt-3">
+          <div className="flex items-center justify-between">
+            <Label className="flex items-center gap-1.5 text-xs font-semibold text-foreground"><LayersIcon className="size-3.5" />Vrstvy ({layers.length})</Label>
           </div>
-          <div className="space-y-1.5">
-            <Label className="text-xs text-muted-foreground">Pohyb / smyčka</Label>
-            <select value={params.loop} onChange={(e) => setParams((p) => ({ ...p, loop: e.target.value }))} className={selectClass}>
-              {LOOPS.map((x) => <option key={x.k} value={x.k}>{x.l}</option>)}
-            </select>
+          <div className="grid grid-cols-2 gap-2">
+            <Button variant="outline" size="sm" onClick={() => setPicker(true)}><FolderOpen className="size-4" />Z Dokumentů</Button>
+            <label className="inline-flex h-7 cursor-pointer items-center justify-center gap-1 rounded-[min(var(--radius-md),12px)] border border-input bg-background px-2.5 text-[0.8rem] font-medium hover:bg-muted">
+              <Plus className="size-3.5" />Nahrát<input type="file" accept="image/*" className="hidden" onChange={onUploadFile} />
+            </label>
           </div>
+          {layers.length === 0 ? (
+            <p className="text-xs text-muted-foreground">Přidej vrstvu — třeba vlnité pozadí, pak logo přes něj.</p>
+          ) : (
+            <div className="space-y-1">
+              {display.map((l) => (
+                <div key={l.id} className={cn('flex items-center gap-1 rounded-lg border px-2 py-1.5 text-sm', selectedId === l.id ? 'border-primary/50 bg-primary/5' : 'border-border')}>
+                  <button onClick={() => setSelectedId(l.id)} className="min-w-0 flex-1 truncate text-left text-foreground">{l.name}</button>
+                  <span className="shrink-0 text-[10px] text-muted-foreground">{l.fit === 'cover' ? 'výplň' : 'logo'}</span>
+                  <button onClick={() => move(l.id, 'front')} aria-label="Navrch" className="rounded p-0.5 text-muted-foreground hover:text-foreground"><ChevronUp className="size-3.5" /></button>
+                  <button onClick={() => move(l.id, 'back')} aria-label="Dospod" className="rounded p-0.5 text-muted-foreground hover:text-foreground"><ChevronDown className="size-3.5" /></button>
+                  <button onClick={() => removeLayer(l.id)} aria-label="Smazat" className="rounded p-0.5 text-muted-foreground hover:text-destructive"><Trash2 className="size-3.5" /></button>
+                </div>
+              ))}
+              <p className="px-1 text-[10px] text-muted-foreground">Nahoře = navrchu (kreslí se naposled).</p>
+            </div>
+          )}
         </div>
-        {params.loop === 'wave' && params.fit !== 'cover' && (
-          <p className="-mt-2 text-[11px] text-amber-600 dark:text-amber-400">Tip: Vlnění funguje nejlépe s výplní „Vyplnit (přes celou plochu)".</p>
+
+        {/* Selected layer controls */}
+        {selected && (
+          <div className="space-y-2 border-t border-border pt-3">
+            <Label className="text-xs font-semibold text-foreground">Vrstva: {selected.name}</Label>
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">Výplň</Label>
+              <select value={selected.fit} onChange={(e) => updateLayer(selected.id, { fit: e.target.value })} className={selectClass}>
+                {FITS.map((f) => <option key={f.k} value={f.k}>{f.l}</option>)}
+              </select>
+            </div>
+            {selected.fit === 'contain' && (
+              <>
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground">Velikost: {Math.round(selected.scale * 100)} %</Label>
+                  <input type="range" min={5} max={100} step={5} value={Math.round(selected.scale * 100)} onChange={(e) => updateLayer(selected.id, { scale: Number(e.target.value) / 100 })} className="w-full accent-primary" />
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs text-muted-foreground">Pozice X: {Math.round(selected.x * 100)}</Label>
+                    <input type="range" min={-50} max={50} step={1} value={Math.round(selected.x * 100)} onChange={(e) => updateLayer(selected.id, { x: Number(e.target.value) / 100 })} className="w-full accent-primary" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs text-muted-foreground">Pozice Y: {Math.round(selected.y * 100)}</Label>
+                    <input type="range" min={-50} max={50} step={1} value={Math.round(selected.y * 100)} onChange={(e) => updateLayer(selected.id, { y: Number(e.target.value) / 100 })} className="w-full accent-primary" />
+                  </div>
+                </div>
+              </>
+            )}
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">Průhlednost: {Math.round(selected.opacity * 100)} %</Label>
+              <input type="range" min={10} max={100} step={5} value={Math.round(selected.opacity * 100)} onChange={(e) => updateLayer(selected.id, { opacity: Number(e.target.value) / 100 })} className="w-full accent-primary" />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">Nástup</Label>
+                <select value={selected.entrance} onChange={(e) => updateLayer(selected.id, { entrance: e.target.value })} className={selectClass}>
+                  {ENTRANCES.map((x) => <option key={x.k} value={x.k}>{x.l}</option>)}
+                </select>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">Pohyb</Label>
+                <select value={selected.loop} onChange={(e) => updateLayer(selected.id, { loop: e.target.value })} className={selectClass}>
+                  {LOOPS.map((x) => <option key={x.k} value={x.k}>{x.l}</option>)}
+                </select>
+              </div>
+            </div>
+            {selected.loop === 'wave' && selected.fit !== 'cover' && (
+              <p className="text-[11px] text-amber-600 dark:text-amber-400">Tip: Vlnění funguje nejlépe s výplní „Vyplnit".</p>
+            )}
+          </div>
         )}
 
         <div className="grid grid-cols-2 gap-2 border-t border-border pt-3">
@@ -361,8 +417,8 @@ export function AnimationStudio({ documentImages }: { documentImages: DocImage[]
         <Dialog open onOpenChange={(o) => { if (!o) setPicker(false) }}>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Vložit z Dokumentů</DialogTitle>
-              <DialogDescription>Vyber uložené 3D logo nebo grafiku (obrázky z modulu Dokumenty).</DialogDescription>
+              <DialogTitle>Přidat vrstvu z Dokumentů</DialogTitle>
+              <DialogDescription>Vyber 3D logo nebo grafiku (obrázky z modulu Dokumenty).</DialogDescription>
             </DialogHeader>
             {documentImages.length === 0 ? (
               <EmptyState icon={FolderOpen} title="Žádné obrázky" description="Ulož 3D logo z 3D Studia do Dokumentů, pak ho tu uvidíš." />
