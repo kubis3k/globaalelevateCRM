@@ -2,13 +2,14 @@
 
 import { useEffect, useRef, useState } from 'react'
 import * as THREE from 'three'
-import { FolderOpen, Loader2, X, Image as ImageIcon, Film, Sun, Tags, UtensilsCrossed } from 'lucide-react'
+import { FolderOpen, Loader2, X, Image as ImageIcon, Film, Sun, Tags, UtensilsCrossed, Upload } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { EmptyState } from '@/components/ui/empty-state'
 import { toast } from '@/components/ui/toast'
 import { getDocumentUrl } from '@/app/(dashboard)/documents/actions'
+import { uploadToDocuments } from '@/lib/documents-upload'
 
 type VizDoc = { id: string; name: string; kind: 'image' | 'video' }
 type ZoneKey = 'up' | 'center' | 'left' | 'right'
@@ -433,32 +434,50 @@ export function ClubVisualizer({ documents }: { documents: VizDoc[] }) {
     if (cur) { try { URL.revokeObjectURL(cur.url); cur.tex.dispose(); cur.video?.pause() } catch { } delete contentRef.current[zone] }
   }
 
+  async function applyUrlToZone(zone: ZoneKey, url: string, kind: 'image' | 'video', label: string) {
+    const mesh = ledRef.current[zone]; if (!mesh) { URL.revokeObjectURL(url); return }
+    const mat = mesh.material as THREE.MeshBasicMaterial
+    cleanupZone(zone)
+    if (kind === 'video') {
+      const v = document.createElement('video'); v.src = url; v.loop = true; v.muted = true; v.playsInline = true; v.crossOrigin = 'anonymous'
+      await v.play().catch(() => { })
+      const tex = new THREE.VideoTexture(v); tex.colorSpace = THREE.SRGBColorSpace
+      mat.map = tex; mat.needsUpdate = true
+      contentRef.current[zone] = { url, tex, video: v }
+    } else {
+      const img = new Image(); img.src = url
+      try { await img.decode() } catch { }
+      const tex = new THREE.Texture(img); tex.colorSpace = THREE.SRGBColorSpace; tex.needsUpdate = true
+      mat.map = tex; mat.needsUpdate = true
+      contentRef.current[zone] = { url, tex }
+    }
+    setAssigned((a) => ({ ...a, [zone]: label }))
+  }
+
   async function assign(zone: ZoneKey, doc: VizDoc) {
     setPicker(null); setBusy(zone)
     try {
       const res = await getDocumentUrl(doc.id)
       if (res.error || !res.url) { toast.error('Chyba', res.error || 'Nepodařilo se načíst.'); return }
       const blob = await (await fetch(res.url)).blob()
-      const url = URL.createObjectURL(blob)
-      const mesh = ledRef.current[zone]; if (!mesh) return
-      const mat = mesh.material as THREE.MeshBasicMaterial
-      cleanupZone(zone)
-      if (doc.kind === 'video') {
-        const v = document.createElement('video'); v.src = url; v.loop = true; v.muted = true; v.playsInline = true; v.crossOrigin = 'anonymous'
-        await v.play().catch(() => { })
-        const tex = new THREE.VideoTexture(v); tex.colorSpace = THREE.SRGBColorSpace
-        mat.map = tex; mat.needsUpdate = true
-        contentRef.current[zone] = { url, tex, video: v }
-      } else {
-        const img = new Image(); img.src = url
-        try { await img.decode() } catch { }
-        const tex = new THREE.Texture(img); tex.colorSpace = THREE.SRGBColorSpace; tex.needsUpdate = true
-        mat.map = tex; mat.needsUpdate = true
-        contentRef.current[zone] = { url, tex }
-      }
-      setAssigned((a) => ({ ...a, [zone]: doc.name }))
+      await applyUrlToZone(zone, URL.createObjectURL(blob), doc.kind, doc.name)
     } catch (e: any) {
       toast.error('Chyba', e?.message || 'Načtení selhalo.')
+    } finally { setBusy(null) }
+  }
+
+  // Upload an image/video straight from the PC: show it immediately, then save
+  // it to Documents (best-effort) so it persists for next time.
+  async function assignLocal(zone: ZoneKey, file: File) {
+    setPicker(null); setBusy(zone)
+    try {
+      const kind: 'image' | 'video' = (file.type || '').startsWith('video') ? 'video' : 'image'
+      await applyUrlToZone(zone, URL.createObjectURL(file), kind, file.name)
+      const res = await uploadToDocuments(file, { name: file.name, category: 'other', contentType: file.type || undefined })
+      if (res?.error) toast.error('Zobrazeno jen pro náhled', res.error)
+      else toast.success('Nahráno a uloženo do Dokumentů', file.name)
+    } catch (e: any) {
+      toast.error('Chyba', e?.message || 'Nahrání selhalo.')
     } finally { setBusy(null) }
   }
 
@@ -536,12 +555,16 @@ export function ClubVisualizer({ documents }: { documents: VizDoc[] }) {
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Vložit na: {ZONES.find((z) => z.key === picker)?.label}</DialogTitle>
-              <DialogDescription>Vyber grafiku nebo animaci z Dokumentů (obrázky + videa).</DialogDescription>
+              <DialogDescription>Nahraj obrázek/video z počítače, nebo vyber z Dokumentů.</DialogDescription>
             </DialogHeader>
+            <label className="mb-2 flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-border px-3 py-3 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground">
+              <Upload className="size-4" />Nahrát z počítače (obrázek / video)
+              <input type="file" accept="image/*,video/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f && picker) assignLocal(picker, f); e.target.value = '' }} />
+            </label>
             {documents.length === 0 ? (
-              <EmptyState icon={FolderOpen} title="Žádný obsah" description="Ulož 3D logo nebo export animace do Dokumentů, pak ho tu uvidíš." />
+              <EmptyState icon={FolderOpen} title="Žádný obsah v Dokumentech" description="Nahraj z počítače výše, nebo ulož 3D logo / export animace do Dokumentů." />
             ) : (
-              <div className="max-h-80 space-y-1 overflow-y-auto">
+              <div className="max-h-72 space-y-1 overflow-y-auto">
                 {documents.map((d) => (
                   <button key={d.id} onClick={() => assign(picker, d)} className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-sm transition-colors hover:bg-muted">
                     {d.kind === 'video' ? <Film className="size-4 shrink-0 text-primary" /> : <ImageIcon className="size-4 shrink-0 text-muted-foreground" />}

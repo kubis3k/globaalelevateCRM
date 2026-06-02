@@ -9,7 +9,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { EmptyState } from '@/components/ui/empty-state'
 import { toast } from '@/components/ui/toast'
 import { cn } from '@/lib/utils'
-import { getDocumentUrl, uploadDocument } from '../documents/actions'
+import { getDocumentUrl } from '../documents/actions'
+import { uploadToDocuments } from '@/lib/documents-upload'
 
 type DocImage = { id: string; name: string; category: string }
 type Particle = { x: number; y: number; vx: number; vy: number; r: number; o: number }
@@ -344,10 +345,10 @@ export function AnimationStudio({ documentImages }: { documentImages: DocImage[]
     setSaving(true)
     try {
       const name = `Animace ${params.format} ${new Date().toLocaleDateString('cs-CZ')}.webm`
-      const fd = new FormData()
-      fd.set('file', new File([exported], name, { type: 'video/webm' })); fd.set('name', name); fd.set('category', 'other')
-      const res = await uploadDocument(fd)
-      if (res?.error) toast.error('Chyba', res.error); else toast.success('Uloženo do Dokumentů')
+      const res = await uploadToDocuments(exported, { name, category: 'other', contentType: 'video/webm' })
+      if (res?.error) toast.error('Chyba', res.error); else toast.success('Uloženo do Dokumentů', name)
+    } catch (e: any) {
+      toast.error('Chyba', e?.message || 'Uložení selhalo.')
     } finally { setSaving(false) }
   }
 
