@@ -13,6 +13,7 @@ export const MODULES = [
   { id: 'logo3d',    label: '3D Studio', href: '/logo3d',    color: '#c026d3' },
   { id: 'animations', label: 'Animace',  href: '/animations', color: '#e11d48' },
   { id: 'visualizer', label: 'Vizualizátor', href: '/visualizer', color: '#22d3ee' },
+  { id: 'social',    label: 'Sociální sítě', href: '/social',    color: '#2563eb' },
   { id: 'hr',        label: 'HR',        href: '/hr',        color: '#f43f5e' },
   { id: 'team',      label: 'Tým',       href: '/team',      color: '#8b5cf6' },
   { id: 'crm',       label: 'CRM',       href: '/crm',       color: '#06b6d4' },

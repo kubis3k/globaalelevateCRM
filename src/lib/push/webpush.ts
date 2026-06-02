@@ -17,7 +17,7 @@ function ensure(): boolean {
   return true
 }
 
-export type PushType = 'calendar' | 'email' | 'crm' | 'hr' | 'projects'
+export type PushType = 'calendar' | 'email' | 'crm' | 'hr' | 'projects' | 'social'
 export type PushPayload = { title: string; body: string; url?: string; tag?: string }
 
 // Sends a push to every device of the given users that hasn't disabled this

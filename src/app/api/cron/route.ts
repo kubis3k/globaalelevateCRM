@@ -96,11 +96,40 @@ async function crmDueReminders(admin: any) {
   return { reminded }
 }
 
+// Scheduled social posts whose time has come → notify managers (once) so the
+// post gets published. When per-platform API tokens are connected this is also
+// where auto-posting hooks in; until then it's a reliable publish reminder.
+async function socialDuePosts(admin: any) {
+  const nowIso = new Date().toISOString()
+  const { data: posts } = await admin.from('social_posts')
+    .select('id, tenant_id, content, platforms, scheduled_at')
+    .eq('status', 'scheduled').lte('scheduled_at', nowIso).is('notified_at', null)
+  if (!posts?.length) return { notified: 0 }
+  let notified = 0
+  for (const p of posts) {
+    const { data: mgrs } = await admin.from('tenant_users').select('user_id')
+      .eq('tenant_id', p.tenant_id).in('role', ['admin', 'manager'])
+    const recipients = (mgrs || []).map((r: any) => r.user_id)
+    if (recipients.length) {
+      const nets = Array.isArray(p.platforms) ? p.platforms.join(', ') : ''
+      notified += await sendPushToUsers(admin, recipients, 'social', {
+        title: 'Naplánovaný příspěvek je připraven',
+        body: `${nets ? nets + ' · ' : ''}${p.content || 'Příspěvek'}`.slice(0, 180),
+        url: '/social',
+        tag: `social-${p.id}`,
+      })
+    }
+    await admin.from('social_posts').update({ notified_at: nowIso }).eq('id', p.id)
+  }
+  return { notified }
+}
+
 async function run() {
   const admin = createAdminClient()
   const mail = await pollMail(admin)
   const crm = await crmDueReminders(admin)
-  return { ok: true, mail, crm }
+  const social = await socialDuePosts(admin)
+  return { ok: true, mail, crm, social }
 }
 
 export async function POST(req: NextRequest) {
