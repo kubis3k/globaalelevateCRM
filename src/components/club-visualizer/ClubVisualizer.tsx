@@ -307,8 +307,6 @@ export function ClubVisualizer({ documents }: { documents: VizDoc[] }) {
     add(new THREE.BoxGeometry(3.4, 0.08, 0.7), matBarTop, -6, 1.12, FRONT - 4.5)
     add(new THREE.BoxGeometry(3, 3, 0.15), matMetal, 6.5, 1.5, FRONT - 5)             // WC wall
     add(new THREE.BoxGeometry(0.15, 3, 4), matMetal, 5, 1.5, FRONT - 3)
-    add(new THREE.BoxGeometry(4, 3, 0.15), matMetal, -7, 1.5, BACK + 4)               // backstage partition (across)
-    add(new THREE.BoxGeometry(0.15, 3, 4), matMetal, -5, 1.5, BACK + 2)               // backstage partition (along)
     add(new THREE.PlaneGeometry(2.4, 3), matDark, W / 2 - 0.02, 1.6, 4, 0, -Math.PI / 2) // side-zone door
 
     // ════ Signature OX-Club features (recreated from reference photos) ════
