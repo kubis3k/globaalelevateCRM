@@ -25,11 +25,18 @@ export interface VectorizeResult {
   sourceType: 'svg' | 'raster';
 }
 
+// Load the pristine, published esm-potrace-wasm dist at runtime from /public
+// (self-hosted, copied verbatim from node_modules). It is NOT put through the
+// app bundler: Turbopack mangles the inlined WebAssembly, which then throws
+// "invalid or out-of-range index" at trace time. turbopackIgnore + a non-literal
+// URL keep it out of the bundle; the browser loads the intact module directly.
+// Keep public/vendor/esm-potrace-wasm/index.js in sync with the pinned 0.4.1 dep.
+const POTRACE_URL: string = '/vendor/esm-potrace-wasm/index.js';
 let _mod: typeof import('esm-potrace-wasm') | null = null;
 let _ready: Promise<void> | null = null;
 
 async function ensureReady(): Promise<typeof import('esm-potrace-wasm')> {
-  if (!_mod) _mod = await import('esm-potrace-wasm');
+  if (!_mod) _mod = (await import(/* turbopackIgnore: true */ POTRACE_URL)) as typeof import('esm-potrace-wasm');
   if (!_ready) _ready = _mod.init();
   await _ready;
   return _mod;
