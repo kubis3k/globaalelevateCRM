@@ -1,6 +1,6 @@
 // Shared types for the Logo3D Studio module.
 
-export type MaterialPresetName = 'obsidian' | 'gold' | 'chrome' | 'steel';
+export type MaterialPresetName = 'obsidian' | 'gold' | 'chrome' | 'steel' | 'neonCyan' | 'neonMagenta' | 'neonGreen';
 
 /** Subset of MeshPhysicalMaterial params used by presets. */
 export interface MaterialParams {
@@ -11,6 +11,9 @@ export interface MaterialParams {
   clearcoatRoughness?: number;
   envMapIntensity?: number;
   reflectivity?: number;
+  /** Self-illumination color (glows with bloom). */
+  emissive?: number;
+  emissiveIntensity?: number;
 }
 
 /**
@@ -48,7 +51,7 @@ export const DEFAULT_SETTINGS: Logo3DSettings = {
   rotateSpeed: 0.85,
   floorReflection: false,
   exposure: 0.95,
-  bloom: 0.18,
+  bloom: 0.3,
 };
 
 export type GraphicSourceType = 'svg' | 'raster';

@@ -13,7 +13,7 @@ import { getDocumentUrl, uploadDocument } from '../documents/actions'
 
 type DocImage = { id: string; name: string; category: string }
 type Particle = { x: number; y: number; vx: number; vy: number; r: number; o: number }
-type Layer = { id: string; name: string; fit: string; scale: number; x: number; y: number; opacity: number; entrance: string; loop: string }
+type Layer = { id: string; name: string; fit: string; scale: number; x: number; y: number; opacity: number; entrance: string; loop: string; speed: number; blend: string }
 
 const selectClass = 'h-8 w-full rounded-lg border border-input bg-background px-2 text-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50'
 
@@ -28,7 +28,12 @@ const FORMATS = [
   { k: 'resolume', l: 'Resolume / Full HD (1920×1080)', w: 1920, h: 1080, g: 'LED stěny' },
 ]
 const FORMAT_GROUPS = ['Standardní', 'LED stěny']
-const BACKGROUNDS = [{ k: 'gradient', l: 'Gradient' }, { k: 'particles', l: 'Částice' }, { k: 'waves', l: 'Vlny' }, { k: 'solid', l: 'Jednolitá' }]
+const BACKGROUNDS = [
+  { k: 'gradient', l: 'Gradient' }, { k: 'particles', l: 'Částice' }, { k: 'waves', l: 'Vlny' },
+  { k: 'beams', l: 'Paprsky (klub)' }, { k: 'neon', l: 'Neon záře' }, { k: 'bars', l: 'Ekvalizér' }, { k: 'solid', l: 'Jednolitá' },
+]
+const BLENDS = [{ k: 'normal', l: 'Normální' }, { k: 'lighter', l: 'Sčítání (záře)' }, { k: 'screen', l: 'Obrazovka' }, { k: 'multiply', l: 'Násobení' }]
+const blendOp = (b: string): GlobalCompositeOperation => b === 'lighter' ? 'lighter' : b === 'screen' ? 'screen' : b === 'multiply' ? 'multiply' : 'source-over'
 const FITS = [{ k: 'contain', l: 'Vejít (na střed)' }, { k: 'cover', l: 'Vyplnit (celá plocha)' }]
 const ENTRANCES = [{ k: 'none', l: 'Žádný' }, { k: 'fade', l: 'Prolnutí' }, { k: 'scale', l: 'Zvětšení' }, { k: 'slideUp', l: 'Zezdola' }, { k: 'slideLeft', l: 'Zleva' }]
 const LOOPS = [
@@ -78,6 +83,35 @@ function drawBackground(ctx: CanvasRenderingContext2D, p: Params, t: number, par
       }
       ctx.lineTo(w, h); ctx.closePath()
       ctx.fillStyle = colorB; ctx.globalAlpha = 0.16 + i * 0.07; ctx.fill()
+    }
+    ctx.globalAlpha = 1; return
+  }
+  if (bg === 'beams') {
+    ctx.fillStyle = colorA; ctx.fillRect(0, 0, w, h)
+    const R = Math.hypot(w, h)
+    ctx.save(); ctx.translate(w / 2, h / 2); ctx.rotate(t * 0.25); ctx.fillStyle = colorB
+    for (let i = 0; i < 14; i++) {
+      const a = (i / 14) * Math.PI * 2
+      ctx.globalAlpha = 0.05 + 0.06 * (0.5 + 0.5 * Math.sin(t * 2 + i))
+      ctx.beginPath(); ctx.moveTo(0, 0); ctx.arc(0, 0, R, a - 0.04, a + 0.04); ctx.closePath(); ctx.fill()
+    }
+    ctx.restore(); ctx.globalAlpha = 1; return
+  }
+  if (bg === 'neon') {
+    ctx.fillStyle = colorA; ctx.fillRect(0, 0, w, h)
+    const pulse = 0.5 + 0.5 * Math.sin(t * 2)
+    const r = Math.max(w, h) * (0.35 + 0.12 * pulse)
+    const g = ctx.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, r)
+    g.addColorStop(0, colorB); g.addColorStop(1, colorA)
+    ctx.globalAlpha = 0.85; ctx.fillStyle = g; ctx.fillRect(0, 0, w, h); ctx.globalAlpha = 1; return
+  }
+  if (bg === 'bars') {
+    ctx.fillStyle = colorA; ctx.fillRect(0, 0, w, h)
+    const n = Math.max(8, Math.round(w / 60)), bw = w / n
+    ctx.fillStyle = colorB; ctx.globalAlpha = 0.75
+    for (let i = 0; i < n; i++) {
+      const bh = h * (0.12 + 0.5 * Math.abs(Math.sin(t * 3 + i * 0.6)))
+      ctx.fillRect(i * bw + bw * 0.15, h - bh, bw * 0.7, bh)
     }
     ctx.globalAlpha = 1; return
   }
@@ -138,10 +172,11 @@ function motion(loop: string, t: number, w: number, h: number) {
 function drawLayer(ctx: CanvasRenderingContext2D, layer: Layer, img: HTMLImageElement, t: number, w: number, h: number, off: HTMLCanvasElement) {
   const prog = Math.min(1, t / 0.8), eo = 1 - Math.pow(1 - prog, 3)
   const fadeIn = layer.entrance !== 'none' ? prog : 1
+  const tt = t * (layer.speed || 1) // motion speed (entrance keeps real time)
 
   // Cover + Vlnění is a special per-slice warp.
   if (layer.fit === 'cover' && layer.loop === 'wave') {
-    ctx.save(); ctx.globalAlpha = Math.max(0, Math.min(1, fadeIn * layer.opacity)); drawWave(ctx, img, t, w, h, off); ctx.restore(); return
+    ctx.save(); ctx.globalCompositeOperation = blendOp(layer.blend); ctx.globalAlpha = Math.max(0, Math.min(1, fadeIn * layer.opacity)); drawWave(ctx, img, tt, w, h, off); ctx.restore(); return
   }
 
   let edx = 0, edy = 0, esc = 1
@@ -149,9 +184,10 @@ function drawLayer(ctx: CanvasRenderingContext2D, layer: Layer, img: HTMLImageEl
   if (layer.entrance === 'slideUp') edy = (1 - eo) * h * 0.15
   if (layer.entrance === 'slideLeft') edx = -(1 - eo) * w * 0.2
 
-  const m = motion(layer.loop, t, w, h)
+  const m = motion(layer.loop, tt, w, h)
   const offX = layer.x * w, offY = layer.y * h
   ctx.save()
+  ctx.globalCompositeOperation = blendOp(layer.blend)
   ctx.globalAlpha = Math.max(0, Math.min(1, fadeIn * layer.opacity * m.alpha))
   ctx.translate(w / 2 + m.dx + edx + offX, h / 2 + m.dy + edy + offY)
   if (m.rot) ctx.rotate(m.rot)
@@ -240,7 +276,7 @@ export function AnimationStudio({ documentImages }: { documentImages: DocImage[]
       imagesRef.current[id] = { img, url }
       // First layer defaults to a full background; later layers to centered logos.
       const isFirst = layersRef.current.length === 0
-      const layer: Layer = { id, name, fit: isFirst ? 'cover' : 'contain', scale: 0.4, x: 0, y: 0, opacity: 1, entrance: isFirst ? 'none' : 'fade', loop: isFirst ? 'wave' : 'float' }
+      const layer: Layer = { id, name, fit: isFirst ? 'cover' : 'contain', scale: 0.4, x: 0, y: 0, opacity: 1, entrance: isFirst ? 'none' : 'fade', loop: isFirst ? 'wave' : 'float', speed: 1, blend: isFirst ? 'normal' : 'lighter' }
       setLayers((prev) => [...prev, layer])
       setSelectedId(id)
       setTick((n) => n + 1)
@@ -463,6 +499,16 @@ export function AnimationStudio({ documentImages }: { documentImages: DocImage[]
             {selected.loop === 'wave' && selected.fit !== 'cover' && (
               <p className="text-[11px] text-amber-600 dark:text-amber-400">Tip: Vlnění funguje nejlépe s výplní „Vyplnit".</p>
             )}
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">Rychlost: {selected.speed.toFixed(2)}×</Label>
+              <input type="range" min={10} max={300} step={5} value={Math.round(selected.speed * 100)} onChange={(e) => updateLayer(selected.id, { speed: Number(e.target.value) / 100 })} className="w-full accent-primary" />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">Prolnutí (blend)</Label>
+              <select value={selected.blend} onChange={(e) => updateLayer(selected.id, { blend: e.target.value })} className={selectClass}>
+                {BLENDS.map((b) => <option key={b.k} value={b.k}>{b.l}</option>)}
+              </select>
+            </div>
           </div>
         )}
 
