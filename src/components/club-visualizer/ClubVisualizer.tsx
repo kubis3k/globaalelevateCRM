@@ -17,12 +17,14 @@ type ZoneKey = 'up' | 'center' | 'left' | 'right'
 //    nám. Míru): large hall ~1200 cap, balcony/Gold VIP, Diamond VIP glass booth
 //    over the DJ, 6 bars. EDIT THESE when exact survey numbers arrive. ──
 const CLUB = {
-  W: 18,            // hall width
-  L: 34,            // hall length
-  H: 9,             // hall height
-  balconyY: 4.4,    // gallery floor height
-  balconyDepth: 3.2,// gallery depth from each side wall
-  stageDepth: 4.0,  // stage riser depth
+  W: 18,            // hall width (approx — awaiting survey)
+  L: 34,            // hall length (approx)
+  H: 9,             // hall height (approx)
+  balconyY: 4.4,    // gallery floor height (approx)
+  balconyDepth: 3.2,// gallery depth from each side wall (approx)
+  // Stage — EXACT survey (manager): width 8.58 m, total depth 6.12 m,
+  // front playable depth 3.65 m, DJ-booth zone depth 5.0 m.
+  stageW: 8.58, stageDepth: 6.12, stageFront: 3.65, boothZone: 5.0, riserH: 0.7,
 }
 const BACK = -CLUB.L / 2
 
@@ -126,9 +128,12 @@ export function ClubVisualizer({ documents }: { documents: VizDoc[] }) {
     // raised side lanes (ground)
     add(new THREE.BoxGeometry(2.6, 0.45, L - 4), matPlat, -(W / 2 - 1.6), 0.22, 1)
     add(new THREE.BoxGeometry(2.6, 0.45, L - 4), matPlat, (W / 2 - 1.6), 0.22, 1)
-    // stage + DJ booth
-    add(new THREE.BoxGeometry(10, 0.7, CLUB.stageDepth), matPlat, 0, 0.35, BACK + CLUB.stageDepth / 2 + 0.2)
-    add(new THREE.BoxGeometry(3.6, 1.3, 1.3), matMetal, 0, 1.0, BACK + 2.4)
+    // stage (exact survey) — riser from the back wall forward by stageDepth
+    add(new THREE.BoxGeometry(CLUB.stageW, CLUB.riserH, CLUB.stageDepth), matPlat, 0, CLUB.riserH / 2, BACK + CLUB.stageDepth / 2 + 0.1)
+    // front playable lip (lower step at the audience edge, depth = stageFront)
+    add(new THREE.BoxGeometry(CLUB.stageW, CLUB.riserH * 0.7, CLUB.stageFront), matPlat, 0, CLUB.riserH * 0.35, BACK + CLUB.stageDepth + 0.1 - CLUB.stageFront / 2)
+    // DJ booth — within the booth zone (depth boothZone), on top of the riser
+    add(new THREE.BoxGeometry(3.6, 1.3, 1.4), matMetal, 0, CLUB.riserH + 0.65, BACK + CLUB.boothZone / 2 + 0.1)
 
     // ── Balcony / gallery (Gold VIP) on both sides ──
     const oxTex = oxPatternTexture()
@@ -264,7 +269,7 @@ export function ClubVisualizer({ documents }: { documents: VizDoc[] }) {
 
   function setView(v: 'parket' | 'dj' | 'shora' | 'bok' | 'balkon') {
     if (v === 'parket') { sph.current = { radius: 27, theta: 0, phi: 1.18 }; target.current.set(0, 3, -13) }
-    if (v === 'dj') { sph.current = { radius: 11, theta: 0, phi: 1.4 }; target.current.set(0, 3.6, -15) }
+    if (v === 'dj') { sph.current = { radius: 11, theta: 0, phi: 1.4 }; target.current.set(0, 3.6, BACK + 2.6) }
     if (v === 'shora') { sph.current = { radius: 30, theta: 0, phi: 0.4 }; target.current.set(0, 1, -6) }
     if (v === 'bok') { sph.current = { radius: 26, theta: 0.95, phi: 1.12 }; target.current.set(0, 3, -10) }
     if (v === 'balkon') { sph.current = { radius: 20, theta: 0.5, phi: 1.05 }; target.current.set(0, 4.5, -12) }
@@ -312,7 +317,7 @@ export function ClubVisualizer({ documents }: { documents: VizDoc[] }) {
           <Label className="flex items-center gap-1.5 text-xs text-muted-foreground"><Sun className="size-3.5" />Osvětlení klubu: {Math.round(light * 100)} %</Label>
           <input type="range" min={20} max={250} step={10} value={Math.round(light * 100)} onChange={(e) => setLight(Number(e.target.value) / 100)} className="w-full accent-primary" />
         </div>
-        <p className="text-[11px] text-muted-foreground">Model je přibližná kopie OX Clubu (nám. Míru). Přesné rozměry doplníme, až je dodáš — model se podle nich upraví.</p>
+        <p className="text-[11px] text-muted-foreground">Stage má přesné rozměry dle zaměření (8,58 × 6,12 m). Rozměry sálu/balkonu jsou zatím přibližné — doplníme, až je dodáš.</p>
       </div>
 
       {picker && (
