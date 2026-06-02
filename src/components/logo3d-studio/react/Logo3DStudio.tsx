@@ -34,6 +34,8 @@ export interface Logo3DStudioProps {
   autoSave?: boolean;
   className?: string;
   style?: CSSProperties;
+  /** Optional: persist the current render (PNG data URL) somewhere, e.g. Documents. */
+  onSaveToDocuments?: (dataUrl: string, name: string) => Promise<void> | void;
 }
 
 const BACKGROUNDS: { id: BackgroundSetting; label: string; css: string }[] = [
@@ -68,7 +70,7 @@ function fmtDate(ms: number): string {
 }
 
 export function Logo3DStudio(props: Logo3DStudioProps) {
-  const { initialSvg, initialName = 'Logo', initialSettings, autoSave = true, className, style } = props;
+  const { initialSvg, initialName = 'Logo', initialSettings, autoSave = true, className, style, onSaveToDocuments } = props;
   const store = useMemo<HistoryStore>(() => props.store ?? new LocalStorageHistoryStore(), [props.store]);
 
   const [settings, setSettings] = useState<Logo3DSettings>({ ...DEFAULT_SETTINGS, ...initialSettings });
@@ -80,6 +82,7 @@ export function Logo3DStudio(props: Logo3DStudioProps) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
+  const [savingDoc, setSavingDoc] = useState(false);
 
   const viewerRef = useRef<Logo3DViewerHandle>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -202,6 +205,20 @@ export function Logo3DStudio(props: Logo3DStudioProps) {
     a.download = `${sanitize(name)}.png`;
     a.click();
   }, [name]);
+
+  const saveToDocuments = useCallback(async () => {
+    if (!onSaveToDocuments) return;
+    const url = viewerRef.current?.exportPNG({ scale: 2 });
+    if (!url) return;
+    setSavingDoc(true);
+    try {
+      await onSaveToDocuments(url, name);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSavingDoc(false);
+    }
+  }, [onSaveToDocuments, name]);
 
   return (
     <div className={`l3d${className ? ` ${className}` : ''}`} style={style}>
@@ -374,6 +391,14 @@ export function Logo3DStudio(props: Logo3DStudioProps) {
               PNG
             </button>
           </div>
+
+          {onSaveToDocuments && (
+            <div className="l3d-group">
+              <button className="l3d-btn" style={{ width: '100%' }} onClick={() => void saveToDocuments()} disabled={savingDoc}>
+                {savingDoc ? 'Ukládám…' : '💾 Uložit do Dokumentů'}
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Top bar: name + reset */}

@@ -7,7 +7,7 @@ import { usePathname } from 'next/navigation'
 import {
   LayoutDashboard, Users, Receipt, Wallet, CalendarDays, Briefcase, Building2, Mail,
   FolderOpen, Sparkles, User, Target, FolderKanban, Clock, ScrollText, BarChart3,
-  Settings, Coins, ChevronRight, TrendingUp, Layers, Boxes, Megaphone,
+  Settings, Coins, ChevronRight, TrendingUp, Layers, Boxes, Megaphone, Clapperboard,
 } from 'lucide-react'
 import { MODULES } from '@/lib/modules'
 import { cn } from '@/lib/utils'
@@ -31,6 +31,7 @@ export const MODULE_ICONS: Record<string, React.ComponentType<{ className?: stri
   reports: BarChart3,
   expenses: Coins,
   logo3d: Boxes,
+  animations: Clapperboard,
   settings: Settings,
 }
 
@@ -50,7 +51,7 @@ export const NAV: NavEntry[] = [
   { type: 'group', id: 'g-sales', label: 'Obchod', icon: TrendingUp, members: ['crm', 'projects', 'time'] },
   { type: 'group', id: 'g-hr', label: 'HR', icon: Briefcase, members: ['hr', 'team'] },
   { type: 'group', id: 'g-office', label: 'Kancelář', icon: Layers, members: ['mail', 'calendar', 'documents'] },
-  { type: 'group', id: 'g-marketing', label: 'Marketing', icon: Megaphone, members: ['logo3d'] },
+  { type: 'group', id: 'g-marketing', label: 'Marketing', icon: Megaphone, members: ['logo3d', 'animations'] },
   { type: 'module', id: 'settings', pinBottom: true },
 ]
 
