@@ -2,10 +2,10 @@
 
 import { useMemo, useState, useTransition } from 'react'
 import {
-  Plus, Edit2, Trash2, RefreshCw, FolderOpen, Film, Image as ImageIcon, X,
-  CalendarClock, Send, Undo2, Users, TrendingUp, Megaphone, ExternalLink,
+  Plus, Edit2, Trash2, FolderOpen, Film, Image as ImageIcon, X,
+  CalendarClock, Send, Undo2, Users, TrendingUp, Megaphone, ExternalLink, LogIn,
 } from 'lucide-react'
-import { saveAccount, deleteAccount, recordCounts, syncAccount, savePost, setPostStatus, deletePost } from './actions'
+import { saveAccount, deleteAccount, recordCounts, savePost, setPostStatus, deletePost } from './actions'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -31,14 +31,14 @@ type Post = {
 type Doc = { id: string; name: string; kind: 'image' | 'video' }
 type Series = Record<string, { t: number; f: number }[]>
 
-const PLATFORMS: { id: string; label: string; short: string; color: string }[] = [
-  { id: 'instagram', label: 'Instagram', short: 'IG', color: '#e1306c' },
-  { id: 'facebook', label: 'Facebook', short: 'FB', color: '#1877f2' },
-  { id: 'tiktok', label: 'TikTok', short: 'TT', color: '#0ea5e9' },
-  { id: 'youtube', label: 'YouTube', short: 'YT', color: '#ff0000' },
-  { id: 'x', label: 'X / Twitter', short: 'X', color: '#38bdf8' },
-  { id: 'linkedin', label: 'LinkedIn', short: 'in', color: '#0a66c2' },
-  { id: 'threads', label: 'Threads', short: '@', color: '#a855f7' },
+const PLATFORMS: { id: string; label: string; short: string; color: string; loginUrl?: string }[] = [
+  { id: 'instagram', label: 'Instagram', short: 'IG', color: '#e1306c', loginUrl: 'https://www.instagram.com/accounts/login/' },
+  { id: 'facebook', label: 'Facebook', short: 'FB', color: '#1877f2', loginUrl: 'https://www.facebook.com/login/' },
+  { id: 'tiktok', label: 'TikTok', short: 'TT', color: '#0ea5e9', loginUrl: 'https://www.tiktok.com/login' },
+  { id: 'youtube', label: 'YouTube', short: 'YT', color: '#ff0000', loginUrl: 'https://studio.youtube.com/' },
+  { id: 'x', label: 'X / Twitter', short: 'X', color: '#38bdf8', loginUrl: 'https://x.com/login' },
+  { id: 'linkedin', label: 'LinkedIn', short: 'in', color: '#0a66c2', loginUrl: 'https://www.linkedin.com/login' },
+  { id: 'threads', label: 'Threads', short: '@', color: '#a855f7', loginUrl: 'https://www.threads.net/login' },
   { id: 'other', label: 'Jiná', short: '•', color: '#64748b' },
 ]
 const pmeta = (id: string) => PLATFORMS.find((p) => p.id === id) || PLATFORMS[PLATFORMS.length - 1]
@@ -137,13 +137,6 @@ export function SocialClient({ accounts, series, posts, documents, canManage }: 
       start(async () => { const r = await deleteAccount(a.id); if (r?.error) toast.error('Chyba', r.error); else toast.success('Odpojeno') })
     })
   }
-  function doSync(a: Account) {
-    start(async () => {
-      const r = await syncAccount(a.id)
-      if (r?.error) { toast.error('Chyba', r.error); return }
-      if (r?.message) toast.success(r.message)
-    })
-  }
   function submitPost() {
     if (!cContent.trim() && !cMedia) { toast.error('Chyba', 'Zadej text nebo přilož médium.'); return }
     if (!cPlatforms.length) { toast.error('Chyba', 'Vyber alespoň jednu síť.'); return }
@@ -233,8 +226,18 @@ export function SocialClient({ accounts, series, posts, documents, canManage }: 
       {/* ── Účty ── */}
       {tab === 'accounts' && (
         <div className="space-y-4">
-          <div className="rounded-lg border border-border bg-muted/40 p-3 text-[12px] text-muted-foreground">
-            Živé automatické načítání počtů a auto-publikace vyžadují připojení API klíčů jednotlivých platforem (Meta, TikTok, YouTube…). Zatím počty aktualizuj ručně tlačítkem <b className="text-foreground">Aktualizovat počty</b> — ukládají se do historie růstu. Naplánované příspěvky upozorní management v čas publikace.
+          <div className="rounded-xl border border-border bg-card p-4">
+            <div className="mb-1 flex items-center gap-2 text-sm font-semibold text-foreground"><LogIn className="size-4" />Přihlášení k sítím</div>
+            <p className="mb-3 text-[12px] text-muted-foreground">Otevři přihlašovací stránku dané sítě v novém okně a spravuj profil přímo. Počty sleduj tady ručně přes <b className="text-foreground">Aktualizovat počty</b> — vykreslí se graf růstu.</p>
+            <div className="flex flex-wrap gap-2">
+              {PLATFORMS.filter((p) => p.loginUrl).map((p) => (
+                <a key={p.id} href={p.loginUrl} target="_blank" rel="noreferrer noopener" className="flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm transition-colors hover:bg-muted">
+                  <span className="flex size-6 items-center justify-center rounded-md text-[11px] font-bold" style={{ background: p.color + '22', color: p.color }}>{p.short}</span>
+                  Přihlásit se · {p.label}
+                  <ExternalLink className="size-3.5 text-muted-foreground" />
+                </a>
+              ))}
+            </div>
           </div>
           {accounts.length === 0 ? (
             <EmptyState icon={Megaphone} title="Žádné připojené účty" description={canManage ? 'Připoj profil přes „Připojit účet".' : 'Spravuje management.'} />
@@ -251,8 +254,8 @@ export function SocialClient({ accounts, series, posts, documents, canManage }: 
                     </div>
                     {canManage && (
                       <div className="flex items-center gap-1.5">
+                        {pmeta(a.platform).loginUrl && <a href={pmeta(a.platform).loginUrl} target="_blank" rel="noreferrer noopener" className="inline-flex h-8 items-center gap-1 rounded-lg border border-border px-2.5 text-xs transition-colors hover:bg-muted"><LogIn className="size-3.5" />Přihlásit</a>}
                         <Button size="sm" variant="outline" onClick={() => setCountsFor(a)}>Aktualizovat počty</Button>
-                        <Button size="sm" variant="ghost" onClick={() => doSync(a)} title="Sync přes API"><RefreshCw className="size-4" /></Button>
                         <Button size="sm" variant="ghost" onClick={() => setAccForm(a)}><Edit2 className="size-4" /></Button>
                         <Button size="sm" variant="ghost" onClick={() => removeAccount(a)}><Trash2 className="size-4 text-destructive" /></Button>
                       </div>

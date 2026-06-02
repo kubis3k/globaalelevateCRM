@@ -70,14 +70,6 @@ export async function deleteAccount(id: string): Promise<{ error?: string }> {
   revalidatePath('/social'); return {}
 }
 
-// Live API sync needs each platform's OAuth token + app. Not yet configured →
-// returns guidance instead of failing. (Hook real API calls in here later.)
-export async function syncAccount(_id: string): Promise<{ error?: string; message?: string }> {
-  const c = await getCtx(); if ('error' in c) return c
-  if (!canManageSocial(c.role)) return { error: 'Nemáte oprávnění.' }
-  return { message: 'Automatické načtení přes API vyžaduje připojení API klíče dané platformy (Meta/TikTok/YouTube…). Zatím zadej počty přes „Aktualizovat počty" — uloží se do historie růstu.' }
-}
-
 // ── Posts ────────────────────────────────────────────────────────────────
 export async function savePost(formData: FormData): Promise<{ error?: string }> {
   const c = await getCtx(); if ('error' in c) return c
