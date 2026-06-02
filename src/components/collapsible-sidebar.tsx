@@ -7,7 +7,7 @@ import { usePathname } from 'next/navigation'
 import {
   LayoutDashboard, Users, Receipt, Wallet, CalendarDays, Briefcase, Building2, Mail,
   FolderOpen, Sparkles, User, Target, FolderKanban, Clock, ScrollText, BarChart3,
-  Settings, Coins, ChevronRight, TrendingUp, Layers,
+  Settings, Coins, ChevronRight, TrendingUp, Layers, Boxes,
 } from 'lucide-react'
 import { MODULES } from '@/lib/modules'
 import { cn } from '@/lib/utils'
@@ -30,6 +30,7 @@ export const MODULE_ICONS: Record<string, React.ComponentType<{ className?: stri
   quotes: ScrollText,
   reports: BarChart3,
   expenses: Coins,
+  logo3d: Boxes,
   settings: Settings,
 }
 
@@ -48,7 +49,7 @@ export const NAV: NavEntry[] = [
   { type: 'group', id: 'g-finance', label: 'Finance', icon: Wallet, members: ['finance', 'invoices', 'expenses', 'quotes', 'reports'] },
   { type: 'group', id: 'g-sales', label: 'Obchod', icon: TrendingUp, members: ['crm', 'projects', 'time'] },
   { type: 'group', id: 'g-hr', label: 'HR', icon: Briefcase, members: ['hr', 'team'] },
-  { type: 'group', id: 'g-office', label: 'Kancelář', icon: Layers, members: ['mail', 'calendar', 'documents'] },
+  { type: 'group', id: 'g-office', label: 'Kancelář', icon: Layers, members: ['mail', 'calendar', 'documents', 'logo3d'] },
   { type: 'module', id: 'settings', pinBottom: true },
 ]
 

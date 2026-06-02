@@ -10,6 +10,7 @@ export const MODULES = [
   { id: 'finance',   label: 'Finance',   href: '/finance',   color: '#10b981' },
   { id: 'invoices',  label: 'Faktury',   href: '/invoices',  color: '#0ea5e9' },
   { id: 'documents', label: 'Dokumenty', href: '/documents', color: '#14b8a6' },
+  { id: 'logo3d',    label: '3D Studio', href: '/logo3d',    color: '#c026d3' },
   { id: 'hr',        label: 'HR',        href: '/hr',        color: '#f43f5e' },
   { id: 'team',      label: 'Tým',       href: '/team',      color: '#8b5cf6' },
   { id: 'crm',       label: 'CRM',       href: '/crm',       color: '#06b6d4' },
