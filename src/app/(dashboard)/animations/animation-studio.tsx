@@ -32,11 +32,30 @@ const BACKGROUNDS = [{ k: 'gradient', l: 'Gradient' }, { k: 'particles', l: 'Č�
 const FITS = [{ k: 'contain', l: 'Vejít (na střed)' }, { k: 'cover', l: 'Vyplnit (celá plocha)' }]
 const ENTRANCES = [{ k: 'none', l: 'Žádný' }, { k: 'fade', l: 'Prolnutí' }, { k: 'scale', l: 'Zvětšení' }, { k: 'slideUp', l: 'Zezdola' }, { k: 'slideLeft', l: 'Zleva' }]
 const LOOPS = [
-  { k: 'none', l: 'Žádná' }, { k: 'wave', l: 'Vlnění (pozadí)' }, { k: 'zoom', l: 'Pomalý zoom' },
-  { k: 'pan', l: 'Posun' }, { k: 'float', l: 'Plování' }, { k: 'pulse', l: 'Pulz' }, { k: 'rotate', l: 'Rotace' },
+  { k: 'none', l: 'Žádná' },
+  { k: 'wave', l: 'Vlnění (pozadí)' },
+  { k: 'float', l: 'Plování' },
+  { k: 'sway', l: 'Houpání do stran' },
+  { k: 'bounce', l: 'Skákání' },
+  { k: 'pulse', l: 'Pulz' },
+  { k: 'breathe', l: 'Dýchání' },
+  { k: 'heartbeat', l: 'Tep' },
+  { k: 'zoom', l: 'Zoom tam a zpět' },
+  { k: 'zoomIn', l: 'Pomalé přibližování' },
+  { k: 'pan', l: 'Posun (pan)' },
+  { k: 'orbit', l: 'Kroužení' },
+  { k: 'rotate', l: 'Rotace pomalá' },
+  { k: 'spin', l: 'Rotace rychlá' },
+  { k: 'swing', l: 'Kývání' },
+  { k: 'tilt', l: 'Náklon' },
+  { k: 'wobble', l: 'Kymácení' },
+  { k: 'shake', l: 'Třesení' },
+  { k: 'flip', l: 'Překlápění' },
+  { k: 'flicker', l: 'Blikání' },
+  { k: 'glitch', l: 'Glitch' },
 ]
 
-type Params = { format: string; bg: string; colorA: string; colorB: string; duration: number; fps: number }
+type Params = { format: string; bg: string; colorA: string; colorB: string; brightness: number; contrast: number; saturate: number; duration: number; fps: number }
 const dimsOf = (format: string) => { const f = FORMATS.find((x) => x.k === format) || FORMATS[0]; return { w: f.w, h: f.h } }
 function genId() { const c = globalThis.crypto as Crypto | undefined; return c?.randomUUID ? c.randomUUID() : `l-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}` }
 
@@ -88,44 +107,69 @@ function drawWave(ctx: CanvasRenderingContext2D, img: HTMLImageElement, t: numbe
   }
 }
 
+const MOTION_PERIOD = 8
+// Per-frame transform for a layer's motion (deterministic in t → loops cleanly).
+function motion(loop: string, t: number, w: number, h: number) {
+  const m = { dx: 0, dy: 0, sc: 1, scX: 1, rot: 0, alpha: 1, cz: 1 }
+  switch (loop) {
+    case 'float': m.dy = Math.sin(t * 1.8) * h * 0.012; break
+    case 'sway': m.dx = Math.sin(t * 1.6) * w * 0.03; break
+    case 'bounce': m.dy = -Math.abs(Math.sin(t * 2.0)) * h * 0.05; break
+    case 'pulse': m.sc = 1 + 0.05 * Math.sin(t * 2.2); break
+    case 'breathe': m.sc = 1 + 0.025 * Math.sin(t * 0.8); break
+    case 'heartbeat': m.sc = 1 + 0.08 * Math.pow(Math.max(0, Math.sin(t * 3)), 6); break
+    case 'zoom': m.sc = 1.04 + 0.06 * (0.5 + 0.5 * Math.sin(t * 0.5)); m.cz = 1.04; break
+    case 'zoomIn': m.sc = 1 + 0.18 * ((t % MOTION_PERIOD) / MOTION_PERIOD); break
+    case 'pan': m.dx = Math.sin(t * 0.3) * w * 0.045; m.dy = Math.cos(t * 0.25) * h * 0.045; m.cz = 1.15; break
+    case 'orbit': m.dx = Math.cos(t) * w * 0.03; m.dy = Math.sin(t) * h * 0.03; m.cz = 1.12; break
+    case 'rotate': m.rot = t * 0.35; m.cz = 1.45; break
+    case 'spin': m.rot = t * 1.4; m.cz = 1.45; break
+    case 'swing': m.rot = Math.sin(t * 1.5) * 0.35; m.cz = 1.3; break
+    case 'tilt': m.rot = Math.sin(t * 1.2) * 0.12; m.cz = 1.1; break
+    case 'wobble': m.rot = Math.sin(t * 2) * 0.1; m.sc = 1 + 0.03 * Math.sin(t * 2.6); m.cz = 1.2; break
+    case 'shake': m.dx = (Math.sin(t * 40) + Math.sin(t * 57)) * w * 0.004; m.dy = Math.cos(t * 43) * h * 0.004; break
+    case 'flip': m.scX = Math.cos(t * 1.4); m.cz = 1.05; break
+    case 'flicker': m.alpha = 0.55 + 0.45 * Math.abs(Math.sin(t * 3)); break
+    case 'glitch': m.dx = Math.sin(t * 9) > 0.9 ? (((t * 97) % 1) - 0.5) * w * 0.06 : 0; break
+  }
+  return m
+}
+
 function drawLayer(ctx: CanvasRenderingContext2D, layer: Layer, img: HTMLImageElement, t: number, w: number, h: number, off: HTMLCanvasElement) {
   const prog = Math.min(1, t / 0.8), eo = 1 - Math.pow(1 - prog, 3)
-  const fade = layer.entrance !== 'none' ? prog : 1
+  const fadeIn = layer.entrance !== 'none' ? prog : 1
+
+  // Cover + Vlnění is a special per-slice warp.
+  if (layer.fit === 'cover' && layer.loop === 'wave') {
+    ctx.save(); ctx.globalAlpha = Math.max(0, Math.min(1, fadeIn * layer.opacity)); drawWave(ctx, img, t, w, h, off); ctx.restore(); return
+  }
+
   let edx = 0, edy = 0, esc = 1
   if (layer.entrance === 'scale') esc = 0.6 + 0.4 * eo
   if (layer.entrance === 'slideUp') edy = (1 - eo) * h * 0.15
   if (layer.entrance === 'slideLeft') edx = -(1 - eo) * w * 0.2
+
+  const m = motion(layer.loop, t, w, h)
   const offX = layer.x * w, offY = layer.y * h
   ctx.save()
-  ctx.globalAlpha = Math.max(0, Math.min(1, fade * layer.opacity))
-
+  ctx.globalAlpha = Math.max(0, Math.min(1, fadeIn * layer.opacity * m.alpha))
+  ctx.translate(w / 2 + m.dx + edx + offX, h / 2 + m.dy + edy + offY)
+  if (m.rot) ctx.rotate(m.rot)
+  ctx.scale(m.scX || 0.0001, 1)
   if (layer.fit === 'cover') {
-    if (layer.loop === 'wave') { drawWave(ctx, img, t, w, h, off); ctx.restore(); return }
-    let zoom = 1, dx = 0, dy = 0
-    if (layer.loop === 'zoom') zoom = 1.04 + 0.06 * (0.5 + 0.5 * Math.sin(t * 0.5))
-    if (layer.loop === 'pan') { zoom = 1.12; dx = Math.sin(t * 0.3) * w * 0.04; dy = Math.cos(t * 0.25) * h * 0.04 }
-    if (layer.loop === 'float') dy += Math.sin(t * 1.8) * h * 0.01
-    if (layer.loop === 'pulse') zoom *= 1 + 0.03 * Math.sin(t * 2.2)
-    const s = Math.max(w / img.width, h / img.height) * zoom
+    const s = Math.max(w / img.width, h / img.height) * m.cz * m.sc
     const dw = img.width * s, dh = img.height * s
-    ctx.drawImage(img, (w - dw) / 2 + dx + edx + offX, (h - dh) / 2 + dy + edy + offY, dw, dh)
-    ctx.restore(); return
+    ctx.drawImage(img, -dw / 2, -dh / 2, dw, dh)
+  } else {
+    const baseH = h * layer.scale * esc * m.sc, ratio = (img.width || 1) / (img.height || 1)
+    const dh = baseH, dw = dh * ratio
+    ctx.drawImage(img, -dw / 2, -dh / 2, dw, dh)
   }
-
-  let dx = edx + offX, dy = edy + offY, sc = esc, rot = 0
-  if (layer.loop === 'float') dy += Math.sin(t * 1.8) * h * 0.012
-  if (layer.loop === 'pulse') sc *= 1 + 0.04 * Math.sin(t * 2.2)
-  if (layer.loop === 'rotate') rot = t * 0.35
-  if (layer.loop === 'zoom') sc *= 1.04 + 0.06 * (0.5 + 0.5 * Math.sin(t * 0.5))
-  const baseH = h * layer.scale, ratio = (img.width || 1) / (img.height || 1)
-  const dh = baseH * sc, dw = dh * ratio
-  ctx.translate(w / 2 + dx, h / 2 + dy); ctx.rotate(rot)
-  ctx.drawImage(img, -dw / 2, -dh / 2, dw, dh)
   ctx.restore()
 }
 
 export function AnimationStudio({ documentImages }: { documentImages: DocImage[] }) {
-  const [params, setParams] = useState<Params>({ format: '16:9', bg: 'gradient', colorA: '#0f172a', colorB: '#6366f1', duration: 5, fps: 30 })
+  const [params, setParams] = useState<Params>({ format: '16:9', bg: 'gradient', colorA: '#0f172a', colorB: '#6366f1', brightness: 1, contrast: 1, saturate: 1, duration: 5, fps: 30 })
   const [layers, setLayers] = useState<Layer[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [playing, setPlaying] = useState(true)
@@ -162,11 +206,14 @@ export function AnimationStudio({ documentImages }: { documentImages: DocImage[]
     const canvas = canvasRef.current; if (!canvas) return
     const ctx = canvas.getContext('2d'); if (!ctx) return
     const w = canvas.width, h = canvas.height
-    drawBackground(ctx, paramsRef.current, t, particlesRef.current, w, h)
+    const fp = paramsRef.current
+    ctx.filter = `brightness(${fp.brightness}) contrast(${fp.contrast}) saturate(${fp.saturate})`
+    drawBackground(ctx, fp, t, particlesRef.current, w, h)
     for (const layer of layersRef.current) {
       const entry = imagesRef.current[layer.id]
       if (entry?.img && offRef.current) drawLayer(ctx, layer, entry.img, t, w, h, offRef.current)
     }
+    ctx.filter = 'none'
   }, [])
 
   useEffect(() => {
@@ -316,6 +363,26 @@ export function AnimationStudio({ documentImages }: { documentImages: DocImage[]
             <label className="flex items-center gap-2 text-xs text-muted-foreground">Barva 1<input type="color" value={params.colorA} onChange={(e) => setParams((p) => ({ ...p, colorA: e.target.value }))} className="h-7 w-full rounded border border-input bg-background" /></label>
             <label className="flex items-center gap-2 text-xs text-muted-foreground">Barva 2<input type="color" value={params.colorB} onChange={(e) => setParams((p) => ({ ...p, colorB: e.target.value }))} className="h-7 w-full rounded border border-input bg-background" /></label>
           </div>
+        </div>
+
+        {/* Light & color */}
+        <div className="space-y-2 border-t border-border pt-3">
+          <Label className="text-xs font-semibold text-foreground">Světlo & barvy</Label>
+          <div className="space-y-1.5">
+            <Label className="text-xs text-muted-foreground">Jas: {Math.round(params.brightness * 100)} %</Label>
+            <input type="range" min={30} max={200} step={5} value={Math.round(params.brightness * 100)} onChange={(e) => setParams((p) => ({ ...p, brightness: Number(e.target.value) / 100 }))} className="w-full accent-primary" />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs text-muted-foreground">Kontrast: {Math.round(params.contrast * 100)} %</Label>
+            <input type="range" min={50} max={200} step={5} value={Math.round(params.contrast * 100)} onChange={(e) => setParams((p) => ({ ...p, contrast: Number(e.target.value) / 100 }))} className="w-full accent-primary" />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs text-muted-foreground">Sytost: {Math.round(params.saturate * 100)} %</Label>
+            <input type="range" min={0} max={200} step={5} value={Math.round(params.saturate * 100)} onChange={(e) => setParams((p) => ({ ...p, saturate: Number(e.target.value) / 100 }))} className="w-full accent-primary" />
+          </div>
+          {(params.brightness !== 1 || params.contrast !== 1 || params.saturate !== 1) && (
+            <button onClick={() => setParams((p) => ({ ...p, brightness: 1, contrast: 1, saturate: 1 }))} className="text-[11px] text-primary hover:underline">Reset světla</button>
+          )}
         </div>
 
         {/* Layers */}
