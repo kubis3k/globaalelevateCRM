@@ -66,6 +66,49 @@ function oxPatternTexture(): THREE.CanvasTexture {
   return t
 }
 
+// Circular hanging neon sign band: "OX CLUB PRAGUE …" (transparent, glowing).
+function ringTextTexture(): THREE.CanvasTexture {
+  const c = document.createElement('canvas'); c.width = 2048; c.height = 128
+  const x = c.getContext('2d')!
+  x.clearRect(0, 0, c.width, c.height)
+  x.fillStyle = '#ff3a2f'; x.font = 'bold 72px sans-serif'; x.textBaseline = 'middle'; x.textAlign = 'center'
+  x.shadowColor = '#ff5a3a'; x.shadowBlur = 16
+  const reps = 6
+  for (let i = 0; i < reps; i++) x.fillText('OX CLUB PRAGUE', (i + 0.5) * (c.width / reps), 66)
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace
+  return t
+}
+
+// Soft flower gobo projection cast on the dance floor.
+function flowerGoboTexture(): THREE.CanvasTexture {
+  const s = 256, c = document.createElement('canvas'); c.width = s; c.height = s
+  const x = c.getContext('2d')!; x.clearRect(0, 0, s, s); x.translate(s / 2, s / 2)
+  x.fillStyle = 'rgba(255,245,225,0.95)'
+  const petals = 12
+  for (let i = 0; i < petals; i++) { x.rotate((Math.PI * 2) / petals); x.beginPath(); x.ellipse(0, s * 0.28, s * 0.055, s * 0.16, 0, 0, Math.PI * 2); x.fill() }
+  x.beginPath(); x.arc(0, 0, s * 0.1, 0, Math.PI * 2); x.fill()
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t
+}
+
+// Glowing neon wall glyph (Diamond outline / OX logo), identity colours.
+function neonTexture(kind: 'diamond' | 'ox'): THREE.CanvasTexture {
+  const s = 256, c = document.createElement('canvas'); c.width = s; c.height = s
+  const x = c.getContext('2d')!; x.clearRect(0, 0, s, s)
+  x.lineWidth = 8; x.lineJoin = 'round'
+  if (kind === 'diamond') {
+    x.strokeStyle = '#b56bff'; x.shadowColor = '#b56bff'; x.shadowBlur = 22
+    x.beginPath(); x.moveTo(s * 0.5, s * 0.16); x.lineTo(s * 0.8, s * 0.42); x.lineTo(s * 0.5, s * 0.86); x.lineTo(s * 0.2, s * 0.42); x.closePath(); x.stroke()
+    x.beginPath(); x.moveTo(s * 0.2, s * 0.42); x.lineTo(s * 0.8, s * 0.42); x.stroke()
+    x.beginPath(); x.moveTo(s * 0.5, s * 0.16); x.lineTo(s * 0.38, s * 0.42); x.moveTo(s * 0.5, s * 0.16); x.lineTo(s * 0.62, s * 0.42); x.stroke()
+    x.beginPath(); x.moveTo(s * 0.38, s * 0.42); x.lineTo(s * 0.5, s * 0.86); x.moveTo(s * 0.62, s * 0.42); x.lineTo(s * 0.5, s * 0.86); x.stroke()
+  } else {
+    x.fillStyle = '#5ad1ff'; x.shadowColor = '#5ad1ff'; x.shadowBlur = 22
+    x.font = 'bold 150px sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle'
+    x.fillText('OX', s / 2, s / 2)
+  }
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t
+}
+
 // Floating zone name-plate (sprite) — used for catering / backstage planning.
 function makeLabel(text: string, color = '#eaf6ff'): THREE.Sprite {
   const font = 56, padX = 28, padY = 16
@@ -146,6 +189,10 @@ export function ClubVisualizer({ documents }: { documents: VizDoc[] }) {
     const matBarTop = new THREE.MeshStandardMaterial({ color: 0x5a5a66, roughness: 0.5, metalness: 0.3 })
     const matSeat = new THREE.MeshStandardMaterial({ color: 0x47414e, roughness: 0.8 })
     const matCloth = new THREE.MeshStandardMaterial({ color: 0xe9e9ee, roughness: 0.9 })
+    const matLeather = new THREE.MeshStandardMaterial({ color: 0x0d0d12, roughness: 0.3, metalness: 0.1 })   // black chesterfield
+    const matChrome = new THREE.MeshStandardMaterial({ color: 0xcfd4da, roughness: 0.16, metalness: 0.95 })  // railings
+    const matGlassTab = new THREE.MeshStandardMaterial({ color: 0x111319, roughness: 0.15, metalness: 0.4 }) // dark tables
+    const matWood = new THREE.MeshStandardMaterial({ color: 0x2a2420, roughness: 0.7 })                      // slatted timber
 
     const add = (g: THREE.BufferGeometry, m: THREE.Material, x: number, y: number, z: number, rx = 0, ry = 0) => {
       const mesh = new THREE.Mesh(g, m); mesh.position.set(x, y, z); mesh.rotation.x = rx; mesh.rotation.y = ry; scene.add(mesh); return mesh
@@ -227,15 +274,33 @@ export function ClubVisualizer({ documents }: { documents: VizDoc[] }) {
       lbl('BAR', b.x, 1.95, b.z, '#a7e8a0')
     }
 
-    // ── Silver VIP booths (ground floor, flanking the dance floor) ──
-    const addBooth = (x: number, z: number, sgn: number) => {
-      add(new THREE.BoxGeometry(0.7, 0.45, 1.7), matSeat, x, 0.22, z)                 // bench
-      add(new THREE.BoxGeometry(0.16, 0.7, 1.7), matSeat, x + sgn * 0.43, 0.55, z)    // backrest (outer)
-      add(new THREE.CylinderGeometry(0.33, 0.33, 0.5, 14), matMetal, x - sgn * 0.75, 0.25, z)
-      add(new THREE.CylinderGeometry(0.38, 0.38, 0.04, 16), matBarTop, x - sgn * 0.75, 0.5, z)
+    // ── Backlit OX bar fronts + bottle-shelf walls on the two main side bars ──
+    const oxFrontTex = oxPatternTexture(); oxFrontTex.repeat.set(7, 1.4)
+    const matOxFront = new THREE.MeshStandardMaterial({ map: oxFrontTex, color: 0x101014, emissive: 0xff3b8b, emissiveMap: oxFrontTex, emissiveIntensity: 0.6, roughness: 0.6, side: THREE.DoubleSide })
+    const matShelf = new THREE.MeshStandardMaterial({ color: 0x141418, emissive: 0x7a4636, emissiveIntensity: 0.55, roughness: 0.7 })
+    for (const sgn of [1, -1]) {
+      const bx = sgn * (W / 2 - 1.7), bz = sgn > 0 ? 5 : 7
+      add(new THREE.PlaneGeometry(7, 1.0), matOxFront, bx - sgn * 0.78, 0.55, bz, 0, sgn > 0 ? -Math.PI / 2 : Math.PI / 2) // glowing front to dance floor
+      add(new THREE.BoxGeometry(0.25, 2.2, 6.6), matShelf, sgn * (W / 2 - 0.22), 1.7, bz)                                  // bottle-shelf wall
     }
-    for (const z of [-7, -3, 1]) { addBooth(5.4, z, 1); addBooth(-5.4, z, -1) }
-    lbl('SILVER VIP', 5.4, 1.5, -3, '#ffd27f'); lbl('SILVER VIP', -5.4, 1.5, -3, '#ffd27f')
+
+    // ── Raised side VIP lounges (Silver VIP): chrome railings + black leather chesterfields ──
+    const platTop = 0.45
+    const addRail = (x: number) => {
+      for (let z = -13; z <= 13; z += 2.4) add(new THREE.CylinderGeometry(0.03, 0.03, 1.1, 8), matChrome, x, platTop + 0.55, z)
+      add(new THREE.BoxGeometry(0.05, 0.05, 26), matChrome, x, platTop + 1.05, 0)   // top rail
+      add(new THREE.BoxGeometry(0.05, 0.05, 26), matChrome, x, platTop + 0.55, 0)   // mid rail
+    }
+    addRail(W / 2 - 2.9); addRail(-(W / 2 - 2.9))
+    const addSofa = (x: number, z: number, sgn: number, len = 2.2) => {
+      add(new THREE.BoxGeometry(0.95, 0.4, len), matLeather, x, platTop + 0.2, z)                  // seat
+      add(new THREE.BoxGeometry(0.28, 0.7, len), matLeather, x + sgn * 0.33, platTop + 0.45, z)    // backrest (outer)
+      add(new THREE.BoxGeometry(0.95, 0.5, 0.22), matLeather, x, platTop + 0.3, z - len / 2)       // armrest
+      add(new THREE.BoxGeometry(0.95, 0.5, 0.22), matLeather, x, platTop + 0.3, z + len / 2)       // armrest
+      add(new THREE.BoxGeometry(0.8, 0.45, 1.0), matGlassTab, x - sgn * 1.1, platTop + 0.22, z)    // coffee table
+    }
+    for (const z of [-6, -1, 4]) { addSofa(7.6, z, 1); addSofa(-7.6, z, -1) }
+    lbl('SILVER VIP', 6.6, 1.7, -1, '#ffd27f'); lbl('SILVER VIP', -6.6, 1.7, -1, '#ffd27f')
 
     // ── Cloakroom (counter) + WC block + backstage nook + side-zone door ──
     add(new THREE.BoxGeometry(3.2, 1.1, 0.6), matDark, -6, 0.55, FRONT - 4.5)         // šatna counter
@@ -245,6 +310,38 @@ export function ClubVisualizer({ documents }: { documents: VizDoc[] }) {
     add(new THREE.BoxGeometry(4, 3, 0.15), matMetal, -7, 1.5, BACK + 4)               // backstage partition (across)
     add(new THREE.BoxGeometry(0.15, 3, 4), matMetal, -5, 1.5, BACK + 2)               // backstage partition (along)
     add(new THREE.PlaneGeometry(2.4, 3), matDark, W / 2 - 0.02, 1.6, 4, 0, -Math.PI / 2) // side-zone door
+
+    // ════ Signature OX-Club features (recreated from reference photos) ════
+    // Oval illuminated ceiling cove over the dance floor — the club's signature element.
+    const coveDisc = add(new THREE.CircleGeometry(1, 64), new THREE.MeshStandardMaterial({ color: 0x14141a, emissive: 0xfff1dc, emissiveIntensity: 0.85, roughness: 1, side: THREE.DoubleSide }), 0, H - 0.06, -3, Math.PI / 2)
+    coveDisc.scale.set(6.2, 4.0, 1)
+    const coveRim = add(new THREE.RingGeometry(0.92, 1.0, 64), new THREE.MeshBasicMaterial({ color: 0xfff4e6, toneMapped: false, side: THREE.DoubleSide }), 0, H - 0.05, -3, Math.PI / 2)
+    coveRim.scale.set(6.4, 4.15, 1)
+    const coveLight = new THREE.PointLight(0xfff1dc, 0.6, 28, 1.5); coveLight.position.set(0, H - 1.4, -3); reg(coveLight, 0.6)
+
+    // Circular hanging neon ring sign "OX CLUB PRAGUE".
+    const ringR = 2.3
+    const ring = add(new THREE.TorusGeometry(ringR, 0.05, 12, 64), new THREE.MeshBasicMaterial({ color: 0xff3a2f, toneMapped: false }), 0, 6.0, 3, Math.PI / 2)
+    void ring
+    add(new THREE.CylinderGeometry(ringR, ringR, 0.5, 64, 1, true), new THREE.MeshBasicMaterial({ map: ringTextTexture(), transparent: true, side: THREE.DoubleSide, toneMapped: false }), 0, 6.0, 3)
+    for (const a of [0, Math.PI / 2, Math.PI, -Math.PI / 2]) add(new THREE.CylinderGeometry(0.012, 0.012, H - 6.0, 6), matChrome, Math.cos(a) * ringR, (H + 6.0) / 2, 3 + Math.sin(a) * ringR)
+
+    // Lane lighting inlaid in the dance floor + soft flower gobos.
+    const matLane = new THREE.MeshBasicMaterial({ color: 0xbfe6ff, toneMapped: false })
+    for (const lx of [-5.4, -2.7, 0, 2.7, 5.4]) add(new THREE.PlaneGeometry(0.08, 15), matLane, lx, 0.03, -3, -Math.PI / 2)
+    for (const lz of [-10.3, 4.3]) add(new THREE.PlaneGeometry(11, 0.08), matLane, 0, 0.03, lz, -Math.PI / 2)
+    const matGobo = new THREE.MeshBasicMaterial({ map: flowerGoboTexture(), transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false })
+    for (const [gx, gz] of [[-1.8, -8], [1.8, -4.5], [-1.8, -1], [1.8, 2.5]] as [number, number][]) add(new THREE.PlaneGeometry(2.4, 2.4), matGobo, gx, 0.04, gz, -Math.PI / 2)
+
+    // Neon wall signage (Diamond near stage + OX logos) — accent emissive.
+    const diaTex = neonTexture('diamond'), oxNeon = neonTexture('ox')
+    const neonMat = (t: THREE.Texture) => new THREE.MeshBasicMaterial({ map: t, transparent: true, toneMapped: false, side: THREE.DoubleSide })
+    add(new THREE.PlaneGeometry(2.2, 2.2), neonMat(diaTex), -W / 2 + 0.12, 4.3, BACK + 5, 0, Math.PI / 2)
+    add(new THREE.PlaneGeometry(1.6, 1.6), neonMat(oxNeon), W / 2 - 0.12, 4.2, -2, 0, -Math.PI / 2)
+    add(new THREE.PlaneGeometry(1.5, 1.5), neonMat(oxNeon), -W / 2 + 0.12, 3.0, -8, 0, Math.PI / 2)
+
+    // Vertical slatted timber wall (right side, near the entrance).
+    for (let i = 0; i < 12; i++) add(new THREE.BoxGeometry(0.12, 3.4, 0.12), matWood, W / 2 - 0.1, 1.9, 9 + i * 0.42)
 
     // ── Ceiling truss + emissive fixtures ──
     const matTruss = new THREE.MeshStandardMaterial({ color: 0x202026, roughness: 0.6, metalness: 0.6 })
@@ -433,7 +530,7 @@ export function ClubVisualizer({ documents }: { documents: VizDoc[] }) {
           <Label className="flex items-center gap-1.5 text-xs text-muted-foreground"><Sun className="size-3.5" />Osvětlení klubu: {Math.round(light * 100)} %</Label>
           <input type="range" min={20} max={250} step={10} value={Math.round(light * 100)} onChange={(e) => setLight(Number(e.target.value) / 100)} className="w-full accent-primary" />
         </div>
-        <p className="text-[11px] text-muted-foreground">Kompletní model OX Clubu (vstup, šatna, WC, parket, 6 barů, Silver/Gold/Diamond VIP, backstage, boční zóna) pro plánování cateringu a backstage. Stage má přesné rozměry dle zaměření (8,58 × 6,12 m); sál, balkon a VIP jsou zatím přibližné — upřesníme dle zaměření.</p>
+        <p className="text-[11px] text-muted-foreground">Model rekonstruovaný z fotek OX Clubu: oválný prosvětlený podhled, neon „OX CLUB PRAGUE", kožené VIP sedačky s chromovým zábradlím, prosvícená OX čela barů, pruhy + gobo na parketu, neon diamant/OX. Stage má přesné rozměry dle zaměření (8,58 × 6,12 m); sál, balkon a VIP jsou zatím přibližné — pro 100% přesnost stačí dodat půdorys/zaměření.</p>
       </div>
 
       {picker && (
