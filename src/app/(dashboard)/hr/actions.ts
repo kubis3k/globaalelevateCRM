@@ -572,3 +572,83 @@ export async function deletePayrollRun(id: string): Promise<{ error?: string }> 
   if (error) return { error: error.message }
   revalidatePath('/hr/payroll'); return {}
 }
+
+// ─── Směny (event/směnové plánování) ───────────────────────────
+function shiftRow(fd: FormData) {
+  return {
+    work_date: str(fd, 'workDate'),
+    start_time: str(fd, 'startTime'),
+    end_time: str(fd, 'endTime'),
+    role: str(fd, 'role'),
+    location: str(fd, 'location'),
+    project_id: opt(fd, 'projectId'),
+    required_count: Math.max(1, Number(str(fd, 'requiredCount') || 1)),
+    note: str(fd, 'note'),
+  }
+}
+
+export async function saveShift(formData: FormData): Promise<{ error?: string }> {
+  const c = await getCtx(); if ('error' in c) return c
+  if (!canManageHr(c.role)) return { error: 'Směny spravuje management.' }
+  if (!str(formData, 'workDate')) return { error: 'Zadej datum směny.' }
+  const id = opt(formData, 'id')
+  if (id) {
+    const { error } = await c.admin.from('hr_shifts').update(shiftRow(formData)).eq('id', id).eq('tenant_id', c.tenantId)
+    if (error) return { error: error.message }
+  } else {
+    const { error } = await c.admin.from('hr_shifts').insert({ tenant_id: c.tenantId, created_by: c.userId, ...shiftRow(formData) })
+    if (error) return { error: error.message }
+  }
+  revalidatePath('/hr/shifts'); return {}
+}
+
+export async function deleteShift(id: string): Promise<{ error?: string }> {
+  const c = await getCtx(); if ('error' in c) return c
+  if (!canManageHr(c.role)) return { error: 'Nemáte oprávnění.' }
+  const { error } = await c.admin.from('hr_shifts').delete().eq('id', id).eq('tenant_id', c.tenantId)
+  if (error) return { error: error.message }
+  revalidatePath('/hr/shifts'); return {}
+}
+
+export async function assignToShift(shiftId: string, userId: string): Promise<{ error?: string }> {
+  const c = await getCtx(); if ('error' in c) return c
+  if (!canManageHr(c.role)) return { error: 'Nemáte oprávnění.' }
+  const { error } = await c.admin.from('hr_shift_assignments').insert({ tenant_id: c.tenantId, shift_id: shiftId, user_id: userId, status: 'assigned' })
+  if (error) return { error: error.code === '23505' ? 'Už je přiřazen.' : error.message }
+  try {
+    const { data: sh } = await c.admin.from('hr_shifts').select('work_date, start_time, role').eq('id', shiftId).maybeSingle()
+    if (userId !== c.userId) await sendPushToUsers(c.admin, [userId], 'hr', { title: 'Nová směna', body: `${sh?.work_date || ''} ${sh?.start_time ? String(sh.start_time).slice(0, 5) : ''} ${sh?.role || ''}`.trim(), url: '/hr/shifts' })
+  } catch { }
+  revalidatePath('/hr/shifts'); return {}
+}
+
+export async function removeAssignment(id: string): Promise<{ error?: string }> {
+  const c = await getCtx(); if ('error' in c) return c
+  const { data: a } = await c.admin.from('hr_shift_assignments').select('user_id').eq('id', id).eq('tenant_id', c.tenantId).maybeSingle()
+  if (!a) return { error: 'Přiřazení nenalezeno.' }
+  if (a.user_id !== c.userId && !canManageHr(c.role)) return { error: 'Nemáte oprávnění.' }
+  const { error } = await c.admin.from('hr_shift_assignments').delete().eq('id', id).eq('tenant_id', c.tenantId)
+  if (error) return { error: error.message }
+  revalidatePath('/hr/shifts'); return {}
+}
+
+export async function setAssignmentStatus(id: string, status: 'confirmed' | 'declined'): Promise<{ error?: string }> {
+  const c = await getCtx(); if ('error' in c) return c
+  const { data: a } = await c.admin.from('hr_shift_assignments').select('user_id').eq('id', id).eq('tenant_id', c.tenantId).maybeSingle()
+  if (!a) return { error: 'Přiřazení nenalezeno.' }
+  if (a.user_id !== c.userId && !canManageHr(c.role)) return { error: 'Nemáte oprávnění.' }
+  const { error } = await c.admin.from('hr_shift_assignments').update({ status }).eq('id', id).eq('tenant_id', c.tenantId)
+  if (error) return { error: error.message }
+  revalidatePath('/hr/shifts'); return {}
+}
+
+export async function claimOpenShift(shiftId: string): Promise<{ error?: string }> {
+  const c = await getCtx(); if ('error' in c) return c
+  const { data: sh } = await c.admin.from('hr_shifts').select('required_count').eq('id', shiftId).eq('tenant_id', c.tenantId).maybeSingle()
+  if (!sh) return { error: 'Směna nenalezena.' }
+  const { count } = await c.admin.from('hr_shift_assignments').select('*', { count: 'exact', head: true }).eq('shift_id', shiftId).neq('status', 'declined')
+  if ((count || 0) >= (sh.required_count || 1)) return { error: 'Směna je plně obsazená.' }
+  const { error } = await c.admin.from('hr_shift_assignments').insert({ tenant_id: c.tenantId, shift_id: shiftId, user_id: c.userId, status: 'confirmed' })
+  if (error) return { error: error.code === '23505' ? 'Už jsi přihlášen.' : error.message }
+  revalidatePath('/hr/shifts'); return {}
+}
