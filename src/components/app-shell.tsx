@@ -4,11 +4,12 @@ import { useRef, useState } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { usePathname } from 'next/navigation'
-import { Menu, X, LogOut, Bell, ChevronRight } from 'lucide-react'
+import { Menu, X, LogOut, Bell, ChevronRight, KeyRound } from 'lucide-react'
 import { MODULES } from '@/lib/modules'
 import { cn } from '@/lib/utils'
 import { CollapsibleSidebar, MODULE_ICONS, NAV } from './collapsible-sidebar'
 import { PushSetupDialog } from './pwa/push-setup-dialog'
+import { ChangePasswordDialog } from './change-password-dialog'
 import { ThemeToggle } from './ui/theme-toggle'
 import { Avatar } from './ui/avatar'
 import {
@@ -37,6 +38,7 @@ export function AppShell({
   const pathname = usePathname()
   const [mobileOpen, setMobileOpen] = useState(false)
   const [showPush, setShowPush] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({})
   const logoutForm = useRef<HTMLFormElement>(null)
 
@@ -158,6 +160,10 @@ export function AppShell({
                   <Bell />
                   Notifikace
                 </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setShowPassword(true)}>
+                  <KeyRound />
+                  Změnit heslo
+                </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem variant="destructive" onClick={() => logoutForm.current?.requestSubmit()}>
                   <LogOut />
@@ -173,6 +179,7 @@ export function AppShell({
       </div>
 
       <PushSetupDialog open={showPush} onClose={() => setShowPush(false)} />
+      <ChangePasswordDialog open={showPassword} onClose={() => setShowPassword(false)} />
     </div>
   )
 }
