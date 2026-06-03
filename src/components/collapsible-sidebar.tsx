@@ -7,7 +7,7 @@ import { usePathname } from 'next/navigation'
 import {
   LayoutDashboard, Users, Receipt, Wallet, CalendarDays, Briefcase, Building2, Mail,
   FolderOpen, Sparkles, User, Target, FolderKanban, Clock, ScrollText, BarChart3,
-  Settings, Coins, ChevronRight, TrendingUp, Layers, Boxes, Megaphone, Clapperboard, MonitorPlay, Share2, PartyPopper, DoorOpen,
+  Settings, Coins, ChevronRight, TrendingUp, Layers, Boxes, Megaphone, Clapperboard, MonitorPlay, Share2, PartyPopper, DoorOpen, Truck,
 } from 'lucide-react'
 import { MODULES } from '@/lib/modules'
 import { cn } from '@/lib/utils'
@@ -35,6 +35,7 @@ export const MODULE_ICONS: Record<string, React.ComponentType<{ className?: stri
   animations: Clapperboard,
   visualizer: MonitorPlay,
   social: Share2,
+  suppliers: Truck,
   'portal-admin': DoorOpen,
   settings: Settings,
 }
@@ -52,7 +53,7 @@ export const NAV: NavEntry[] = [
   { type: 'module', id: 'milestones' },
   { type: 'module', id: 'globaal-ai' },
   { type: 'module', id: 'events' },
-  { type: 'group', id: 'g-finance', label: 'Finance', icon: Wallet, members: ['finance', 'invoices', 'expenses', 'quotes', 'reports'] },
+  { type: 'group', id: 'g-finance', label: 'Finance', icon: Wallet, members: ['finance', 'invoices', 'expenses', 'quotes', 'reports', 'suppliers'] },
   { type: 'group', id: 'g-sales', label: 'Obchod', icon: TrendingUp, members: ['crm', 'projects', 'time'] },
   { type: 'group', id: 'g-hr', label: 'HR', icon: Briefcase, members: ['hr', 'team'] },
   { type: 'group', id: 'g-office', label: 'Kancelář', icon: Layers, members: ['mail', 'calendar', 'documents', 'portal-admin'] },
