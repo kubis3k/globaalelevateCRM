@@ -7,7 +7,7 @@ import { usePathname } from 'next/navigation'
 import {
   LayoutDashboard, Users, Receipt, Wallet, CalendarDays, Briefcase, Building2, Mail,
   FolderOpen, Sparkles, User, Target, FolderKanban, Clock, ScrollText, BarChart3,
-  Settings, Coins, ChevronRight, TrendingUp, Layers, Boxes, Megaphone, Clapperboard, MonitorPlay, Share2, PartyPopper, DoorOpen, Truck, BookOpen,
+  Settings, Coins, ChevronRight, TrendingUp, Layers, Boxes, Megaphone, Clapperboard, MonitorPlay, Share2, PartyPopper, DoorOpen, Truck, BookOpen, FileSignature,
 } from 'lucide-react'
 import { MODULES } from '@/lib/modules'
 import { cn } from '@/lib/utils'
@@ -37,6 +37,7 @@ export const MODULE_ICONS: Record<string, React.ComponentType<{ className?: stri
   social: Share2,
   suppliers: Truck,
   ops: BookOpen,
+  'business-contracts': FileSignature,
   'portal-admin': DoorOpen,
   settings: Settings,
 }
@@ -55,7 +56,7 @@ export const NAV: NavEntry[] = [
   { type: 'module', id: 'globaal-ai' },
   { type: 'module', id: 'events' },
   { type: 'group', id: 'g-finance', label: 'Finance', icon: Wallet, members: ['finance', 'invoices', 'expenses', 'quotes', 'reports', 'suppliers'] },
-  { type: 'group', id: 'g-sales', label: 'Obchod', icon: TrendingUp, members: ['crm', 'projects', 'time'] },
+  { type: 'group', id: 'g-sales', label: 'Obchod', icon: TrendingUp, members: ['crm', 'projects', 'time', 'business-contracts'] },
   { type: 'group', id: 'g-hr', label: 'HR', icon: Briefcase, members: ['hr', 'team'] },
   { type: 'group', id: 'g-office', label: 'Kancelář', icon: Layers, members: ['mail', 'calendar', 'documents', 'ops', 'portal-admin'] },
   { type: 'group', id: 'g-marketing', label: 'Marketing', icon: Megaphone, members: ['logo3d', 'animations', 'visualizer', 'social'] },

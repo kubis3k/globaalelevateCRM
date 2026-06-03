@@ -25,6 +25,7 @@ export const MODULES = [
   { id: 'expenses',  label: 'Výdaje',    href: '/expenses',  color: '#dc2626' },
   { id: 'suppliers', label: 'Dodavatelé', href: '/suppliers', color: '#ca8a04' },
   { id: 'ops',       label: 'Provoz',     href: '/ops',       color: '#0d9488' },
+  { id: 'business-contracts', label: 'Obch. smlouvy', href: '/business-contracts', color: '#9333ea' },
   { id: 'portal-admin', label: 'Portál', href: '/portal-admin', color: '#0891b2' },
   { id: 'settings',  label: 'Nastavení', href: '/settings',  color: '#6b7280' },
 ] as const
