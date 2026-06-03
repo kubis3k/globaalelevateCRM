@@ -13,7 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { toast } from '@/components/ui/toast'
 import { confirmDialog } from '@/components/ui/confirm-dialog'
 import { cn } from '@/lib/utils'
-import { createEmployee, updateEmployee, deleteEmployee, createDepartment, deleteDepartment } from '../actions'
+import { createEmployee, updateEmployee, deleteEmployee, createDepartment, deleteDepartment, updateOwnProfile } from '../actions'
 
 const selectClass = 'h-8 w-full rounded-lg border border-input bg-background px-2 text-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50'
 const EMP_TYPES: Record<string, string> = { full_time: 'Plný úvazek (HPP)', part_time: 'Částečný', dpp: 'DPP', dpc: 'DPČ', contract: 'Smlouva / IČO', intern: 'Stáž' }
@@ -28,6 +28,7 @@ export function HrEmployeesClient({ employees, departments, people, available, c
 }) {
   const [dialog, setDialog] = useState<{ open: boolean; employee: Employee | null }>({ open: false, employee: null })
   const [deptOpen, setDeptOpen] = useState(false)
+  const [selfOpen, setSelfOpen] = useState(false)
   const [isPending, startTransition] = useTransition()
 
   return (
@@ -41,6 +42,9 @@ export function HrEmployeesClient({ employees, departments, people, available, c
               <Plus className="size-4" />Přidat zaměstnance
             </Button>
           </div>
+        )}
+        {!canManage && employees.length > 0 && (
+          <Button variant="outline" size="lg" onClick={() => setSelfOpen(true)}><Edit2 className="size-4" />Upravit můj kontakt</Button>
         )}
       </div>
 
@@ -114,7 +118,40 @@ export function HrEmployeesClient({ employees, departments, people, available, c
         />
       )}
       {deptOpen && <DepartmentsDialog departments={departments} onClose={() => setDeptOpen(false)} />}
+      {selfOpen && employees[0] && <SelfDialog employee={employees[0]} onClose={() => setSelfOpen(false)} />}
     </div>
+  )
+}
+
+function SelfDialog({ employee, onClose }: { employee: Employee; onClose: () => void }) {
+  const [pending, startTransition] = useTransition()
+  function onSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+    const fd = new FormData(e.currentTarget)
+    startTransition(async () => {
+      const res = await updateOwnProfile(fd)
+      if (res?.error) { toast.error('Chyba', res.error); return }
+      toast.success('Kontakt uložen'); onClose()
+    })
+  }
+  return (
+    <Dialog open onOpenChange={(o) => { if (!o) onClose() }}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Můj kontakt</DialogTitle>
+          <DialogDescription>Aktualizuj si telefon, osobní e-mail a adresu.</DialogDescription>
+        </DialogHeader>
+        <form onSubmit={onSubmit} className="space-y-3">
+          <Field label="Telefon"><Input name="phone" defaultValue={employee?.phone || ''} /></Field>
+          <Field label="Osobní e-mail"><Input type="email" name="personalEmail" defaultValue={employee?.personal_email || ''} /></Field>
+          <Field label="Adresa"><Input name="address" defaultValue={employee?.address || ''} /></Field>
+          <div className="flex justify-end gap-2 pt-1">
+            <Button type="button" variant="outline" size="lg" onClick={onClose}>Zrušit</Button>
+            <Button type="submit" size="lg" disabled={pending}>{pending ? 'Ukládám…' : 'Uložit'}</Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
   )
 }
 

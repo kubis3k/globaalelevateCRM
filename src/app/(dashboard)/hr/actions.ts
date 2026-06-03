@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { canManageHr } from '@/lib/permissions'
 import { sendPushToUsers } from '@/lib/push/webpush'
+import { workingDaysBetween } from '@/lib/cz-holidays'
 
 type Ctx = { admin: ReturnType<typeof createAdminClient>; userId: string; tenantId: string; role: string }
 
@@ -188,17 +189,7 @@ export async function getContractUrl(id: string): Promise<{ url?: string; error?
 // ─── Leave ─────────────────────────────────────────────────────
 const LEAVE_LABELS: Record<string, string> = { vacation: 'Dovolená', sick: 'Nemoc', personal: 'Osobní volno', unpaid: 'Neplacené volno' }
 
-function workingDaysBetween(start: string, end: string): number {
-  const s = new Date(start + 'T00:00:00Z')
-  const e = new Date(end + 'T00:00:00Z')
-  if (e < s) return 0
-  let count = 0
-  for (const d = new Date(s); d <= e; d.setUTCDate(d.getUTCDate() + 1)) {
-    const day = d.getUTCDay()
-    if (day !== 0 && day !== 6) count++
-  }
-  return count
-}
+// workingDaysBetween now lives in @/lib/cz-holidays (excludes weekends + CZ state holidays).
 
 export async function requestLeave(formData: FormData): Promise<{ error?: string }> {
   const c = await getCtx(); if ('error' in c) return c
@@ -406,4 +397,84 @@ export async function deleteCandidate(id: string): Promise<{ error?: string }> {
   const { error } = await c.admin.from('hr_candidates').delete().eq('id', id).eq('tenant_id', c.tenantId)
   if (error) return { error: error.message }
   revalidatePath('/hr/recruitment'); return {}
+}
+
+// ─── Self-service ──────────────────────────────────────────────
+export async function updateOwnProfile(formData: FormData): Promise<{ error?: string }> {
+  const c = await getCtx(); if ('error' in c) return c
+  const { error } = await c.admin.from('hr_employees').update({
+    phone: str(formData, 'phone'),
+    personal_email: str(formData, 'personalEmail'),
+    address: str(formData, 'address'),
+  }).eq('user_id', c.userId).eq('tenant_id', c.tenantId)
+  if (error) return { error: error.message }
+  revalidatePath('/hr/employees'); return {}
+}
+
+// ─── Onboarding / offboarding checklists ───────────────────────
+export async function saveChecklistTemplate(formData: FormData): Promise<{ error?: string }> {
+  const c = await getCtx(); if ('error' in c) return c
+  if (!canManageHr(c.role)) return { error: 'Nemáte oprávnění.' }
+  const name = str(formData, 'name'); if (!name) return { error: 'Zadejte název šablony.' }
+  const kind = str(formData, 'kind') === 'offboarding' ? 'offboarding' : 'onboarding'
+  const items = (formData.getAll('items') as string[]).map((s) => s.trim()).filter(Boolean)
+  const id = opt(formData, 'id')
+  let checklistId = id
+  if (id) {
+    await c.admin.from('hr_checklists').update({ name, kind }).eq('id', id).eq('tenant_id', c.tenantId)
+    await c.admin.from('hr_checklist_items').delete().eq('checklist_id', id).eq('tenant_id', c.tenantId)
+  } else {
+    const { data, error } = await c.admin.from('hr_checklists').insert({ tenant_id: c.tenantId, name, kind }).select('id').single()
+    if (error) return { error: error.message }
+    checklistId = data.id
+  }
+  if (checklistId && items.length) {
+    await c.admin.from('hr_checklist_items').insert(items.map((label, i) => ({ tenant_id: c.tenantId, checklist_id: checklistId, label, sort: i })))
+  }
+  revalidatePath('/hr/onboarding'); return {}
+}
+
+export async function deleteChecklist(id: string): Promise<{ error?: string }> {
+  const c = await getCtx(); if ('error' in c) return c
+  if (!canManageHr(c.role)) return { error: 'Nemáte oprávnění.' }
+  const { error } = await c.admin.from('hr_checklists').delete().eq('id', id).eq('tenant_id', c.tenantId)
+  if (error) return { error: error.message }
+  revalidatePath('/hr/onboarding'); return {}
+}
+
+export async function assignChecklist(formData: FormData): Promise<{ error?: string }> {
+  const c = await getCtx(); if ('error' in c) return c
+  if (!canManageHr(c.role)) return { error: 'Nemáte oprávnění.' }
+  const userId = opt(formData, 'userId'); if (!userId) return { error: 'Vyberte zaměstnance.' }
+  const checklistId = opt(formData, 'checklistId'); if (!checklistId) return { error: 'Vyberte šablonu.' }
+  const { data: cl } = await c.admin.from('hr_checklists').select('name, kind').eq('id', checklistId).eq('tenant_id', c.tenantId).maybeSingle()
+  if (!cl) return { error: 'Šablona nenalezena.' }
+  const { data: items } = await c.admin.from('hr_checklist_items').select('label, sort').eq('checklist_id', checklistId).eq('tenant_id', c.tenantId).order('sort')
+  const { data: run, error } = await c.admin.from('hr_checklist_runs')
+    .insert({ tenant_id: c.tenantId, user_id: userId, checklist_id: checklistId, name: cl.name, kind: cl.kind, created_by: c.userId })
+    .select('id').single()
+  if (error) return { error: error.message }
+  if (run?.id && items?.length) {
+    await c.admin.from('hr_checklist_run_items').insert(items.map((it: any) => ({ tenant_id: c.tenantId, run_id: run.id, label: it.label, sort: it.sort })))
+  }
+  try { if (userId !== c.userId) await sendPushToUsers(c.admin, [userId], 'hr', { title: cl.kind === 'offboarding' ? 'Offboarding zahájen' : 'Onboarding zahájen', body: cl.name, url: '/hr/onboarding' }) } catch { }
+  revalidatePath('/hr/onboarding'); return {}
+}
+
+export async function toggleRunItem(id: string, done: boolean): Promise<{ error?: string }> {
+  const c = await getCtx(); if ('error' in c) return c
+  if (!canManageHr(c.role)) return { error: 'Nemáte oprávnění.' }
+  const { error } = await c.admin.from('hr_checklist_run_items')
+    .update({ done, done_at: done ? new Date().toISOString() : null, done_by: done ? c.userId : null })
+    .eq('id', id).eq('tenant_id', c.tenantId)
+  if (error) return { error: error.message }
+  revalidatePath('/hr/onboarding'); return {}
+}
+
+export async function deleteRun(id: string): Promise<{ error?: string }> {
+  const c = await getCtx(); if ('error' in c) return c
+  if (!canManageHr(c.role)) return { error: 'Nemáte oprávnění.' }
+  const { error } = await c.admin.from('hr_checklist_runs').delete().eq('id', id).eq('tenant_id', c.tenantId)
+  if (error) return { error: error.message }
+  revalidatePath('/hr/onboarding'); return {}
 }
