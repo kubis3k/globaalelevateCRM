@@ -5,6 +5,7 @@ export const MODULES = [
   { id: 'dashboard', label: 'Dashboard', href: '/dashboard', color: '#6366f1' },
   { id: 'milestones', label: 'Cíle',     href: '/milestones', color: '#84cc16' },
   { id: 'globaal-ai', label: 'Globaal AI', href: '/ai',       color: '#a855f7' },
+  { id: 'events',    label: 'Akce',      href: '/events',    color: '#fb923c' },
   { id: 'mail',      label: 'Pošta',     href: '/mail',      color: '#f97316' },
   { id: 'calendar',  label: 'Kalendář',  href: '/calendar',  color: '#f59e0b' },
   { id: 'finance',   label: 'Finance',   href: '/finance',   color: '#10b981' },

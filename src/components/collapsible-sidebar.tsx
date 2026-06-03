@@ -7,7 +7,7 @@ import { usePathname } from 'next/navigation'
 import {
   LayoutDashboard, Users, Receipt, Wallet, CalendarDays, Briefcase, Building2, Mail,
   FolderOpen, Sparkles, User, Target, FolderKanban, Clock, ScrollText, BarChart3,
-  Settings, Coins, ChevronRight, TrendingUp, Layers, Boxes, Megaphone, Clapperboard, MonitorPlay, Share2,
+  Settings, Coins, ChevronRight, TrendingUp, Layers, Boxes, Megaphone, Clapperboard, MonitorPlay, Share2, PartyPopper,
 } from 'lucide-react'
 import { MODULES } from '@/lib/modules'
 import { cn } from '@/lib/utils'
@@ -17,6 +17,7 @@ export const MODULE_ICONS: Record<string, React.ComponentType<{ className?: stri
   dashboard: LayoutDashboard,
   milestones: Target,
   'globaal-ai': Sparkles,
+  events: PartyPopper,
   mail: Mail,
   calendar: CalendarDays,
   finance: Wallet,
@@ -49,6 +50,7 @@ export const NAV: NavEntry[] = [
   { type: 'module', id: 'dashboard' },
   { type: 'module', id: 'milestones' },
   { type: 'module', id: 'globaal-ai' },
+  { type: 'module', id: 'events' },
   { type: 'group', id: 'g-finance', label: 'Finance', icon: Wallet, members: ['finance', 'invoices', 'expenses', 'quotes', 'reports'] },
   { type: 'group', id: 'g-sales', label: 'Obchod', icon: TrendingUp, members: ['crm', 'projects', 'time'] },
   { type: 'group', id: 'g-hr', label: 'HR', icon: Briefcase, members: ['hr', 'team'] },

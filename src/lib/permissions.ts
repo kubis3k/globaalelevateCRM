@@ -46,3 +46,8 @@ export function canManageMilestones(role: string | null | undefined): boolean {
 export function canManageSocial(role: string | null | undefined): boolean {
   return role === 'admin' || role === 'manager'
 }
+
+// Who may create/edit events (production hub); all module users can view.
+export function canManageEvents(role: string | null | undefined): boolean {
+  return role === 'admin' || role === 'manager'
+}
