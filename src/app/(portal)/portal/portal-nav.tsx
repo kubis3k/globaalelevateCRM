@@ -2,32 +2,35 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { LayoutGrid, FileText, FolderOpen, MessageSquare } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const SECTIONS = [
-  { href: '/portal', label: 'Přehled' },
-  { href: '/portal/invoices', label: 'Faktury' },
-  { href: '/portal/documents', label: 'Dokumenty' },
+  { href: '/portal', label: 'Přehled', icon: LayoutGrid },
+  { href: '/portal/invoices', label: 'Faktury', icon: FileText },
+  { href: '/portal/documents', label: 'Dokumenty', icon: FolderOpen },
+  { href: '/portal/messages', label: 'Zprávy', icon: MessageSquare },
 ]
 
 export function PortalNav() {
   const pathname = usePathname()
   return (
-    <nav className="mx-auto flex max-w-4xl gap-1 overflow-x-auto px-4 pt-3 lg:px-8">
+    <nav className="flex gap-1.5 overflow-x-auto pb-3">
       {SECTIONS.map((s) => {
         const active = s.href === '/portal' ? pathname === '/portal' : pathname.startsWith(s.href)
+        const Icon = s.icon
         return (
           <Link
             key={s.href}
             href={s.href}
             aria-current={active ? 'page' : undefined}
             className={cn(
-              'relative whitespace-nowrap rounded-t-md px-3 py-2 text-sm font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring',
-              active ? 'text-foreground' : 'text-muted-foreground hover:text-foreground'
+              'inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-3.5 py-1.5 text-sm font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring',
+              active ? 'bg-primary text-primary-foreground shadow-xs' : 'text-muted-foreground hover:bg-muted hover:text-foreground'
             )}
           >
+            <Icon className="size-4" />
             {s.label}
-            {active && <span className="absolute inset-x-2 -bottom-px h-0.5 rounded-full bg-primary" />}
           </Link>
         )
       })}

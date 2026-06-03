@@ -1,11 +1,12 @@
 import { PageHeader } from '@/components/ui/page-header'
+import { StatCard } from '@/components/ui/stat-card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
 import { EmptyState } from '@/components/ui/empty-state'
-import { FileText } from 'lucide-react'
+import { FileText, ArrowUpRight, ArrowDownLeft, Wallet } from 'lucide-react'
 import { getPortalScope } from '../scope'
 
-const czk = (n: number, c = 'CZK') => new Intl.NumberFormat('cs-CZ', { style: 'currency', currency: c }).format(n)
+const czk = (n: number, c = 'CZK') => new Intl.NumberFormat('cs-CZ', { style: 'currency', currency: c, maximumFractionDigits: 0 }).format(n)
 const INV_STATUS: Record<string, { variant: 'secondary' | 'info' | 'success' | 'destructive' | 'warning'; label: string }> = {
   draft: { variant: 'secondary', label: 'Koncept' },
   pending: { variant: 'info', label: 'Čeká' },
@@ -25,10 +26,22 @@ export default async function PortalInvoicesPage() {
     : { data: [] as any[] }
 
   const list = invoices ?? []
+  const total = list.reduce((a: number, i: any) => a + Number(i.amount || 0), 0)
+  const paid = list.filter((i: any) => i.status === 'paid').reduce((a: number, i: any) => a + Number(i.amount || 0), 0)
+  const unpaid = list.filter((i: any) => i.status === 'pending' || i.status === 'overdue').reduce((a: number, i: any) => a + Number(i.amount || 0), 0)
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Faktury" description="Vaše vydané faktury." />
+      <PageHeader title="Faktury" description="Vaše vydané faktury a jejich stav." />
+
+      {list.length > 0 && (
+        <div className="grid gap-4 sm:grid-cols-3">
+          <StatCard title="Celkem" value={czk(total)} icon={<Wallet className="size-4" />} />
+          <StatCard title="Uhrazeno" value={czk(paid)} tone="positive" icon={<ArrowUpRight className="size-4" />} />
+          <StatCard title="Neuhrazeno" value={czk(unpaid)} tone={unpaid > 0 ? 'negative' : 'neutral'} icon={<ArrowDownLeft className="size-4" />} />
+        </div>
+      )}
+
       {list.length === 0 ? (
         <EmptyState icon={FileText} title="Žádné faktury" description={clientId ? 'Zatím vám nebyla vystavena žádná faktura.' : 'K vašemu účtu zatím není přiřazen klient.'} />
       ) : (

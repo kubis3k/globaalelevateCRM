@@ -2,6 +2,7 @@ import { requireModuleAccess } from '@/lib/supabase/tenant'
 import { NoTenantView } from '@/components/ui/no-tenant-view'
 import { PageHeader } from '@/components/ui/page-header'
 import { PortalAdminClient } from './portal-admin-client'
+import { PortalMessagesAdmin } from './portal-messages-admin'
 
 export default async function PortalAdminPage() {
   const { supabase, tenantId } = await requireModuleAccess('portal-admin')
@@ -32,10 +33,18 @@ export default async function PortalAdminPage() {
     }
   })
 
+  const { data: msgs } = await supabase.from('portal_messages').select('*').eq('tenant_id', tenantId).order('created_at', { ascending: false }).limit(100)
+  const messages = (msgs ?? []).map((m: any) => {
+    const a = (access ?? []).find((x: any) => x.user_id === m.user_id)
+    const p = (profiles ?? []).find((x: any) => x.id === m.user_id)
+    return { id: m.id, sender: a?.display_name || p?.username || '—', subject: m.subject, body: m.body, status: m.status, created_at: m.created_at }
+  })
+
   return (
     <div className="space-y-6">
       <PageHeader title="Klientský portál" description="Pozvi klienty/promotéry a nastav, co uvidí — své akce, faktury a sdílené dokumenty." />
       <PortalAdminClient users={users} clients={clients ?? []} events={events ?? []} documents={documents ?? []} />
+      <PortalMessagesAdmin messages={messages} />
     </div>
   )
 }

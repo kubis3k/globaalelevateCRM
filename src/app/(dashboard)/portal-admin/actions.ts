@@ -95,3 +95,18 @@ export async function setDocumentAccess(userId: string, documentId: string, gran
   }
   revalidatePath('/portal-admin'); return {}
 }
+
+// ─── Portal messages ───────────────────────────────────────────
+export async function resolvePortalMessage(id: string, resolved: boolean): Promise<{ error?: string }> {
+  const c = await getCtx(); if ('error' in c) return c
+  const { error } = await c.admin.from('portal_messages').update({ status: resolved ? 'resolved' : 'new' }).eq('id', id).eq('tenant_id', c.tenantId)
+  if (error) return { error: error.message }
+  revalidatePath('/portal-admin'); return {}
+}
+
+export async function deletePortalMessage(id: string): Promise<{ error?: string }> {
+  const c = await getCtx(); if ('error' in c) return c
+  const { error } = await c.admin.from('portal_messages').delete().eq('id', id).eq('tenant_id', c.tenantId)
+  if (error) return { error: error.message }
+  revalidatePath('/portal-admin'); return {}
+}
