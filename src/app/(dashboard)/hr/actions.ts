@@ -57,6 +57,8 @@ function employeeRow(fd: FormData, isAdmin: boolean) {
     personal_email: str(fd, 'personalEmail'),
     address: str(fd, 'address'),
     manager_id: opt(fd, 'managerId'),
+    weekly_hours: str(fd, 'weeklyHours') ? Number(str(fd, 'weeklyHours')) : null,
+    personal_no: str(fd, 'personalNo'),
     annual_leave_days: Number(str(fd, 'annualLeaveDays') || 20),
     status: str(fd, 'status') || 'active',
     notes: str(fd, 'notes'),
@@ -65,6 +67,8 @@ function employeeRow(fd: FormData, isAdmin: boolean) {
     const salary = str(fd, 'salary')
     row.salary = salary ? Number(salary) : null
     row.salary_currency = str(fd, 'salaryCurrency') || 'CZK'
+    const rate = str(fd, 'hourlyRate')
+    row.hourly_rate = rate ? Number(rate) : null
   }
   return row
 }
@@ -83,7 +87,16 @@ export async function createEmployee(formData: FormData): Promise<{ error?: stri
 export async function updateEmployee(id: string, formData: FormData): Promise<{ error?: string }> {
   const c = await getCtx(); if ('error' in c) return c
   if (!canManageHr(c.role)) return { error: 'Nemáte oprávnění.' }
-  const { error } = await c.admin.from('hr_employees').update(employeeRow(formData, c.role === 'admin')).eq('id', id).eq('tenant_id', c.tenantId)
+  const isAdmin = c.role === 'admin'
+  // Audit salary changes (sensitive).
+  if (isAdmin) {
+    const { data: old } = await c.admin.from('hr_employees').select('salary').eq('id', id).eq('tenant_id', c.tenantId).maybeSingle()
+    const ns = str(formData, 'salary') ? Number(str(formData, 'salary')) : null
+    if (old && Number(old.salary ?? 0) !== Number(ns ?? 0)) {
+      await c.admin.from('hr_audit').insert({ tenant_id: c.tenantId, actor_id: c.userId, entity: 'hr_employees', entity_id: id, action: 'salary_change', detail: `${old.salary ?? '—'} → ${ns ?? '—'}` })
+    }
+  }
+  const { error } = await c.admin.from('hr_employees').update(employeeRow(formData, isAdmin)).eq('id', id).eq('tenant_id', c.tenantId)
   if (error) return { error: error.message }
   revalidatePath('/hr/employees'); return {}
 }
@@ -94,6 +107,82 @@ export async function deleteEmployee(id: string): Promise<{ error?: string }> {
   const { error } = await c.admin.from('hr_employees').delete().eq('id', id).eq('tenant_id', c.tenantId)
   if (error) return { error: error.message }
   revalidatePath('/hr/employees'); return {}
+}
+
+// ─── Contracts / dohody ────────────────────────────────────────
+function contractRow(fd: FormData) {
+  return {
+    type: str(fd, 'type') || 'hpp',
+    title: str(fd, 'title'),
+    start_date: str(fd, 'startDate'),
+    end_date: str(fd, 'endDate'),
+    weekly_hours: str(fd, 'weeklyHours') ? Number(str(fd, 'weeklyHours')) : null,
+    hourly_rate: str(fd, 'hourlyRate') ? Number(str(fd, 'hourlyRate')) : null,
+    salary: str(fd, 'salary') ? Number(str(fd, 'salary')) : null,
+    currency: str(fd, 'currency') || 'CZK',
+    status: str(fd, 'status') || 'active',
+  }
+}
+
+export async function saveContract(formData: FormData): Promise<{ error?: string }> {
+  const c = await getCtx(); if ('error' in c) return c
+  if (!canManageHr(c.role)) return { error: 'Smlouvy může spravovat jen admin nebo manažer.' }
+  const id = opt(formData, 'id')
+  const userId = opt(formData, 'userId')
+  if (!id && !userId) return { error: 'Vyberte zaměstnance.' }
+  const row: Record<string, unknown> = contractRow(formData)
+  const file = formData.get('file') as File | null
+  if (file && file.size > 0) {
+    if (file.size > 10 * 1024 * 1024) return { error: 'Soubor je větší než 10 MB.' }
+    const ext = file.name.includes('.') ? '.' + file.name.split('.').pop() : ''
+    const path = `${c.tenantId}/contracts/${crypto.randomUUID()}${ext}`
+    const { error: upErr } = await c.admin.storage.from(BUCKET).upload(path, file, { contentType: file.type || undefined, upsert: false })
+    if (upErr) return { error: upErr.message }
+    row.storage_path = path
+  }
+  if (id) {
+    row.updated_at = new Date().toISOString()
+    row.expiry_reminded_at = null // re-arm expiry reminders after an edit
+    const { error } = await c.admin.from('hr_contracts').update(row).eq('id', id).eq('tenant_id', c.tenantId)
+    if (error) return { error: error.message }
+    await c.admin.from('hr_audit').insert({ tenant_id: c.tenantId, actor_id: c.userId, entity: 'hr_contracts', entity_id: id, action: 'updated' })
+  } else {
+    const { data, error } = await c.admin.from('hr_contracts').insert({ tenant_id: c.tenantId, user_id: userId, created_by: c.userId, ...row }).select('id').single()
+    if (error) return { error: error.message }
+    await c.admin.from('hr_audit').insert({ tenant_id: c.tenantId, actor_id: c.userId, entity: 'hr_contracts', entity_id: data?.id, action: 'created' })
+  }
+  revalidatePath('/hr/contracts'); revalidatePath('/hr'); return {}
+}
+
+export async function deleteContract(id: string): Promise<{ error?: string }> {
+  const c = await getCtx(); if ('error' in c) return c
+  if (!canManageHr(c.role)) return { error: 'Nemáte oprávnění.' }
+  const { data: ct } = await c.admin.from('hr_contracts').select('storage_path').eq('id', id).eq('tenant_id', c.tenantId).maybeSingle()
+  if (ct?.storage_path) { try { await c.admin.storage.from(BUCKET).remove([ct.storage_path]) } catch { } }
+  const { error } = await c.admin.from('hr_contracts').delete().eq('id', id).eq('tenant_id', c.tenantId)
+  if (error) return { error: error.message }
+  revalidatePath('/hr/contracts'); revalidatePath('/hr'); return {}
+}
+
+export async function acknowledgeContract(id: string): Promise<{ error?: string }> {
+  const c = await getCtx(); if ('error' in c) return c
+  const { data: ct } = await c.admin.from('hr_contracts').select('user_id').eq('id', id).eq('tenant_id', c.tenantId).maybeSingle()
+  if (!ct) return { error: 'Smlouva nenalezena.' }
+  if (ct.user_id !== c.userId && !canManageHr(c.role)) return { error: 'Nemáte oprávnění.' }
+  const { error } = await c.admin.from('hr_contracts').update({ acknowledged_at: new Date().toISOString(), acknowledged_by: c.userId }).eq('id', id).eq('tenant_id', c.tenantId)
+  if (error) return { error: error.message }
+  await c.admin.from('hr_audit').insert({ tenant_id: c.tenantId, actor_id: c.userId, entity: 'hr_contracts', entity_id: id, action: 'acknowledged' })
+  revalidatePath('/hr/contracts'); return {}
+}
+
+export async function getContractUrl(id: string): Promise<{ url?: string; error?: string }> {
+  const c = await getCtx(); if ('error' in c) return c
+  const { data: ct } = await c.admin.from('hr_contracts').select('user_id, storage_path').eq('id', id).eq('tenant_id', c.tenantId).maybeSingle()
+  if (!ct?.storage_path) return { error: 'Soubor není přiložen.' }
+  if (ct.user_id !== c.userId && !canManageHr(c.role)) return { error: 'Nemáte oprávnění.' }
+  const { data, error } = await c.admin.storage.from(BUCKET).createSignedUrl(ct.storage_path, 60)
+  if (error) return { error: error.message }
+  return { url: data.signedUrl }
 }
 
 // ─── Leave ─────────────────────────────────────────────────────

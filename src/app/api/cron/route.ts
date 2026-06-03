@@ -124,12 +124,41 @@ async function socialDuePosts(admin: any) {
   return { notified }
 }
 
+// HR compliance: notify managers about contracts/dohody expiring within 14 days
+// (once each, guarded by expiry_reminded_at).
+async function hrContractReminders(admin: any) {
+  const today = new Date().toISOString().slice(0, 10)
+  const in14 = new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10)
+  const { data: cts } = await admin.from('hr_contracts')
+    .select('id, tenant_id, title, end_date, expiry_reminded_at')
+    .eq('status', 'active').not('end_date', 'is', null).gte('end_date', today).lte('end_date', in14)
+  if (!cts?.length) return { reminded: 0 }
+  let reminded = 0
+  for (const ct of cts) {
+    if (ct.expiry_reminded_at === today) continue
+    const { data: mgrs } = await admin.from('tenant_users').select('user_id')
+      .eq('tenant_id', ct.tenant_id).in('role', ['admin', 'manager'])
+    const recipients = (mgrs || []).map((r: any) => r.user_id)
+    if (recipients.length) {
+      reminded += await sendPushToUsers(admin, recipients, 'hr', {
+        title: 'Smlouva brzy vyprší',
+        body: `${ct.title || 'Smlouva'} — platnost do ${ct.end_date}`,
+        url: '/hr/contracts',
+        tag: `hr-contract-${ct.id}`,
+      })
+    }
+    await admin.from('hr_contracts').update({ expiry_reminded_at: today }).eq('id', ct.id)
+  }
+  return { reminded }
+}
+
 async function run() {
   const admin = createAdminClient()
   const mail = await pollMail(admin)
   const crm = await crmDueReminders(admin)
   const social = await socialDuePosts(admin)
-  return { ok: true, mail, crm, social }
+  const hr = await hrContractReminders(admin)
+  return { ok: true, mail, crm, social, hr }
 }
 
 export async function POST(req: NextRequest) {

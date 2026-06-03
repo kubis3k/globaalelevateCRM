@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils'
 const SECTIONS = [
   { href: '/hr', label: 'Přehled' },
   { href: '/hr/employees', label: 'Zaměstnanci' },
+  { href: '/hr/contracts', label: 'Smlouvy' },
   { href: '/hr/leave', label: 'Dovolená' },
   { href: '/hr/attendance', label: 'Docházka' },
   { href: '/hr/documents', label: 'Dokumenty' },

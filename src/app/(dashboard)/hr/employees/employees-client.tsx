@@ -16,7 +16,7 @@ import { cn } from '@/lib/utils'
 import { createEmployee, updateEmployee, deleteEmployee, createDepartment, deleteDepartment } from '../actions'
 
 const selectClass = 'h-8 w-full rounded-lg border border-input bg-background px-2 text-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50'
-const EMP_TYPES: Record<string, string> = { full_time: 'Plný úvazek', part_time: 'Částečný', contract: 'Smlouva / IČO', intern: 'Stáž' }
+const EMP_TYPES: Record<string, string> = { full_time: 'Plný úvazek (HPP)', part_time: 'Částečný', dpp: 'DPP', dpc: 'DPČ', contract: 'Smlouva / IČO', intern: 'Stáž' }
 const czk = (n: number, c = 'CZK') => new Intl.NumberFormat('cs-CZ', { style: 'currency', currency: c, maximumFractionDigits: 0 }).format(n)
 
 type Person = { user_id: string; name: string; username?: string }
@@ -175,9 +175,12 @@ function EmployeeDialog({ employee, available, departments, people, isAdmin, onC
             </Field>
             <Field label="Datum nástupu"><Input type="date" name="startDate" defaultValue={employee?.start_date || ''} /></Field>
             <Field label="Dní dovolené / rok"><Input type="number" name="annualLeaveDays" min={0} defaultValue={employee?.annual_leave_days ?? 20} /></Field>
+            <Field label="Týd. úvazek (h)"><Input type="number" step="0.5" min={0} name="weeklyHours" defaultValue={employee?.weekly_hours ?? ''} placeholder="40" /></Field>
+            <Field label="Osobní číslo"><Input name="personalNo" defaultValue={employee?.personal_no || ''} /></Field>
             <Field label="Telefon"><Input name="phone" defaultValue={employee?.phone || ''} /></Field>
             <Field label="Osobní e-mail"><Input type="email" name="personalEmail" defaultValue={employee?.personal_email || ''} /></Field>
             {isAdmin && <Field label="Mzda (hrubá / měsíc)"><Input type="number" step="0.01" name="salary" defaultValue={employee?.salary ?? ''} /></Field>}
+            {isAdmin && <Field label="Sazba (Kč/h)"><Input type="number" step="0.01" name="hourlyRate" defaultValue={employee?.hourly_rate ?? ''} placeholder="např. 200" /></Field>}
             {isAdmin && (
               <Field label="Měna mzdy">
                 <select name="salaryCurrency" defaultValue={employee?.salary_currency || 'CZK'} className={selectClass}>
