@@ -23,6 +23,7 @@ export const MODULES = [
   { id: 'quotes',    label: 'Nabídky',   href: '/quotes',    color: '#d946ef' },
   { id: 'reports',   label: 'Reporty',   href: '/reports',   color: '#64748b' },
   { id: 'expenses',  label: 'Výdaje',    href: '/expenses',  color: '#dc2626' },
+  { id: 'portal-admin', label: 'Portál', href: '/portal-admin', color: '#0891b2' },
   { id: 'settings',  label: 'Nastavení', href: '/settings',  color: '#6b7280' },
 ] as const
 
