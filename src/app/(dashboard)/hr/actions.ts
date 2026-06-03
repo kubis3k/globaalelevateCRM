@@ -652,3 +652,62 @@ export async function claimOpenShift(shiftId: string): Promise<{ error?: string 
   if (error) return { error: error.code === '23505' ? 'Už jsi přihlášen.' : error.message }
   revalidatePath('/hr/shifts'); return {}
 }
+
+// ─── Školení & certifikace ─────────────────────────────────────
+export async function saveTraining(formData: FormData): Promise<{ error?: string }> {
+  const c = await getCtx(); if ('error' in c) return c
+  if (!canManageHr(c.role)) return { error: 'Nemáte oprávnění.' }
+  const id = opt(formData, 'id')
+  const userId = opt(formData, 'userId')
+  if (!id && !userId) return { error: 'Vyberte zaměstnance.' }
+  const name = str(formData, 'name'); if (!name) return { error: 'Zadejte název školení.' }
+  const row = { name, provider: str(formData, 'provider'), completed_on: str(formData, 'completedOn'), expires_on: str(formData, 'expiresOn'), note: str(formData, 'note') }
+  if (id) {
+    const { error } = await c.admin.from('hr_trainings').update({ ...row, reminded_on: null }).eq('id', id).eq('tenant_id', c.tenantId)
+    if (error) return { error: error.message }
+  } else {
+    const { error } = await c.admin.from('hr_trainings').insert({ tenant_id: c.tenantId, user_id: userId, created_by: c.userId, ...row })
+    if (error) return { error: error.message }
+  }
+  revalidatePath('/hr/training'); revalidatePath('/hr'); return {}
+}
+
+export async function deleteTraining(id: string): Promise<{ error?: string }> {
+  const c = await getCtx(); if ('error' in c) return c
+  if (!canManageHr(c.role)) return { error: 'Nemáte oprávnění.' }
+  const { error } = await c.admin.from('hr_trainings').delete().eq('id', id).eq('tenant_id', c.tenantId)
+  if (error) return { error: error.message }
+  revalidatePath('/hr/training'); revalidatePath('/hr'); return {}
+}
+
+// ─── Hodnocení / 1:1 ───────────────────────────────────────────
+export async function saveReview(formData: FormData): Promise<{ error?: string }> {
+  const c = await getCtx(); if ('error' in c) return c
+  if (!canManageHr(c.role)) return { error: 'Nemáte oprávnění.' }
+  const id = opt(formData, 'id')
+  const userId = opt(formData, 'userId')
+  if (!id && !userId) return { error: 'Vyberte zaměstnance.' }
+  const ratingRaw = str(formData, 'rating')
+  const rating = ratingRaw ? Math.max(1, Math.min(5, Number(ratingRaw))) : null
+  const row = {
+    type: str(formData, 'type') === 'one_on_one' ? 'one_on_one' : 'review',
+    review_date: str(formData, 'reviewDate') || new Date().toISOString().slice(0, 10),
+    rating, strengths: str(formData, 'strengths'), improvements: str(formData, 'improvements'), next_steps: str(formData, 'nextSteps'),
+  }
+  if (id) {
+    const { error } = await c.admin.from('hr_reviews').update(row).eq('id', id).eq('tenant_id', c.tenantId)
+    if (error) return { error: error.message }
+  } else {
+    const { error } = await c.admin.from('hr_reviews').insert({ tenant_id: c.tenantId, user_id: userId, reviewer_id: c.userId, ...row })
+    if (error) return { error: error.message }
+  }
+  revalidatePath('/hr/reviews'); return {}
+}
+
+export async function deleteReview(id: string): Promise<{ error?: string }> {
+  const c = await getCtx(); if ('error' in c) return c
+  if (!canManageHr(c.role)) return { error: 'Nemáte oprávnění.' }
+  const { error } = await c.admin.from('hr_reviews').delete().eq('id', id).eq('tenant_id', c.tenantId)
+  if (error) return { error: error.message }
+  revalidatePath('/hr/reviews'); return {}
+}

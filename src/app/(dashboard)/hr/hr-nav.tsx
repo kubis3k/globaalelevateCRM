@@ -13,7 +13,10 @@ const SECTIONS = [
   { href: '/hr/attendance', label: 'Docházka' },
   { href: '/hr/shifts', label: 'Směny' },
   { href: '/hr/onboarding', label: 'Onboarding' },
+  { href: '/hr/reviews', label: 'Hodnocení' },
+  { href: '/hr/training', label: 'Školení' },
   { href: '/hr/documents', label: 'Dokumenty' },
+  { href: '/hr/analytics', label: 'Analýzy' },
   { href: '/hr/recruitment', label: 'Nábor' },
 ]
 

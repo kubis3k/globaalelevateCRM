@@ -152,13 +152,32 @@ async function hrContractReminders(admin: any) {
   return { reminded }
 }
 
+// HR: notify managers about certifications expiring within 30 days (once each).
+async function hrTrainingReminders(admin: any) {
+  const today = new Date().toISOString().slice(0, 10)
+  const in30 = new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10)
+  const { data: ts } = await admin.from('hr_trainings').select('id, tenant_id, name, expires_on, reminded_on')
+    .not('expires_on', 'is', null).gte('expires_on', today).lte('expires_on', in30)
+  if (!ts?.length) return { reminded: 0 }
+  let reminded = 0
+  for (const t of ts) {
+    if (t.reminded_on === today) continue
+    const { data: mgrs } = await admin.from('tenant_users').select('user_id').eq('tenant_id', t.tenant_id).in('role', ['admin', 'manager'])
+    const recipients = (mgrs || []).map((r: any) => r.user_id)
+    if (recipients.length) reminded += await sendPushToUsers(admin, recipients, 'hr', { title: 'Končící certifikace', body: `${t.name} — platí do ${t.expires_on}`, url: '/hr/training', tag: `hr-train-${t.id}` })
+    await admin.from('hr_trainings').update({ reminded_on: today }).eq('id', t.id)
+  }
+  return { reminded }
+}
+
 async function run() {
   const admin = createAdminClient()
   const mail = await pollMail(admin)
   const crm = await crmDueReminders(admin)
   const social = await socialDuePosts(admin)
   const hr = await hrContractReminders(admin)
-  return { ok: true, mail, crm, social, hr }
+  const training = await hrTrainingReminders(admin)
+  return { ok: true, mail, crm, social, hr, training }
 }
 
 export async function POST(req: NextRequest) {
