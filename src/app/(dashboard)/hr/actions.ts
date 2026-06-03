@@ -6,6 +6,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { canManageHr } from '@/lib/permissions'
 import { sendPushToUsers } from '@/lib/push/webpush'
 import { workingDaysBetween } from '@/lib/cz-holidays'
+import { computePayroll, DEFAULT_PAYROLL_CONFIG, type PayrollConfig } from '@/lib/payroll-cz'
 
 type Ctx = { admin: ReturnType<typeof createAdminClient>; userId: string; tenantId: string; role: string }
 
@@ -477,4 +478,97 @@ export async function deleteRun(id: string): Promise<{ error?: string }> {
   const { error } = await c.admin.from('hr_checklist_runs').delete().eq('id', id).eq('tenant_id', c.tenantId)
   if (error) return { error: error.message }
   revalidatePath('/hr/onboarding'); return {}
+}
+
+// ─── Mzdy (payroll) — KONTROLNÍ výpočet, parametrizovaný dle roku ───────────
+function cfgFromRow(row: any): PayrollConfig {
+  const d = DEFAULT_PAYROLL_CONFIG
+  if (!row) return d
+  const n = (v: any, f: number) => (v == null ? f : Number(v))
+  return {
+    sp_emp: n(row.sp_emp, d.sp_emp), zp_emp: n(row.zp_emp, d.zp_emp), sp_er: n(row.sp_er, d.sp_er), zp_er: n(row.zp_er, d.zp_er),
+    tax_rate1: n(row.tax_rate1, d.tax_rate1), tax_rate2: n(row.tax_rate2, d.tax_rate2), tax_progress_monthly: n(row.tax_progress_monthly, d.tax_progress_monthly),
+    credit_taxpayer: n(row.credit_taxpayer, d.credit_taxpayer), credit_child1: n(row.credit_child1, d.credit_child1), credit_child2: n(row.credit_child2, d.credit_child2), credit_child3: n(row.credit_child3, d.credit_child3),
+    min_wage_hour: n(row.min_wage_hour, d.min_wage_hour), dpp_threshold: n(row.dpp_threshold, d.dpp_threshold), dpc_threshold: n(row.dpc_threshold, d.dpc_threshold), srazkova_rate: n(row.srazkova_rate, d.srazkova_rate),
+  }
+}
+async function loadConfig(admin: any, tenantId: string, year: number): Promise<PayrollConfig> {
+  const { data } = await admin.from('payroll_config').select('*').eq('tenant_id', tenantId).eq('year', year).maybeSingle()
+  return cfgFromRow(data)
+}
+const CONFIG_KEYS = ['sp_emp', 'zp_emp', 'sp_er', 'zp_er', 'tax_rate1', 'tax_rate2', 'tax_progress_monthly', 'credit_taxpayer', 'credit_child1', 'credit_child2', 'credit_child3', 'min_wage_hour', 'dpp_threshold', 'dpc_threshold', 'srazkova_rate']
+function calcRow(contractType: string, gross: number, children: number, taxpayer: boolean, cfg: PayrollConfig) {
+  const r = computePayroll({ contractType, gross, children, taxpayerCredit: taxpayer }, cfg)
+  return { contract_type: contractType, gross, children, taxpayer_credit: taxpayer, sp_emp: r.spEmp, zp_emp: r.zpEmp, tax: r.tax, net: r.net, sp_er: r.spEr, zp_er: r.zpEr, employer_cost: r.employerCost, regime: r.regime }
+}
+
+export async function savePayrollConfig(formData: FormData): Promise<{ error?: string }> {
+  const c = await getCtx(); if ('error' in c) return c
+  if (!canManageHr(c.role)) return { error: 'Nemáte oprávnění.' }
+  const year = Number(str(formData, 'year') || new Date().getFullYear())
+  const row: Record<string, unknown> = { tenant_id: c.tenantId, year, updated_at: new Date().toISOString() }
+  for (const k of CONFIG_KEYS) { const v = str(formData, k); if (v != null) row[k] = Number(v) }
+  const { error } = await c.admin.from('payroll_config').upsert(row, { onConflict: 'tenant_id,year' })
+  if (error) return { error: error.message }
+  revalidatePath('/hr/payroll'); return {}
+}
+
+export async function createPayrollRun(year: number, month: number): Promise<{ error?: string }> {
+  const c = await getCtx(); if ('error' in c) return c
+  if (!canManageHr(c.role)) return { error: 'Nemáte oprávnění.' }
+  const y = Number(year), m = Number(month)
+  if (!y || !m || m < 1 || m > 12) return { error: 'Neplatný měsíc.' }
+  const { data: run, error } = await c.admin.from('payroll_runs').insert({ tenant_id: c.tenantId, year: y, month: m, created_by: c.userId }).select('id').single()
+  if (error) return { error: error.code === '23505' ? 'Uzávěrka za tento měsíc už existuje.' : error.message }
+  const cfg = await loadConfig(c.admin, c.tenantId, y)
+  const { data: emps } = await c.admin.from('hr_employees').select('user_id, employment_type, salary').eq('tenant_id', c.tenantId).eq('status', 'active')
+  const items = (emps || []).map((e: any) => {
+    const ct = e.employment_type === 'contract' ? 'ico' : (e.employment_type === 'dpp' || e.employment_type === 'dpc' ? e.employment_type : 'hpp')
+    return { tenant_id: c.tenantId, run_id: run.id, user_id: e.user_id, ...calcRow(ct, Number(e.salary || 0), 0, true, cfg) }
+  })
+  if (items.length) await c.admin.from('payroll_items').insert(items)
+  await c.admin.from('hr_audit').insert({ tenant_id: c.tenantId, actor_id: c.userId, entity: 'payroll_runs', entity_id: run.id, action: 'created', detail: `${y}/${m}` })
+  revalidatePath('/hr/payroll'); return {}
+}
+
+export async function savePayrollItem(id: string, formData: FormData): Promise<{ error?: string }> {
+  const c = await getCtx(); if ('error' in c) return c
+  if (!canManageHr(c.role)) return { error: 'Nemáte oprávnění.' }
+  const { data: item } = await c.admin.from('payroll_items').select('run_id').eq('id', id).eq('tenant_id', c.tenantId).maybeSingle()
+  if (!item) return { error: 'Položka nenalezena.' }
+  const { data: run } = await c.admin.from('payroll_runs').select('year, status').eq('id', item.run_id).maybeSingle()
+  if (run?.status === 'locked') return { error: 'Uzávěrka je uzamčená.' }
+  const cfg = await loadConfig(c.admin, c.tenantId, Number(run?.year || new Date().getFullYear()))
+  const ct = str(formData, 'contractType') || 'hpp'
+  const gross = Number(str(formData, 'gross') || 0)
+  const children = Number(str(formData, 'children') || 0)
+  const taxpayer = ['on', 'true', '1'].includes(String(formData.get('taxpayerCredit') || ''))
+  const { error } = await c.admin.from('payroll_items').update({ ...calcRow(ct, gross, children, taxpayer, cfg), note: str(formData, 'note') }).eq('id', id).eq('tenant_id', c.tenantId)
+  if (error) return { error: error.message }
+  revalidatePath('/hr/payroll'); return {}
+}
+
+export async function lockPayrollRun(id: string): Promise<{ error?: string }> {
+  const c = await getCtx(); if ('error' in c) return c
+  if (!canManageHr(c.role)) return { error: 'Nemáte oprávnění.' }
+  const { error } = await c.admin.from('payroll_runs').update({ status: 'locked', locked_at: new Date().toISOString(), locked_by: c.userId }).eq('id', id).eq('tenant_id', c.tenantId)
+  if (error) return { error: error.message }
+  await c.admin.from('hr_audit').insert({ tenant_id: c.tenantId, actor_id: c.userId, entity: 'payroll_runs', entity_id: id, action: 'locked' })
+  revalidatePath('/hr/payroll'); return {}
+}
+
+export async function unlockPayrollRun(id: string): Promise<{ error?: string }> {
+  const c = await getCtx(); if ('error' in c) return c
+  if (c.role !== 'admin') return { error: 'Odemknout může jen admin.' }
+  const { error } = await c.admin.from('payroll_runs').update({ status: 'draft', locked_at: null, locked_by: null }).eq('id', id).eq('tenant_id', c.tenantId)
+  if (error) return { error: error.message }
+  revalidatePath('/hr/payroll'); return {}
+}
+
+export async function deletePayrollRun(id: string): Promise<{ error?: string }> {
+  const c = await getCtx(); if ('error' in c) return c
+  if (!canManageHr(c.role)) return { error: 'Nemáte oprávnění.' }
+  const { error } = await c.admin.from('payroll_runs').delete().eq('id', id).eq('tenant_id', c.tenantId)
+  if (error) return { error: error.message }
+  revalidatePath('/hr/payroll'); return {}
 }

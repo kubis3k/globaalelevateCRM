@@ -8,6 +8,7 @@ const SECTIONS = [
   { href: '/hr', label: 'Přehled' },
   { href: '/hr/employees', label: 'Zaměstnanci' },
   { href: '/hr/contracts', label: 'Smlouvy' },
+  { href: '/hr/payroll', label: 'Mzdy' },
   { href: '/hr/leave', label: 'Dovolená' },
   { href: '/hr/attendance', label: 'Docházka' },
   { href: '/hr/onboarding', label: 'Onboarding' },
