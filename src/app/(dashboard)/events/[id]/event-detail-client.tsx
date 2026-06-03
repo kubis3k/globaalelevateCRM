@@ -10,6 +10,7 @@ import { toast } from '@/components/ui/toast'
 import { confirmDialog } from '@/components/ui/confirm-dialog'
 import { cn } from '@/lib/utils'
 import { EventDialog, EV_STATUS } from '../events-client'
+import { VipSection, GuestSection } from './event-vip-guests'
 import { saveLineup, deleteLineup, saveTimeline, deleteTimeline } from '../actions'
 
 const czk = (n: number) => new Intl.NumberFormat('cs-CZ', { style: 'currency', currency: 'CZK', maximumFractionDigits: 0 }).format(Number(n) || 0)
@@ -17,8 +18,8 @@ const t5 = (t: any) => (t ? String(t).slice(0, 5) : '')
 const selectClass = 'h-8 rounded-lg border border-input bg-background px-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50'
 const LINEUP_STATUS: Record<string, string> = { booked: 'Rezervováno', confirmed: 'Potvrzeno', cancelled: 'Zrušeno' }
 
-export function EventDetailClient({ event, lineup, timeline, shifts, canManage }: {
-  event: any; lineup: any[]; timeline: any[]; shifts: any[]; canManage: boolean
+export function EventDetailClient({ event, lineup, timeline, reservations, guests, shifts, canManage }: {
+  event: any; lineup: any[]; timeline: any[]; reservations: any[]; guests: any[]; shifts: any[]; canManage: boolean
 }) {
   const [edit, setEdit] = useState(false)
   const [pending, startTransition] = useTransition()
@@ -111,6 +112,12 @@ export function EventDetailClient({ event, lineup, timeline, shifts, canManage }
             </form>
           )}
         </section>
+      </div>
+
+      {/* VIP + Guest list */}
+      <div className="grid gap-6 lg:grid-cols-2">
+        <VipSection eventId={event.id} reservations={reservations} canManage={canManage} />
+        <GuestSection eventId={event.id} guests={guests} canManage={canManage} />
       </div>
 
       {/* Staffing */}

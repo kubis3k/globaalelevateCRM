@@ -11,9 +11,11 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
   const { data: event } = await supabase.from('events').select('*').eq('id', id).eq('tenant_id', tenantId).maybeSingle()
   if (!event) notFound()
 
-  const [{ data: lineup }, { data: timeline }] = await Promise.all([
+  const [{ data: lineup }, { data: timeline }, { data: reservations }, { data: guests }] = await Promise.all([
     supabase.from('event_lineup').select('*').eq('event_id', id).eq('tenant_id', tenantId).order('slot_start', { ascending: true, nullsFirst: true }).order('sort'),
     supabase.from('event_timeline').select('*').eq('event_id', id).eq('tenant_id', tenantId).order('at_time', { ascending: true, nullsFirst: true }).order('sort'),
+    supabase.from('vip_reservations').select('*').eq('event_id', id).eq('tenant_id', tenantId).order('created_at'),
+    supabase.from('guest_list').select('*').eq('event_id', id).eq('tenant_id', tenantId).order('created_at'),
   ])
 
   let shifts: any[] = []
@@ -27,5 +29,5 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
     shifts = (sh ?? []).map((s: any) => ({ ...s, assignments: (assigns ?? []).filter((a: any) => a.shift_id === s.id).map((a: any) => ({ ...a, name: nameOf(a.user_id) })) }))
   }
 
-  return <EventDetailClient event={event} lineup={lineup ?? []} timeline={timeline ?? []} shifts={shifts} canManage={canManageEvents(role)} />
+  return <EventDetailClient event={event} lineup={lineup ?? []} timeline={timeline ?? []} reservations={reservations ?? []} guests={guests ?? []} shifts={shifts} canManage={canManageEvents(role)} />
 }
