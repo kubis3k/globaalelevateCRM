@@ -521,10 +521,24 @@ export async function createPayrollRun(year: number, month: number): Promise<{ e
   const { data: run, error } = await c.admin.from('payroll_runs').insert({ tenant_id: c.tenantId, year: y, month: m, created_by: c.userId }).select('id').single()
   if (error) return { error: error.code === '23505' ? 'Uzávěrka za tento měsíc už existuje.' : error.message }
   const cfg = await loadConfig(c.admin, c.tenantId, y)
-  const { data: emps } = await c.admin.from('hr_employees').select('user_id, employment_type, salary').eq('tenant_id', c.tenantId).eq('status', 'active')
+  const { data: emps } = await c.admin.from('hr_employees').select('user_id, employment_type, salary, hourly_rate').eq('tenant_id', c.tenantId).eq('status', 'active')
+  // Auto-pull worked hours from the month's shifts (confirmed/assigned) → hourly gross.
+  const mStart = `${y}-${String(m).padStart(2, '0')}-01`
+  const mEnd = `${y}-${String(m).padStart(2, '0')}-${String(new Date(y, m, 0).getDate()).padStart(2, '0')}`
+  const { data: shs } = await c.admin.from('hr_shifts').select('id, start_time, end_time').eq('tenant_id', c.tenantId).gte('work_date', mStart).lte('work_date', mEnd)
+  const shiftHours = (s: any) => { if (!s.start_time || !s.end_time) return 0; const p = (t: any) => { const [h, mm] = String(t).split(':').map(Number); return h * 60 + (mm || 0) }; let mins = p(s.end_time) - p(s.start_time); if (mins < 0) mins += 1440; return mins / 60 }
+  const shiftIds = (shs || []).map((s: any) => s.id)
+  const { data: asgs } = shiftIds.length ? await c.admin.from('hr_shift_assignments').select('shift_id, user_id, status').in('shift_id', shiftIds).neq('status', 'declined') : { data: [] as any[] }
+  const hoursByUser: Record<string, number> = {}
+  for (const a of asgs || []) { const s = (shs || []).find((x: any) => x.id === a.shift_id); if (s) hoursByUser[a.user_id] = (hoursByUser[a.user_id] || 0) + shiftHours(s) }
   const items = (emps || []).map((e: any) => {
     const ct = e.employment_type === 'contract' ? 'ico' : (e.employment_type === 'dpp' || e.employment_type === 'dpc' ? e.employment_type : 'hpp')
-    return { tenant_id: c.tenantId, run_id: run.id, user_id: e.user_id, ...calcRow(ct, Number(e.salary || 0), 0, true, cfg) }
+    const hourly = ['dpp', 'dpc', 'part_time'].includes(e.employment_type)
+    const rate = Number(e.hourly_rate || 0)
+    const hours = hoursByUser[e.user_id] || 0
+    const gross = hourly && rate > 0 ? Math.round(hours * rate) : Number(e.salary || 0)
+    const note = hourly && rate > 0 ? `${hours.toLocaleString('cs-CZ', { maximumFractionDigits: 1 })} h ze směn × ${rate} Kč/h` : null
+    return { tenant_id: c.tenantId, run_id: run.id, user_id: e.user_id, ...calcRow(ct, gross, 0, true, cfg), note }
   })
   if (items.length) await c.admin.from('payroll_items').insert(items)
   await c.admin.from('hr_audit').insert({ tenant_id: c.tenantId, actor_id: c.userId, entity: 'payroll_runs', entity_id: run.id, action: 'created', detail: `${y}/${m}` })

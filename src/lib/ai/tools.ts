@@ -87,6 +87,13 @@ export function companyTools(allowed: string[], role: string): ToolDef[] {
       input_schema: { type: 'object', properties: { only_open: { type: 'boolean', description: 'Jen nevyřízené nabídky (draft, sent)' } } },
     })
   }
+  if (has('events')) {
+    tools.push({
+      name: 'list_events',
+      description: 'Vrátí akce/eventy — datum, místo, kapacita, stav, rozpočet, klient, line-up (umělci) + součet honorářů, počet VIP rezervací a jejich min. útrata, počet hostů. Pro dotazy na nadcházející akce, obsazení a rozpočty eventů.',
+      input_schema: { type: 'object', properties: { upcoming_only: { type: 'boolean', description: 'Jen nadcházející akce (od dneška)' } } },
+    })
+  }
   return tools
 }
 
@@ -198,6 +205,29 @@ export async function executeCompanyTool(ctx: AiToolCtx, name: string, input: an
         if (input?.only_open) q = q.in('status', ['draft', 'sent'])
         const { data } = await q.order('created_at', { ascending: false }).limit(50)
         return JSON.stringify(cap(data))
+      }
+      case 'list_events': {
+        let q = admin.from('events').select('id, name, event_date, location, capacity, status, budget, client').eq('tenant_id', tenantId)
+        if (input?.upcoming_only) q = q.gte('event_date', new Date().toISOString().slice(0, 10))
+        const { data: events } = await q.order('event_date', { ascending: false }).limit(50)
+        const list = events || []
+        const ids = list.map((e: any) => e.id)
+        const [{ data: lineup }, { data: vips }, { data: guests }] = await Promise.all([
+          ids.length ? admin.from('event_lineup').select('event_id, artist, fee').in('event_id', ids) : Promise.resolve({ data: [] as any[] }),
+          ids.length ? admin.from('vip_reservations').select('event_id, min_spend, status').in('event_id', ids) : Promise.resolve({ data: [] as any[] }),
+          ids.length ? admin.from('guest_list').select('event_id, party_size').in('event_id', ids) : Promise.resolve({ data: [] as any[] }),
+        ])
+        const out = list.map((e: any) => {
+          const ls = (lineup || []).filter((l: any) => l.event_id === e.id)
+          const vs = (vips || []).filter((v: any) => v.event_id === e.id && v.status !== 'cancelled')
+          return {
+            name: e.name, date: e.event_date, location: e.location, capacity: e.capacity, status: e.status, budget: e.budget, client: e.client,
+            lineup: ls.map((l: any) => l.artist), artist_fees: ls.reduce((a: number, l: any) => a + Number(l.fee || 0), 0),
+            vip_reservations: vs.length, vip_min_spend: vs.reduce((a: number, v: any) => a + Number(v.min_spend || 0), 0),
+            guests: (guests || []).filter((g: any) => g.event_id === e.id).reduce((a: number, g: any) => a + Number(g.party_size || 1), 0),
+          }
+        })
+        return JSON.stringify(cap(out))
       }
       default:
         return `Neznámý nástroj: ${name}`

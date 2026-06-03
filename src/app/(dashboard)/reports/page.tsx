@@ -95,9 +95,29 @@ export default async function ReportsPage() {
   const billableMin = timeEntries.filter((t: any) => t.billable).reduce((a: number, t: any) => a + (t.minutes || 0), 0)
   const timeValue = timeEntries.filter((t: any) => t.billable && t.hourly_rate).reduce((a: number, t: any) => a + (t.minutes / 60) * Number(t.hourly_rate), 0)
 
+  // Cross-module ops snapshot (exec)
+  const todayIso = new Date().toISOString().slice(0, 10)
+  const [evRes, socRes, staffRes] = await Promise.all([
+    allowedModules.includes('events') ? supabase.from('events').select('name, event_date, status').eq('tenant_id', tenantId).gte('event_date', todayIso).order('event_date', { ascending: true }).limit(5) : Promise.resolve({ data: [] as any[] }),
+    allowedModules.includes('social') ? supabase.from('social_accounts').select('followers').eq('tenant_id', tenantId) : Promise.resolve({ data: [] as any[] }),
+    allowedModules.includes('hr') ? supabase.from('hr_employees').select('*', { count: 'exact', head: true }).eq('tenant_id', tenantId).eq('status', 'active') : Promise.resolve({ count: 0 }),
+  ])
+  const upcomingEvents = evRes.data ?? []
+  const followers = (socRes.data ?? []).reduce((a: number, s: any) => a + Number(s.followers || 0), 0)
+  const staffCount = (staffRes as any).count || 0
+  const hasOps = allowedModules.includes('events') || allowedModules.includes('social') || allowedModules.includes('hr')
+
   return (
     <div className="space-y-6">
       <PageHeader title="Reporty" description={`Analýzy a souhrny za rok ${year}.`} />
+
+      {hasOps && (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {allowedModules.includes('events') && <StatCard title="Nadcházející akce" value={String(upcomingEvents.length)} hint={upcomingEvents[0] ? `Nejbližší: ${upcomingEvents[0].name}` : 'Žádné naplánované'} icon={<TrendingUp className="size-4" />} />}
+          {allowedModules.includes('social') && <StatCard title="Sledující na sítích" value={new Intl.NumberFormat('cs-CZ').format(followers)} hint="Napříč připojenými profily" icon={<TrendingUp className="size-4" />} />}
+          {allowedModules.includes('hr') && <StatCard title="Aktivní tým" value={String(staffCount)} hint="Aktivní zaměstnanci" icon={<TrendingUp className="size-4" />} />}
+        </div>
+      )}
 
       {hasFinance && (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
