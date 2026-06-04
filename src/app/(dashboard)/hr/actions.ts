@@ -358,6 +358,19 @@ export async function createJob(formData: FormData): Promise<{ error?: string }>
   revalidatePath('/hr/recruitment'); revalidatePath('/hr'); return {}
 }
 
+export async function updateJob(id: string, formData: FormData): Promise<{ error?: string }> {
+  const c = await getCtx(); if ('error' in c) return c
+  if (!canManageHr(c.role)) return { error: 'Nemáte oprávnění.' }
+  const title = str(formData, 'title'); if (!title) return { error: 'Zadejte název pozice.' }
+  const { error } = await c.admin.from('hr_job_postings').update({
+    title, department_id: opt(formData, 'departmentId'), description: str(formData, 'description'),
+    location: str(formData, 'location'), employment_type: str(formData, 'employmentType'), salary_range: str(formData, 'salaryRange'),
+    published: formData.get('published') === 'on',
+  }).eq('id', id).eq('tenant_id', c.tenantId)
+  if (error) return { error: error.message }
+  revalidatePath('/hr/recruitment'); revalidatePath('/hr'); return {}
+}
+
 export async function setJobPublished(id: string, published: boolean): Promise<{ error?: string }> {
   const c = await getCtx(); if ('error' in c) return c
   if (!canManageHr(c.role)) return { error: 'Nemáte oprávnění.' }
