@@ -29,12 +29,12 @@ export default async function JobDetailPage({ params }: { params: Promise<{ id: 
   const neutralBadge = 'inline-flex items-center gap-1 rounded-full bg-zinc-100 px-3 py-1 text-sm text-zinc-700 ring-1 ring-zinc-200 dark:bg-white/5 dark:text-zinc-300 dark:ring-white/10'
 
   return (
-    <div className="mx-auto max-w-6xl px-5 py-10 lg:px-8">
+    <div className="mx-auto max-w-6xl px-5 py-8 lg:px-8 lg:py-10">
       <Link href="/jobs" className="inline-flex items-center gap-1.5 text-sm text-zinc-600 transition-colors hover:text-amber-700 dark:text-zinc-400 dark:hover:text-amber-200"><ArrowLeft className="size-4" />Zpět na pozice</Link>
 
       <div className="mt-6 grid gap-8 lg:grid-cols-[1fr_380px]">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight text-zinc-900 dark:text-white">{job.title}</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-zinc-900 sm:text-3xl dark:text-white">{job.title}</h1>
           <div className="mt-3 flex flex-wrap gap-2">
             {job.employment_type && <span className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-sm ${job.employment_type === 'brigada' ? 'bg-amber-400/15 text-amber-700 ring-1 ring-amber-500/30 dark:bg-amber-300/15 dark:text-amber-200 dark:ring-amber-300/30' : 'bg-zinc-100 text-zinc-700 ring-1 ring-zinc-200 dark:bg-white/5 dark:text-zinc-300 dark:ring-white/10'}`}><Briefcase className="size-3.5" />{EMPLOYMENT_TYPES[job.employment_type] ?? job.employment_type}</span>}
             {deptName && <span className={neutralBadge}>{deptName}</span>}
