@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useTransition } from 'react'
-import { Plus, Pencil, Trash2, FileSignature, Check } from 'lucide-react'
+import { useRef, useState, useTransition } from 'react'
+import { Plus, Pencil, Trash2, FileSignature, Check, Download, Paperclip } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -11,7 +11,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { toast } from '@/components/ui/toast'
 import { confirmDialog } from '@/components/ui/confirm-dialog'
+import { createClient } from '@/lib/supabase/client'
+import { DOCUMENTS_BUCKET } from '@/lib/documents'
 import { createBusinessContract, updateBusinessContract, deleteBusinessContract, toggleAcknowledged } from './actions'
+import { createUploadUrl, finalizeUpload, getDocumentUrl } from '../documents/actions'
 
 const selectClass = 'h-8 w-full rounded-lg border border-input bg-background px-2 text-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50'
 const czk = (n: number, c = 'CZK') => new Intl.NumberFormat('cs-CZ', { style: 'currency', currency: c, maximumFractionDigits: 0 }).format(n)
@@ -34,12 +37,27 @@ function expiry(end: string | null, status: string) {
   return null
 }
 
-export function BusinessContractsClient({ contracts, suppliers, clients, events }: { contracts: any[]; suppliers: Opt[]; clients: Opt[]; events: Opt[] }) {
+/** Upload a file straight to Storage (Documents library) and return its document id. */
+async function uploadToDocuments(file: File): Promise<string | null> {
+  const up = await createUploadUrl(file.name)
+  if (up.error || !up.path || !up.token) { toast.error('Chyba', up.error || 'Nahrání se nepodařilo připravit.'); return null }
+  const supabase = createClient()
+  const { error: upErr } = await supabase.storage.from(DOCUMENTS_BUCKET).uploadToSignedUrl(up.path, up.token, file)
+  if (upErr) { toast.error('Chyba', upErr.message); return null }
+  const fin = await finalizeUpload({ path: up.path, name: file.name, contentType: file.type || undefined, size: file.size, category: 'contract' })
+  if (fin.error || !fin.id) { toast.error('Chyba', fin.error || 'Uložení dokumentu selhalo.'); return null }
+  return fin.id
+}
+
+export function BusinessContractsClient({ contracts, suppliers, clients, events, documents }: { contracts: any[]; suppliers: Opt[]; clients: Opt[]; events: Opt[]; documents: Opt[] }) {
   const [dialog, setDialog] = useState<{ item: any | null } | null>(null)
   const [isPending, start] = useTransition()
 
   function ack(c: any) {
     start(async () => { const r = await toggleAcknowledged(c.id, !c.acknowledged_at); if (r?.error) toast.error('Chyba', r.error); else toast.success(c.acknowledged_at ? 'Akceptace zrušena' : 'Akceptováno') })
+  }
+  function downloadDoc(id: string) {
+    start(async () => { const r = await getDocumentUrl(id); if (r?.error || !r.url) toast.error('Chyba', r?.error || 'Nepodařilo se otevřít.'); else window.open(r.url, '_blank', 'noopener,noreferrer') })
   }
   async function remove(c: any) {
     const ok = await confirmDialog({ title: `Smazat smlouvu „${c.title}"?`, confirmLabel: 'Smazat', destructive: true })
@@ -55,7 +73,7 @@ export function BusinessContractsClient({ contracts, suppliers, clients, events 
       </div>
 
       {contracts.length === 0 ? (
-        <EmptyState icon={FileSignature} title="Žádné smlouvy" description="Eviduj smlouvy s umělci, pronájmy a dodavateli — vč. expirace a akceptace." />
+        <EmptyState icon={FileSignature} title="Žádné smlouvy" description="Eviduj smlouvy s umělci, pronájmy a dodavateli — vč. přílohy, expirace a akceptace." />
       ) : (
         <div className="rounded-xl border border-border">
           <Table>
@@ -67,7 +85,7 @@ export function BusinessContractsClient({ contracts, suppliers, clients, events 
                 <TableHead className="text-right">Hodnota</TableHead>
                 <TableHead>Stav</TableHead>
                 <TableHead>Akceptace</TableHead>
-                <TableHead className="w-20" />
+                <TableHead className="w-28" />
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -76,7 +94,9 @@ export function BusinessContractsClient({ contracts, suppliers, clients, events 
                 const ex = expiry(c.end_date, c.status)
                 return (
                   <TableRow key={c.id}>
-                    <TableCell className="font-medium text-foreground">{c.title}</TableCell>
+                    <TableCell className="font-medium text-foreground">
+                      <span className="inline-flex items-center gap-1.5">{c.title}{c.document_id && <Paperclip className="size-3.5 text-muted-foreground" />}</span>
+                    </TableCell>
                     <TableCell className="text-muted-foreground"><span className="text-xs text-muted-foreground">{PARTY[c.party_type] ?? c.party_type}</span><div>{c.party_name || '—'}</div></TableCell>
                     <TableCell className="whitespace-nowrap text-muted-foreground">
                       {c.start_date ? new Date(c.start_date).toLocaleDateString('cs-CZ') : '—'} – {c.end_date ? new Date(c.end_date).toLocaleDateString('cs-CZ') : '—'}
@@ -91,6 +111,7 @@ export function BusinessContractsClient({ contracts, suppliers, clients, events 
                     </TableCell>
                     <TableCell>
                       <div className="flex justify-end gap-1">
+                        {c.document_id && <Button variant="ghost" size="icon-xs" aria-label="Stáhnout smlouvu" title={c.document_name || 'Stáhnout přílohu'} disabled={isPending} onClick={() => downloadDoc(c.document_id)}><Download className="size-3.5" /></Button>}
                         <Button variant="ghost" size="icon-xs" aria-label="Upravit" disabled={isPending} onClick={() => setDialog({ item: c })}><Pencil className="size-3.5" /></Button>
                         <Button variant="ghost" size="icon-xs" aria-label="Smazat" className="text-muted-foreground hover:text-destructive" disabled={isPending} onClick={() => remove(c)}><Trash2 className="size-3.5" /></Button>
                       </div>
@@ -103,22 +124,36 @@ export function BusinessContractsClient({ contracts, suppliers, clients, events 
         </div>
       )}
 
-      {dialog && <ContractDialog item={dialog.item} suppliers={suppliers} clients={clients} events={events} onClose={() => setDialog(null)} />}
+      {dialog && <ContractDialog item={dialog.item} suppliers={suppliers} clients={clients} events={events} documents={documents} onClose={() => setDialog(null)} />}
     </div>
   )
 }
 
-function ContractDialog({ item, suppliers, clients, events, onClose }: { item: any | null; suppliers: Opt[]; clients: Opt[]; events: Opt[]; onClose: () => void }) {
+function ContractDialog({ item, suppliers, clients, events, documents, onClose }: { item: any | null; suppliers: Opt[]; clients: Opt[]; events: Opt[]; documents: Opt[]; onClose: () => void }) {
   const [pending, start] = useTransition()
+  const [docId, setDocId] = useState<string>(item?.document_id ?? 'none')
+  const [fileName, setFileName] = useState<string>('')
+  const fileRef = useRef<HTMLInputElement>(null)
+
   function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
-    const fd = new FormData(e.currentTarget)
+    const formEl = e.currentTarget
+    const file = fileRef.current?.files?.[0] || null
     start(async () => {
+      let documentId = docId
+      if (file) {
+        const id = await uploadToDocuments(file)
+        if (!id) return
+        documentId = id
+      }
+      const fd = new FormData(formEl)
+      fd.set('documentId', documentId)
       const r = item ? await updateBusinessContract(item.id, fd) : await createBusinessContract(fd)
       if (r?.error) { toast.error('Chyba', r.error); return }
       toast.success(item ? 'Smlouva upravena' : 'Smlouva přidána'); onClose()
     })
   }
+
   return (
     <Dialog open onOpenChange={(o) => { if (!o) onClose() }}>
       <DialogContent className="max-h-[88vh] overflow-y-auto sm:max-w-lg">
@@ -152,6 +187,34 @@ function ContractDialog({ item, suppliers, clients, events, onClose }: { item: a
             <div className="space-y-1.5"><Label className="text-xs text-muted-foreground">Hodnota</Label><Input type="number" step="0.01" name="value" defaultValue={item?.value ?? ''} placeholder="0" /></div>
             <div className="space-y-1.5"><Label className="text-xs text-muted-foreground">Typ smlouvy</Label><Input name="type" defaultValue={item?.type ?? ''} placeholder="např. vystoupení, pronájem" /></div>
           </div>
+
+          {/* Příloha smlouvy: nahrát z PC nebo vybrat ze sdílených Dokumentů */}
+          <div className="space-y-2 rounded-lg border border-border p-3">
+            <Label className="text-xs font-medium text-muted-foreground">Soubor smlouvy (volitelné)</Label>
+            <div className="grid gap-2 sm:grid-cols-2">
+              <div className="space-y-1">
+                <span className="text-[11px] text-muted-foreground">Nahrát z PC</span>
+                <input
+                  ref={fileRef}
+                  type="file"
+                  accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,application/pdf"
+                  onChange={(e) => setFileName(e.target.files?.[0]?.name || '')}
+                  className="block w-full text-xs text-muted-foreground file:mr-2 file:rounded-md file:border-0 file:bg-primary file:px-2.5 file:py-1.5 file:text-xs file:font-medium file:text-primary-foreground hover:file:bg-primary/90"
+                />
+              </div>
+              <div className="space-y-1">
+                <span className="text-[11px] text-muted-foreground">…nebo ze sdílených Dokumentů</span>
+                <select value={docId} onChange={(e) => setDocId(e.target.value)} disabled={!!fileName} className={selectClass}>
+                  <option value="none">— bez přílohy —</option>
+                  {documents.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
+                </select>
+              </div>
+            </div>
+            {fileName
+              ? <p className="text-[11px] text-muted-foreground">Nahraje se: <span className="text-foreground">{fileName}</span> (uloží se i do Dokumentů)</p>
+              : item?.document_name && docId === item?.document_id && <p className="text-[11px] text-muted-foreground">Aktuální příloha: <span className="text-foreground">{item.document_name}</span></p>}
+          </div>
+
           <div className="space-y-1.5"><Label className="text-xs text-muted-foreground">Poznámka</Label><Input name="note" defaultValue={item?.note ?? ''} /></div>
           <div className="flex justify-end gap-2 pt-1">
             <Button type="button" variant="outline" size="lg" onClick={onClose}>Zrušit</Button>

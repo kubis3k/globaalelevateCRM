@@ -34,6 +34,7 @@ function contractRow(fd: FormData) {
     end_date: str(fd, 'endDate'),
     value: value ? Number(value.replace(',', '.')) : null,
     currency: str(fd, 'currency') || 'CZK',
+    document_id: opt(fd, 'documentId'),
     note: str(fd, 'note'),
   }
 }
