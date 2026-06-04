@@ -3,7 +3,7 @@
 import { useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { Clock, Wallet, Plane, CalendarClock, Check, X, ChevronLeft, ChevronRight, MapPin, Plus, FolderOpen, User } from 'lucide-react'
+import { Clock, Wallet, Plane, CalendarClock, Check, X, ChevronLeft, ChevronRight, MapPin, Plus, User } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -96,8 +96,6 @@ export function PortalClient({ shifts, openShifts, leave, balance, hourly, hourl
       </div>
 
       <div className="flex flex-wrap gap-2 text-sm">
-        <Link href="/hr/leave" className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"><Plane className="size-4" />Dovolená v HR</Link>
-        <Link href="/hr/documents" className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"><FolderOpen className="size-4" />Moje dokumenty</Link>
         <Link href="/personal" className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"><User className="size-4" />Osobní sektor</Link>
       </div>
 
