@@ -16,7 +16,7 @@ export default async function PortalPage() {
 
   const [{ data: emp }, { data: myAsg }, { data: upcomingShifts }, { data: leave }] = await Promise.all([
     supabase.from('hr_employees').select('annual_leave_days, hourly_rate, employment_type, position').eq('tenant_id', tenantId).eq('user_id', uid).maybeSingle(),
-    supabase.from('hr_shift_assignments').select('id, shift_id, status').eq('tenant_id', tenantId).eq('user_id', uid),
+    supabase.from('hr_shift_assignments').select('id, shift_id, status, decline_reason, worked_status, worked_reported_at, worked_verified_at').eq('tenant_id', tenantId).eq('user_id', uid),
     supabase.from('hr_shifts').select('id, work_date, start_time, end_time, role, location, project_id, required_count').eq('tenant_id', tenantId).gte('work_date', today).lte('work_date', to).order('work_date').order('start_time'),
     supabase.from('hr_leave_requests').select('id, type, start_date, end_date, working_days, status, reason').eq('tenant_id', tenantId).eq('user_id', uid).gte('start_date', yearStart).order('start_date', { ascending: false }),
   ])
@@ -38,7 +38,7 @@ export default async function PortalPage() {
 
   const shifts = (myShifts ?? []).map((s: any) => {
     const a = asgFor(s.id)
-    return { id: a?.id, shift_id: s.id, work_date: s.work_date, start_time: s.start_time, end_time: s.end_time, role: s.role, location: s.location, project: projName(s.project_id), status: a?.status || 'assigned' }
+    return { id: a?.id, shift_id: s.id, work_date: s.work_date, start_time: s.start_time, end_time: s.end_time, role: s.role, location: s.location, project: projName(s.project_id), status: a?.status || 'assigned', worked_status: a?.worked_status || 'none', decline_reason: a?.decline_reason || null }
   })
 
   const openShifts = (upcomingShifts ?? []).filter((s: any) => {

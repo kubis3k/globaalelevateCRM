@@ -698,7 +698,67 @@ export async function claimOpenShift(shiftId: string): Promise<{ error?: string 
   if ((count || 0) >= (sh.required_count || 1)) return { error: 'Směna je plně obsazená.' }
   const { error } = await c.admin.from('hr_shift_assignments').insert({ tenant_id: c.tenantId, shift_id: shiftId, user_id: c.userId, status: 'confirmed' })
   if (error) return { error: error.code === '23505' ? 'Už jsi přihlášen.' : error.message }
-  revalidatePath('/hr/shifts'); return {}
+  revalidatePath('/hr/shifts'); revalidatePath('/muj-portal'); return {}
+}
+
+// Zaměstnanec žádá o odmítnutí směny — s důvodem; schvaluje HR/manažer.
+export async function requestDecline(id: string, reason: string): Promise<{ error?: string }> {
+  const c = await getCtx(); if ('error' in c) return c
+  const { data: a } = await c.admin.from('hr_shift_assignments').select('user_id').eq('id', id).eq('tenant_id', c.tenantId).maybeSingle()
+  if (!a) return { error: 'Přiřazení nenalezeno.' }
+  if (a.user_id !== c.userId && !canManageHr(c.role)) return { error: 'Nemáte oprávnění.' }
+  const r = (reason || '').trim(); if (!r) return { error: 'Uveď důvod odmítnutí.' }
+  const { error } = await c.admin.from('hr_shift_assignments').update({ status: 'decline_requested', decline_reason: r }).eq('id', id).eq('tenant_id', c.tenantId)
+  if (error) return { error: error.message }
+  try {
+    const { data: mgrs } = await c.admin.from('tenant_users').select('user_id').eq('tenant_id', c.tenantId).in('role', ['admin', 'manager'])
+    const recipients = (mgrs || []).map((x: any) => x.user_id).filter((u: string) => u && u !== c.userId)
+    if (recipients.length) await sendPushToUsers(c.admin, recipients, 'hr', { title: 'Žádost o odmítnutí směny', body: r.slice(0, 160), url: '/hr/shifts' })
+  } catch { }
+  revalidatePath('/hr/shifts'); revalidatePath('/muj-portal'); return {}
+}
+
+// HR/manažer schválí (declined) nebo zamítne (zpět na assigned) odmítnutí směny.
+export async function reviewDecline(id: string, approve: boolean): Promise<{ error?: string }> {
+  const c = await getCtx(); if ('error' in c) return c
+  if (!canManageHr(c.role)) return { error: 'Nemáte oprávnění.' }
+  const { data: a } = await c.admin.from('hr_shift_assignments').select('user_id').eq('id', id).eq('tenant_id', c.tenantId).maybeSingle()
+  if (!a) return { error: 'Přiřazení nenalezeno.' }
+  const patch = approve ? { status: 'declined' } : { status: 'assigned', decline_reason: null }
+  const { error } = await c.admin.from('hr_shift_assignments').update(patch).eq('id', id).eq('tenant_id', c.tenantId)
+  if (error) return { error: error.message }
+  try { if (a.user_id && a.user_id !== c.userId) await sendPushToUsers(c.admin, [a.user_id], 'hr', { title: approve ? 'Odmítnutí směny schváleno' : 'Odmítnutí směny zamítnuto', body: approve ? 'Směna ti byla odebrána.' : 'Potvrď prosím směnu znovu.', url: '/muj-portal' }) } catch { }
+  revalidatePath('/hr/shifts'); revalidatePath('/muj-portal'); return {}
+}
+
+// Zaměstnanec po skončení směny potvrdí odpracování (musí ověřit manažer / svědek).
+export async function reportWorked(id: string, note?: string): Promise<{ error?: string }> {
+  const c = await getCtx(); if ('error' in c) return c
+  const { data: a } = await c.admin.from('hr_shift_assignments').select('user_id, status').eq('id', id).eq('tenant_id', c.tenantId).maybeSingle()
+  if (!a) return { error: 'Přiřazení nenalezeno.' }
+  if (a.user_id !== c.userId && !canManageHr(c.role)) return { error: 'Nemáte oprávnění.' }
+  if (a.status !== 'confirmed') return { error: 'Odpracování lze potvrdit jen u potvrzené směny.' }
+  const { error } = await c.admin.from('hr_shift_assignments').update({ worked_status: 'reported', worked_reported_at: new Date().toISOString(), worked_note: (note || '').trim() || null }).eq('id', id).eq('tenant_id', c.tenantId)
+  if (error) return { error: error.message }
+  try {
+    const { data: mgrs } = await c.admin.from('tenant_users').select('user_id').eq('tenant_id', c.tenantId).in('role', ['admin', 'manager'])
+    const recipients = (mgrs || []).map((x: any) => x.user_id).filter((u: string) => u && u !== c.userId)
+    if (recipients.length) await sendPushToUsers(c.admin, recipients, 'hr', { title: 'Odpracovaná směna k ověření', body: 'Zaměstnanec potvrdil odpracování směny.', url: '/hr/shifts' })
+  } catch { }
+  revalidatePath('/hr/shifts'); revalidatePath('/muj-portal'); return {}
+}
+
+// HR/manažer (nebo svědek) ověří odpracovanou směnu → počítá se do odpracovaných hodin.
+export async function verifyWorked(id: string, approve: boolean): Promise<{ error?: string }> {
+  const c = await getCtx(); if ('error' in c) return c
+  if (!canManageHr(c.role)) return { error: 'Nemáte oprávnění.' }
+  const { data: a } = await c.admin.from('hr_shift_assignments').select('user_id').eq('id', id).eq('tenant_id', c.tenantId).maybeSingle()
+  if (!a) return { error: 'Přiřazení nenalezeno.' }
+  const patch = approve ? { worked_status: 'verified', worked_verified_at: new Date().toISOString(), worked_verified_by: c.userId } : { worked_status: 'none', worked_reported_at: null }
+  const { error } = await c.admin.from('hr_shift_assignments').update(patch).eq('id', id).eq('tenant_id', c.tenantId)
+  if (error) return { error: error.message }
+  try { if (a.user_id && a.user_id !== c.userId) await sendPushToUsers(c.admin, [a.user_id], 'hr', { title: approve ? 'Odpracovaná směna ověřena' : 'Odpracování neuznáno', body: approve ? 'Tvá směna byla ověřena.' : 'Ozvi se prosím manažerovi.', url: '/muj-portal' }) } catch { }
+  revalidatePath('/hr/shifts'); revalidatePath('/muj-portal'); return {}
 }
 
 // ─── Školení & certifikace ─────────────────────────────────────
