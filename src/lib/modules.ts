@@ -2,6 +2,7 @@
 // Consumed by the sidebar nav, the team role-management UI, and module access control.
 export const MODULES = [
   { id: 'personal',  label: 'Osobní',    href: '/personal',  color: '#ec4899' },
+  { id: 'portal',    label: 'Můj portál', href: '/muj-portal', color: '#22c55e' },
   { id: 'dashboard', label: 'Dashboard', href: '/dashboard', color: '#6366f1' },
   { id: 'milestones', label: 'Cíle',     href: '/milestones', color: '#84cc16' },
   { id: 'globaal-ai', label: 'Globaal AI', href: '/ai',       color: '#a855f7' },

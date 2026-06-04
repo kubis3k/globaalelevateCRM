@@ -7,13 +7,14 @@ import { usePathname } from 'next/navigation'
 import {
   LayoutDashboard, Users, Receipt, Wallet, CalendarDays, Briefcase, Building2, Mail,
   FolderOpen, Sparkles, User, Target, FolderKanban, Clock, ScrollText, BarChart3,
-  Settings, Coins, ChevronRight, TrendingUp, Layers, Boxes, Megaphone, Clapperboard, MonitorPlay, Share2, PartyPopper, DoorOpen, Truck, BookOpen, FileSignature,
+  Settings, Coins, ChevronRight, TrendingUp, Layers, Boxes, Megaphone, Clapperboard, MonitorPlay, Share2, PartyPopper, DoorOpen, Truck, BookOpen, FileSignature, IdCard,
 } from 'lucide-react'
 import { MODULES } from '@/lib/modules'
 import { cn } from '@/lib/utils'
 
 export const MODULE_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   personal: User,
+  portal: IdCard,
   dashboard: LayoutDashboard,
   milestones: Target,
   'globaal-ai': Sparkles,
@@ -51,6 +52,7 @@ export type NavEntry =
 
 export const NAV: NavEntry[] = [
   { type: 'module', id: 'personal' },
+  { type: 'module', id: 'portal' },
   { type: 'module', id: 'dashboard' },
   { type: 'module', id: 'milestones' },
   { type: 'module', id: 'globaal-ai' },
