@@ -17,7 +17,7 @@ export default async function JobsLayout({ children }: { children: React.ReactNo
         <header className="sticky top-0 z-30 border-b border-zinc-200 bg-white/80 backdrop-blur-md dark:border-white/10 dark:bg-[#06070b]/80">
           <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-5 lg:px-8">
             <Link href="/jobs" className="flex items-center gap-3">
-              <Image src="/logo.png" alt={company} width={128} height={38} className="logo-smart object-contain" priority />
+              <Image src="/logo.png" alt={company} width={128} height={38} className="logo-smart h-8 w-auto object-contain" priority />
               <span className="hidden text-sm font-medium tracking-wide text-amber-700 sm:inline dark:text-amber-200/90">KARIÉRA</span>
             </Link>
             <div className="flex items-center gap-2">

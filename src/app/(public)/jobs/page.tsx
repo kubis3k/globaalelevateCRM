@@ -45,7 +45,7 @@ export default async function JobsPage() {
         <div className="relative mx-auto max-w-6xl px-5 py-20 lg:px-8 lg:py-28">
           <div className="max-w-2xl">
             <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-500/30 bg-amber-400/10 px-3 py-1 text-xs font-medium text-amber-700 dark:border-amber-300/30 dark:bg-amber-300/10 dark:text-amber-200"><Sparkles className="size-3.5" />Pracuj s námi</span>
-            <h1 className="mt-5 text-4xl font-bold leading-tight tracking-tight text-zinc-900 sm:text-5xl dark:text-white">Přidej se do týmu<br /><span className="text-amber-600 dark:text-amber-300">{t.companyName.replace(/\s*s\.r\.o\.?$/i, '')}</span></h1>
+            <h1 className="mt-5 text-4xl font-bold leading-tight tracking-tight text-zinc-900 sm:text-5xl dark:text-white">Přidej se do týmu<br /><span className="text-amber-700 dark:text-amber-300">{t.companyName.replace(/\s*s\.r\.o\.?$/i, '')}</span></h1>
             <p className="mt-4 text-lg text-zinc-600 dark:text-zinc-300">{t.intro || 'Klub, eventy, produkce. Hledáme parťáky na stálo i na brigádu — od baru přes produkci až po promo. Vyber si pozici a ozvi se nám.'}</p>
             <a href="#pozice" className="mt-7 inline-flex items-center gap-2 rounded-full bg-amber-400 px-5 py-2.5 text-sm font-semibold text-zinc-900 transition-colors hover:bg-amber-300 dark:bg-amber-300 dark:text-[#06070b] dark:hover:bg-amber-200">Volné pozice <ArrowRight className="size-4" /></a>
           </div>
@@ -56,7 +56,7 @@ export default async function JobsPage() {
               { icon: Sparkles, t: 'Akce a zážitky', d: 'Buď u toho, kde se to děje.' },
             ].map((p, i) => (
               <div key={i} className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4 dark:border-white/10 dark:bg-white/[0.03]">
-                <p.icon className="size-5 text-amber-600 dark:text-amber-300" />
+                <p.icon className="size-5 text-amber-700 dark:text-amber-300" />
                 <div className="mt-2 text-sm font-semibold text-zinc-900 dark:text-white">{p.t}</div>
                 <div className="text-xs text-zinc-600 dark:text-zinc-400">{p.d}</div>
               </div>
@@ -84,7 +84,7 @@ export default async function JobsPage() {
                   {j.salary_range && <span className="inline-flex items-center gap-1 text-amber-700 dark:text-amber-200/90"><Banknote className="size-3.5" />{j.salary_range}</span>}
                 </div>
                 {j.description && <p className="mt-3 line-clamp-2 text-sm text-zinc-600 dark:text-zinc-400">{j.description}</p>}
-                <span className="mt-4 inline-flex items-center gap-1 text-sm font-medium text-amber-600 dark:text-amber-300">Detail &amp; přihláška <ArrowRight className="size-4 transition-transform group-hover:translate-x-0.5" /></span>
+                <span className="mt-4 inline-flex items-center gap-1 text-sm font-medium text-amber-700 dark:text-amber-300">Detail &amp; přihláška <ArrowRight className="size-4 transition-transform group-hover:translate-x-0.5" /></span>
               </Link>
             ))}
           </div>
