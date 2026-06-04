@@ -37,6 +37,8 @@ export async function saveCompanySettings(formData: FormData): Promise<{ error?:
     iban: str(formData, 'iban'),
     email: str(formData, 'email'),
     phone: str(formData, 'phone'),
+    jobs_enabled: formData.get('jobsEnabled') === 'on',
+    careers_intro: str(formData, 'careersIntro'),
     updated_at: new Date().toISOString(),
   }, { onConflict: 'tenant_id' })
   if (error) return { error: error.message }

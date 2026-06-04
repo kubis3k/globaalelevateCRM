@@ -4,6 +4,10 @@ const nextConfig: NextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
+  experimental: {
+    // Veřejná přihláška na kariérní stránce nahrává CV přes server action.
+    serverActions: { bodySizeLimit: '10mb' },
+  },
   // Node-only mail/push libs — don't bundle; require at runtime on the server.
   serverExternalPackages: ['imapflow', 'nodemailer', 'mailparser', 'web-push'],
   // esm-potrace-wasm (client-only, lazy) references node 'fs'/'path' in a
@@ -17,9 +21,12 @@ const nextConfig: NextConfig = {
   async redirects() {
     return [
       {
+        // Hlavní doména → interní app. Na kariérní doméně (jobs.*) se neuplatní
+        // (root řeší host-rewrite v middleware na /jobs).
         source: '/',
         destination: '/dashboard',
         permanent: false,
+        missing: [{ type: 'host', value: 'jobs.globaalelevate.com' }],
       },
     ]
   },

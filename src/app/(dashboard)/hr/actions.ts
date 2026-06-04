@@ -351,9 +351,30 @@ export async function createJob(formData: FormData): Promise<{ error?: string }>
   const title = str(formData, 'title'); if (!title) return { error: 'Zadejte název pozice.' }
   const { error } = await c.admin.from('hr_job_postings').insert({
     tenant_id: c.tenantId, title, department_id: opt(formData, 'departmentId'), description: str(formData, 'description'), status: 'open',
+    location: str(formData, 'location'), employment_type: str(formData, 'employmentType'), salary_range: str(formData, 'salaryRange'),
+    published: formData.get('published') === 'on',
   })
   if (error) return { error: error.message }
   revalidatePath('/hr/recruitment'); revalidatePath('/hr'); return {}
+}
+
+export async function setJobPublished(id: string, published: boolean): Promise<{ error?: string }> {
+  const c = await getCtx(); if ('error' in c) return c
+  if (!canManageHr(c.role)) return { error: 'Nemáte oprávnění.' }
+  const { error } = await c.admin.from('hr_job_postings').update({ published }).eq('id', id).eq('tenant_id', c.tenantId)
+  if (error) return { error: error.message }
+  revalidatePath('/hr/recruitment'); return {}
+}
+
+// Signed URL pro CV uchazeče (z veřejné přihlášky) — bucket 'applications'.
+export async function applicantCvUrl(candidateId: string): Promise<{ url?: string; error?: string }> {
+  const c = await getCtx(); if ('error' in c) return { error: c.error }
+  if (!canManageHr(c.role)) return { error: 'Nemáte oprávnění.' }
+  const { data: cand } = await c.admin.from('hr_candidates').select('cv_path').eq('id', candidateId).eq('tenant_id', c.tenantId).maybeSingle()
+  if (!cand?.cv_path) return { error: 'CV není přiloženo.' }
+  const { data, error } = await c.admin.storage.from('applications').createSignedUrl(cand.cv_path, 120)
+  if (error || !data) return { error: error?.message || 'Nepodařilo se vytvořit odkaz.' }
+  return { url: data.signedUrl }
 }
 
 export async function setJobStatus(id: string, status: 'open' | 'closed'): Promise<{ error?: string }> {

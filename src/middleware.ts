@@ -14,6 +14,14 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next()
   }
 
+  // Veřejná kariérní stránka na vlastní doméně: jobs.globaalelevate.com/* → /jobs/*
+  const host = request.headers.get('host') || ''
+  if (host.startsWith('jobs.') && !request.nextUrl.pathname.startsWith('/jobs') && !request.nextUrl.pathname.startsWith('/api')) {
+    const url = request.nextUrl.clone()
+    url.pathname = `/jobs${request.nextUrl.pathname === '/' ? '' : request.nextUrl.pathname}`
+    return NextResponse.rewrite(url)
+  }
+
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL || '',
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '',
@@ -39,7 +47,7 @@ export async function middleware(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser()
 
-  const isAuthRoute = request.nextUrl.pathname.startsWith('/login') || request.nextUrl.pathname.startsWith('/auth')
+  const isAuthRoute = request.nextUrl.pathname.startsWith('/login') || request.nextUrl.pathname.startsWith('/auth') || request.nextUrl.pathname.startsWith('/jobs')
 
   if (!user && !isAuthRoute) {
     const url = request.nextUrl.clone()

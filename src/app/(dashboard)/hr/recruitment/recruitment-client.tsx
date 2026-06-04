@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { Plus, Trash2, Briefcase, Lock, Unlock, UserPlus } from 'lucide-react'
+import { Plus, Trash2, Briefcase, Lock, Unlock, UserPlus, Globe, Download } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { toast } from '@/components/ui/toast'
 import { confirmDialog } from '@/components/ui/confirm-dialog'
 import { cn } from '@/lib/utils'
-import { createJob, setJobStatus, deleteJob, createCandidate, setCandidateStage, deleteCandidate } from '../actions'
+import { createJob, setJobStatus, setJobPublished, deleteJob, createCandidate, setCandidateStage, deleteCandidate, applicantCvUrl } from '../actions'
 
 const selectClass = 'h-8 w-full rounded-lg border border-input bg-background px-2 text-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50'
 const STAGES: { id: string; label: string }[] = [
@@ -22,6 +22,7 @@ const STAGES: { id: string; label: string }[] = [
   { id: 'hired', label: 'Přijat' },
   { id: 'rejected', label: 'Zamítnut' },
 ]
+const EMPLOYMENT: Record<string, string> = { full_time: 'Plný úvazek', part_time: 'Částečný úvazek', brigada: 'Brigáda', dohoda: 'Dohoda (DPP/DPČ)', other: 'Jiné' }
 
 type Dept = { id: string; name: string }
 
@@ -52,6 +53,12 @@ export function RecruitmentClient({ jobs, candidates, departments }: { jobs: any
     if (!ok) return
     startTransition(async () => { const res = await deleteJob(j.id); if (res?.error) toast.error('Chyba', res.error); else toast.success('Pozice smazána') })
   }
+  function togglePublished(j: any) {
+    startTransition(async () => { const res = await setJobPublished(j.id, !j.published); if (res?.error) toast.error('Chyba', res.error); else toast.success(j.published ? 'Skryto z webu' : 'Publikováno na kariérní web') })
+  }
+  function downloadCv(id: string) {
+    startTransition(async () => { const res = await applicantCvUrl(id); if (res?.error || !res.url) toast.error('Chyba', res?.error || 'CV není dostupné.'); else window.open(res.url, '_blank', 'noopener,noreferrer') })
+  }
 
   return (
     <div className="space-y-6">
@@ -79,12 +86,25 @@ export function RecruitmentClient({ jobs, candidates, departments }: { jobs: any
                     <div className="font-medium text-foreground">{j.title}</div>
                     <div className="text-xs text-muted-foreground">{j.dept_name || 'Bez oddělení'} · {j.candidate_count} kandidátů</div>
                   </div>
-                  <Badge variant={j.status === 'open' ? 'success' : 'secondary'}>{j.status === 'open' ? 'Otevřená' : 'Uzavřená'}</Badge>
+                  <div className="flex shrink-0 flex-col items-end gap-1">
+                    <Badge variant={j.status === 'open' ? 'success' : 'secondary'}>{j.status === 'open' ? 'Otevřená' : 'Uzavřená'}</Badge>
+                    {j.published && <Badge variant="info" className="h-4 px-1.5 text-[10px]">na webu</Badge>}
+                  </div>
                 </div>
+                {(j.employment_type || j.location || j.salary_range) && (
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {j.employment_type && <Badge variant="secondary" className="h-4 px-1.5 text-[10px]">{EMPLOYMENT[j.employment_type] ?? j.employment_type}</Badge>}
+                    {j.location && <Badge variant="outline" className="h-4 px-1.5 text-[10px]">{j.location}</Badge>}
+                    {j.salary_range && <Badge variant="outline" className="h-4 px-1.5 text-[10px]">{j.salary_range}</Badge>}
+                  </div>
+                )}
                 {j.description && <p className="mt-2 line-clamp-2 text-sm text-muted-foreground">{j.description}</p>}
-                <div className="mt-3 flex gap-1 border-t border-border pt-3">
+                <div className="mt-3 flex items-center gap-1 border-t border-border pt-3">
                   <Button variant="ghost" size="sm" disabled={isPending} onClick={() => toggleJob(j)}>
                     {j.status === 'open' ? <><Lock className="size-3.5" />Uzavřít</> : <><Unlock className="size-3.5" />Otevřít</>}
+                  </Button>
+                  <Button variant="ghost" size="sm" disabled={isPending} onClick={() => togglePublished(j)} title="Zveřejnit na kariérní stránce">
+                    <Globe className={cn('size-3.5', j.published && 'text-success')} />{j.published ? 'Na webu' : 'Web'}
                   </Button>
                   <Button variant="ghost" size="icon-sm" aria-label="Smazat pozici" className="ml-auto text-muted-foreground hover:text-destructive" disabled={isPending} onClick={() => removeJob(j)}><Trash2 className="size-4" /></Button>
                 </div>
@@ -117,6 +137,12 @@ export function RecruitmentClient({ jobs, candidates, departments }: { jobs: any
                         <Button variant="ghost" size="icon-xs" aria-label="Smazat" className="text-muted-foreground hover:text-destructive" disabled={isPending} onClick={() => removeCandidate(c)}><Trash2 className="size-3.5" /></Button>
                       </div>
                       {(c.email || c.phone) && <div className="mt-1 truncate text-[11px] text-muted-foreground">{c.email || c.phone}</div>}
+                      {(c.source === 'web' || c.cv_path) && (
+                        <div className="mt-1.5 flex items-center gap-2">
+                          {c.source === 'web' && <Badge variant="info" className="h-4 px-1.5 text-[10px]">z webu</Badge>}
+                          {c.cv_path && <button type="button" onClick={() => downloadCv(c.id)} className="inline-flex items-center gap-1 text-[11px] font-medium text-primary hover:underline"><Download className="size-3" />CV</button>}
+                        </div>
+                      )}
                       <select className={cn(selectClass, 'mt-2 h-7 text-xs')} value={c.stage} disabled={isPending} onChange={(e) => moveStage(c.id, e.target.value)}>
                         {STAGES.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
                       </select>
@@ -161,6 +187,15 @@ function JobDialog({ departments, onClose }: { departments: Dept[]; onClose: () 
             </select>
           </div>
           <div className="space-y-1.5"><Label className="text-xs text-muted-foreground">Popis (volitelné)</Label><Input name="description" placeholder="Krátký popis role…" /></div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5"><Label className="text-xs text-muted-foreground">Lokalita</Label><Input name="location" placeholder="Praha / OX Club" /></div>
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">Typ úvazku</Label>
+              <select name="employmentType" defaultValue="brigada" className={selectClass}>{Object.entries(EMPLOYMENT).map(([id, l]) => <option key={id} value={id}>{l}</option>)}</select>
+            </div>
+            <div className="col-span-2 space-y-1.5"><Label className="text-xs text-muted-foreground">Mzda / odměna</Label><Input name="salaryRange" placeholder="např. 150–200 Kč/h" /></div>
+          </div>
+          <label className="flex items-center gap-2 text-sm text-foreground"><input type="checkbox" name="published" defaultChecked className="size-4 rounded border-input accent-primary" />Publikovat na kariérní stránce (jobs.globaalelevate.com)</label>
           <div className="flex justify-end gap-2 pt-1">
             <Button type="button" variant="outline" size="lg" onClick={onClose}>Zrušit</Button>
             <Button type="submit" size="lg" disabled={pending}>{pending ? 'Ukládám…' : 'Vytvořit'}</Button>

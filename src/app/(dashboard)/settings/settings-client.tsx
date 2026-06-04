@@ -58,6 +58,14 @@ export function SettingsClient({ settings, canManage }: { settings: any | null; 
         </CardContent>
       </Card>
 
+      <Card>
+        <CardHeader><CardTitle>Kariérní stránka</CardTitle><CardDescription>Veřejný nábor na jobs.globaalelevate.com</CardDescription></CardHeader>
+        <CardContent className="space-y-3">
+          <label className="flex items-center gap-2 text-sm text-foreground"><input type="checkbox" name="jobsEnabled" defaultChecked={!!settings?.jobs_enabled} disabled={!canManage} className="size-4 rounded border-input accent-primary" />Zveřejnit nábor na webu (publikované otevřené pozice budou veřejně viditelné)</label>
+          <Field label="Úvodní text kariérní stránky"><textarea name="careersIntro" defaultValue={settings?.careers_intro ?? ''} disabled={!canManage} rows={3} className="w-full rounded-lg border border-input bg-background p-2 text-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50" placeholder="Krátký claim pro uchazeče…" /></Field>
+        </CardContent>
+      </Card>
+
       {canManage && <div className="flex justify-end"><Button type="submit" size="lg" disabled={pending}><Save className="size-4" />{pending ? 'Ukládám…' : 'Uložit'}</Button></div>}
     </form>
   )
