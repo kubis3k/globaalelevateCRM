@@ -3,8 +3,16 @@
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { sendPushToUsers } from '@/lib/push/webpush'
 
 type Admin = ReturnType<typeof createAdminClient>
+
+// Tenant members minus the actor; sendPushToUsers narrows this to users who
+// have the Faktury (invoices) module enabled.
+async function invoiceAudience(admin: Admin, tenantId: string, exclude?: string | null): Promise<string[]> {
+  const { data } = await admin.from('tenant_users').select('user_id').eq('tenant_id', tenantId)
+  return (data || []).map((r: any) => r.user_id).filter((u: string) => u && u !== exclude)
+}
 
 // The invoice→finance transaction sync is handled by a DB trigger
 // (sync_invoice_transaction): a paid invoice always has one linked transaction,
@@ -52,6 +60,14 @@ export async function createInvoice(formData: FormData) {
     created_by: user.id,
   })
   if (error) throw new Error(error.message)
+  try {
+    const aud = await invoiceAudience(admin, tenantUser.tenant_id, user.id)
+    if (aud.length) await sendPushToUsers(admin, aud, 'invoices', {
+      title: 'Nová faktura',
+      body: `${formData.get('invoiceNumber') || 'Faktura'} • ${formData.get('amount') || ''} ${(formData.get('currency') as string) || 'CZK'}`,
+      url: '/invoices',
+    })
+  } catch (e) { console.error('[push] new invoice notify failed', e) }
   revalidateLinked(clientId)
 }
 
@@ -82,8 +98,19 @@ export async function updateInvoice(invoiceId: string, formData: FormData) {
 
 export async function updateInvoiceStatus(invoiceId: string, newStatus: string) {
   const admin = createAdminClient()
-  const { data: updated, error } = await admin.from('invoices').update({ status: newStatus }).eq('id', invoiceId).select('client_id').maybeSingle()
+  const { data: updated, error } = await admin.from('invoices').update({ status: newStatus }).eq('id', invoiceId).select('client_id, tenant_id, invoice_number, amount, currency').maybeSingle()
   if (error) throw new Error(error.message)
+  if (newStatus === 'paid' && updated?.tenant_id) {
+    try {
+      const aud = await invoiceAudience(admin, updated.tenant_id)
+      if (aud.length) await sendPushToUsers(admin, aud, 'invoices', {
+        title: 'Faktura uhrazena',
+        body: `${updated.invoice_number || 'Faktura'} • ${updated.amount || ''} ${updated.currency || 'CZK'}`,
+        url: '/invoices',
+        tag: `invoice-paid-${invoiceId}`,
+      })
+    } catch (e) { console.error('[push] invoice paid notify failed', e) }
+  }
   revalidateLinked(updated?.client_id)
 }
 

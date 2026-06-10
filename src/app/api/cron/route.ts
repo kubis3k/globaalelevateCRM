@@ -170,6 +170,29 @@ async function hrTrainingReminders(admin: any) {
   return { reminded }
 }
 
+// Invoices past their due date (not paid/cancelled) → notify the team once each,
+// guarded by overdue_notified_at. Gated to users with the Faktury module.
+async function invoiceOverdueReminders(admin: any) {
+  const today = new Date().toISOString().slice(0, 10)
+  const { data: invs } = await admin.from('invoices')
+    .select('id, tenant_id, invoice_number, amount, currency, due_date, status, overdue_notified_at')
+    .lt('due_date', today).neq('status', 'paid').neq('status', 'cancelled').is('overdue_notified_at', null)
+  if (!invs?.length) return { reminded: 0 }
+  let reminded = 0
+  for (const inv of invs) {
+    const { data: members } = await admin.from('tenant_users').select('user_id').eq('tenant_id', inv.tenant_id)
+    const recipients = (members || []).map((r: any) => r.user_id)
+    if (recipients.length) reminded += await sendPushToUsers(admin, recipients, 'invoices', {
+      title: 'Faktura po splatnosti',
+      body: `${inv.invoice_number || 'Faktura'} — ${inv.amount || ''} ${inv.currency || 'CZK'}, splatnost ${inv.due_date}`,
+      url: '/invoices',
+      tag: `invoice-overdue-${inv.id}`,
+    })
+    await admin.from('invoices').update({ overdue_notified_at: new Date().toISOString() }).eq('id', inv.id)
+  }
+  return { reminded }
+}
+
 async function run() {
   const admin = createAdminClient()
   const mail = await pollMail(admin)
@@ -177,7 +200,8 @@ async function run() {
   const social = await socialDuePosts(admin)
   const hr = await hrContractReminders(admin)
   const training = await hrTrainingReminders(admin)
-  return { ok: true, mail, crm, social, hr, training }
+  const invoices = await invoiceOverdueReminders(admin)
+  return { ok: true, mail, crm, social, hr, training, invoices }
 }
 
 export async function POST(req: NextRequest) {

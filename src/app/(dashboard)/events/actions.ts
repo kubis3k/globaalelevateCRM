@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { canManageEvents } from '@/lib/permissions'
+import { sendPushToUsers } from '@/lib/push/webpush'
 
 type Ctx = { admin: ReturnType<typeof createAdminClient>; userId: string; tenantId: string; role: string }
 
@@ -39,18 +40,39 @@ function eventRow(fd: FormData) {
   }
 }
 
+const EVENT_STATUS_LABEL: Record<string, string> = { planning: 'Plánováno', confirmed: 'Potvrzeno', done: 'Proběhlo', cancelled: 'Zrušeno' }
+
+// Everyone in the tenant except the actor; sendPushToUsers gates this down to
+// users who actually have the Akce (events) module enabled.
+async function eventAudience(admin: any, tenantId: string, exclude: string): Promise<string[]> {
+  const { data } = await admin.from('tenant_users').select('user_id').eq('tenant_id', tenantId)
+  return (data || []).map((r: any) => r.user_id).filter((u: string) => u && u !== exclude)
+}
+
 export async function saveEvent(formData: FormData): Promise<{ error?: string; id?: string }> {
   const c = await getCtx(); if ('error' in c) return c
   if (!canManageEvents(c.role)) return { error: 'Akce může spravovat jen admin nebo manažer.' }
   const name = str(formData, 'name'); if (!name) return { error: 'Zadej název akce.' }
   const id = opt(formData, 'id')
+  const row = eventRow(formData)
   if (id) {
-    const { error } = await c.admin.from('events').update({ ...eventRow(formData), updated_at: new Date().toISOString() }).eq('id', id).eq('tenant_id', c.tenantId)
+    const { data: prev } = await c.admin.from('events').select('status').eq('id', id).eq('tenant_id', c.tenantId).maybeSingle()
+    const { error } = await c.admin.from('events').update({ ...row, updated_at: new Date().toISOString() }).eq('id', id).eq('tenant_id', c.tenantId)
     if (error) return { error: error.message }
+    try {
+      if (prev && row.status && prev.status !== row.status) {
+        const aud = await eventAudience(c.admin, c.tenantId, c.userId)
+        if (aud.length) await sendPushToUsers(c.admin, aud, 'events', { title: `Akce: ${EVENT_STATUS_LABEL[row.status] || row.status}`, body: name, url: `/events/${id}`, tag: `event-status-${id}` })
+      }
+    } catch (e) { console.error('[push] event status notify failed', e) }
     revalidatePath('/events'); revalidatePath(`/events/${id}`); return { id }
   }
-  const { data, error } = await c.admin.from('events').insert({ ...eventRow(formData), tenant_id: c.tenantId, created_by: c.userId }).select('id').single()
+  const { data, error } = await c.admin.from('events').insert({ ...row, tenant_id: c.tenantId, created_by: c.userId }).select('id').single()
   if (error) return { error: error.message }
+  try {
+    const aud = await eventAudience(c.admin, c.tenantId, c.userId)
+    if (aud.length) await sendPushToUsers(c.admin, aud, 'events', { title: 'Nová akce', body: `${name}${row.event_date ? ` • ${row.event_date}` : ''}`, url: data?.id ? `/events/${data.id}` : '/events', tag: `event-${data?.id}` })
+  } catch (e) { console.error('[push] new event notify failed', e) }
   revalidatePath('/events'); return { id: data?.id }
 }
 
