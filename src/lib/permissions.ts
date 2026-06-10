@@ -51,3 +51,8 @@ export function canManageSocial(role: string | null | undefined): boolean {
 export function canManageEvents(role: string | null | undefined): boolean {
   return role === 'admin' || role === 'manager'
 }
+
+// Who may delete meetings; everyone with the module may create/edit + write minutes.
+export function canManageMeetings(role: string | null | undefined): boolean {
+  return role === 'admin' || role === 'manager'
+}

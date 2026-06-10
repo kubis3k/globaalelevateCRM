@@ -245,10 +245,10 @@ export async function reviewLeave(id: string, decision: 'approved' | 'rejected')
   // Notify the requester of the decision (best-effort).
   try {
     if (req.user_id && req.user_id !== c.userId) {
-      await sendPushToUsers(c.admin, [req.user_id], 'hr', {
+      await sendPushToUsers(c.admin, [req.user_id], 'portal', {
         title: decision === 'approved' ? 'Dovolená schválena' : 'Dovolená zamítnuta',
         body: `${req.start_date} – ${req.end_date}`,
-        url: '/hr/leave',
+        url: '/muj-portal',
       })
     }
   } catch (e) { console.error('[push] hr leave review notify failed', e) }
@@ -492,7 +492,7 @@ export async function assignChecklist(formData: FormData): Promise<{ error?: str
   if (run?.id && items?.length) {
     await c.admin.from('hr_checklist_run_items').insert(items.map((it: any) => ({ tenant_id: c.tenantId, run_id: run.id, label: it.label, sort: it.sort })))
   }
-  try { if (userId !== c.userId) await sendPushToUsers(c.admin, [userId], 'hr', { title: cl.kind === 'offboarding' ? 'Offboarding zahájen' : 'Onboarding zahájen', body: cl.name, url: '/hr/onboarding' }) } catch { }
+  try { if (userId !== c.userId) await sendPushToUsers(c.admin, [userId], 'portal', { title: cl.kind === 'offboarding' ? 'Offboarding zahájen' : 'Onboarding zahájen', body: cl.name, url: '/muj-portal' }) } catch { }
   revalidatePath('/hr/onboarding'); return {}
 }
 
@@ -665,7 +665,7 @@ export async function assignToShift(shiftId: string, userId: string): Promise<{ 
   if (error) return { error: error.code === '23505' ? 'Už je přiřazen.' : error.message }
   try {
     const { data: sh } = await c.admin.from('hr_shifts').select('work_date, start_time, role').eq('id', shiftId).maybeSingle()
-    if (userId !== c.userId) await sendPushToUsers(c.admin, [userId], 'hr', { title: 'Nová směna', body: `${sh?.work_date || ''} ${sh?.start_time ? String(sh.start_time).slice(0, 5) : ''} ${sh?.role || ''}`.trim(), url: '/hr/shifts' })
+    if (userId !== c.userId) await sendPushToUsers(c.admin, [userId], 'portal', { title: 'Nová směna', body: `${sh?.work_date || ''} ${sh?.start_time ? String(sh.start_time).slice(0, 5) : ''} ${sh?.role || ''}`.trim(), url: '/muj-portal' })
   } catch { }
   revalidatePath('/hr/shifts'); return {}
 }
@@ -727,7 +727,7 @@ export async function reviewDecline(id: string, approve: boolean): Promise<{ err
   const patch = approve ? { status: 'declined' } : { status: 'assigned', decline_reason: null }
   const { error } = await c.admin.from('hr_shift_assignments').update(patch).eq('id', id).eq('tenant_id', c.tenantId)
   if (error) return { error: error.message }
-  try { if (a.user_id && a.user_id !== c.userId) await sendPushToUsers(c.admin, [a.user_id], 'hr', { title: approve ? 'Odmítnutí směny schváleno' : 'Odmítnutí směny zamítnuto', body: approve ? 'Směna ti byla odebrána.' : 'Potvrď prosím směnu znovu.', url: '/muj-portal' }) } catch { }
+  try { if (a.user_id && a.user_id !== c.userId) await sendPushToUsers(c.admin, [a.user_id], 'portal', { title: approve ? 'Odmítnutí směny schváleno' : 'Odmítnutí směny zamítnuto', body: approve ? 'Směna ti byla odebrána.' : 'Potvrď prosím směnu znovu.', url: '/muj-portal' }) } catch { }
   revalidatePath('/hr/shifts'); revalidatePath('/muj-portal'); return {}
 }
 
@@ -757,7 +757,7 @@ export async function verifyWorked(id: string, approve: boolean): Promise<{ erro
   const patch = approve ? { worked_status: 'verified', worked_verified_at: new Date().toISOString(), worked_verified_by: c.userId } : { worked_status: 'none', worked_reported_at: null }
   const { error } = await c.admin.from('hr_shift_assignments').update(patch).eq('id', id).eq('tenant_id', c.tenantId)
   if (error) return { error: error.message }
-  try { if (a.user_id && a.user_id !== c.userId) await sendPushToUsers(c.admin, [a.user_id], 'hr', { title: approve ? 'Odpracovaná směna ověřena' : 'Odpracování neuznáno', body: approve ? 'Tvá směna byla ověřena.' : 'Ozvi se prosím manažerovi.', url: '/muj-portal' }) } catch { }
+  try { if (a.user_id && a.user_id !== c.userId) await sendPushToUsers(c.admin, [a.user_id], 'portal', { title: approve ? 'Odpracovaná směna ověřena' : 'Odpracování neuznáno', body: approve ? 'Tvá směna byla ověřena.' : 'Ozvi se prosím manažerovi.', url: '/muj-portal' }) } catch { }
   revalidatePath('/hr/shifts'); revalidatePath('/muj-portal'); return {}
 }
 
