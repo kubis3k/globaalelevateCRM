@@ -43,13 +43,13 @@ export async function unsubscribeUser(endpoint: string): Promise<{ error?: strin
   return {}
 }
 
-export type Prefs = { calendar: boolean; email: boolean; crm: boolean; hr: boolean; projects: boolean; social: boolean; events: boolean; invoices: boolean; portal: boolean }
+export type Prefs = { calendar: boolean; email: boolean; crm: boolean; hr: boolean; projects: boolean; social: boolean; events: boolean; invoices: boolean; portal: boolean; meetings: boolean }
 
-const DEFAULT_PREFS: Prefs = { calendar: true, email: true, crm: true, hr: true, projects: true, social: true, events: true, invoices: true, portal: true }
+const DEFAULT_PREFS: Prefs = { calendar: true, email: true, crm: true, hr: true, projects: true, social: true, events: true, invoices: true, portal: true, meetings: true }
 
 export async function getNotificationPrefs(): Promise<Prefs> {
   const c = await getCtx(); if ('error' in c) return { ...DEFAULT_PREFS }
-  const { data } = await c.admin.from('notification_prefs').select('calendar, email, crm, hr, projects, social, events, invoices, portal').eq('user_id', c.userId).maybeSingle()
+  const { data } = await c.admin.from('notification_prefs').select('calendar, email, crm, hr, projects, social, events, invoices, portal, meetings').eq('user_id', c.userId).maybeSingle()
   return {
     calendar: data?.calendar ?? true,
     email: data?.email ?? true,
@@ -60,6 +60,7 @@ export async function getNotificationPrefs(): Promise<Prefs> {
     events: data?.events ?? true,
     invoices: data?.invoices ?? true,
     portal: data?.portal ?? true,
+    meetings: data?.meetings ?? true,
   }
 }
 
@@ -77,6 +78,7 @@ export async function saveNotificationPrefs(prefs: Prefs): Promise<{ error?: str
     events: !!prefs.events,
     invoices: !!prefs.invoices,
     portal: !!prefs.portal,
+    meetings: !!prefs.meetings,
     updated_at: new Date().toISOString(),
   }, { onConflict: 'user_id' })
   if (error) return { error: error.message }

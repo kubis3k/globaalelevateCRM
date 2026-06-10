@@ -28,6 +28,7 @@ const TYPES: { key: keyof Prefs; label: string; desc: string }[] = [
   { key: 'social', label: 'Sociální sítě', desc: 'Naplánované příspěvky' },
   { key: 'portal', label: 'Můj portál', desc: 'Směny, volno, docházka' },
   { key: 'events', label: 'Akce', desc: 'Nové akce a změny stavu' },
+  { key: 'meetings', label: 'Meetingy', desc: 'Naplánované porady' },
   { key: 'invoices', label: 'Faktury', desc: 'Nové a po splatnosti' },
 ]
 
@@ -36,7 +37,7 @@ export function PushSetupDialog({ open, onClose }: { open: boolean; onClose: () 
   const [subscribed, setSubscribed] = useState(false)
   const [isIOS, setIsIOS] = useState(false)
   const [standalone, setStandalone] = useState(true)
-  const [prefs, setPrefs] = useState<Prefs>({ calendar: true, email: true, crm: true, hr: true, projects: true, social: true, events: true, invoices: true, portal: true })
+  const [prefs, setPrefs] = useState<Prefs>({ calendar: true, email: true, crm: true, hr: true, projects: true, social: true, events: true, invoices: true, portal: true, meetings: true })
   const [working, setWorking] = useState(false)
   const [, startTransition] = useTransition()
 

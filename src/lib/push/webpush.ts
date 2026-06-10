@@ -18,7 +18,7 @@ function ensure(): boolean {
   return true
 }
 
-export type PushType = 'calendar' | 'email' | 'crm' | 'hr' | 'projects' | 'social' | 'events' | 'invoices' | 'portal'
+export type PushType = 'calendar' | 'email' | 'crm' | 'hr' | 'projects' | 'social' | 'events' | 'invoices' | 'portal' | 'meetings'
 export type PushPayload = { title: string; body: string; url?: string; tag?: string }
 
 // Each notification type belongs to a module. A push is only ever delivered to
@@ -26,7 +26,7 @@ export type PushPayload = { title: string; body: string; url?: string; tag?: str
 // without the HR module never receives HR notifications.
 const TYPE_MODULE: Record<PushType, ModuleId> = {
   calendar: 'calendar', email: 'mail', crm: 'crm', hr: 'hr', projects: 'projects',
-  social: 'social', events: 'events', invoices: 'invoices', portal: 'portal',
+  social: 'social', events: 'events', invoices: 'invoices', portal: 'portal', meetings: 'meetings',
 }
 
 // Keeps only the users who can access `moduleId`:
