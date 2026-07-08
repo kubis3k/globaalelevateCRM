@@ -7,6 +7,7 @@ import { ThemeToggle } from '@/components/ui/theme-toggle'
 export default async function JobsLayout({ children }: { children: React.ReactNode }) {
   const t = await getCareersTenant()
   const company = t?.companyName || 'Globaal Elevate Production s.r.o.'
+  const ico = t?.ico ?? null
 
   return (
     <div className="min-h-dvh bg-white text-zinc-900 antialiased dark:bg-[#06070b] dark:text-zinc-100">
@@ -28,9 +29,17 @@ export default async function JobsLayout({ children }: { children: React.ReactNo
       <main>{children}</main>
 
       <footer className="mt-16 border-t border-zinc-200 sm:mt-20 dark:border-white/10">
-        <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-3 px-4 py-8 text-sm text-zinc-500 sm:flex-row sm:px-5 sm:py-10 lg:px-8">
-          <span>© {company}</span>
-          <span className="text-zinc-400 dark:text-zinc-600">Pracuj s námi · klub &amp; eventy</span>
+        <div className="mx-auto flex max-w-6xl flex-col gap-4 px-4 py-8 text-sm text-zinc-500 sm:px-5 sm:py-10 lg:px-8">
+          <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
+            <span>© {company}{ico ? ` · IČO ${ico}` : ''}</span>
+            <nav className="flex flex-wrap gap-x-5 gap-y-1">
+              <a href="https://globaalelevate.com/zasady-ochrany-osobnich-udaju" target="_blank" rel="noopener noreferrer" className="transition-colors hover:text-zinc-900 dark:hover:text-zinc-200">Ochrana osobních údajů</a>
+              <a href="https://globaalelevate.com/podminky-uziti" target="_blank" rel="noopener noreferrer" className="transition-colors hover:text-zinc-900 dark:hover:text-zinc-200">Podmínky užití</a>
+            </nav>
+          </div>
+          <p className="text-xs leading-relaxed text-zinc-400 dark:text-zinc-600">
+            Správce osobních údajů: {company}{ico ? `, IČO ${ico}` : ''}. Osobní údaje uchazečů (vč. životopisu) zpracováváme pro účely výběrového řízení na základě předsmluvního jednání (čl. 6 odst. 1 písm. b) GDPR); životopisy jsou uloženy v zabezpečeném úložišti.
+          </p>
         </div>
       </footer>
     </div>

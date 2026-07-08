@@ -52,7 +52,12 @@ export function ApplyForm({ jobId }: { jobId: string }) {
       <button type="submit" disabled={pending} className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-amber-400 px-4 py-2.5 text-sm font-semibold text-zinc-900 transition-colors hover:bg-amber-300 disabled:opacity-60 dark:bg-amber-300 dark:text-[#06070b] dark:hover:bg-amber-200">
         <Send className="size-4" />{pending ? 'Odesílám…' : 'Odeslat přihlášku'}
       </button>
-      <p className="text-center text-[11px] text-zinc-500">Odesláním souhlasíte se zpracováním osobních údajů pro účely náboru.</p>
+      <p className="text-center text-[11px] leading-relaxed text-zinc-500">
+        Vaše osobní údaje (vč. životopisu) zpracováváme pro účely tohoto výběrového řízení na základě{' '}
+        <strong className="font-medium text-zinc-400">předsmluvního jednání</strong> (čl. 6 odst. 1 písm. b) GDPR). Životopis se ukládá do zabezpečeného úložiště.{' '}
+        Podrobnosti v{' '}
+        <a href="https://globaalelevate.com/zasady-ochrany-osobnich-udaju" target="_blank" rel="noopener noreferrer" className="underline underline-offset-2 hover:text-zinc-300">Zásadách ochrany osobních údajů</a>.
+      </p>
     </form>
   )
 }
