@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { Plus, Trash2, Edit2, Crown, Users, Check } from 'lucide-react'
+import { Plus, Trash2, Edit2, Crown, Users, Check, Star } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { toast } from '@/components/ui/toast'
 import { confirmDialog } from '@/components/ui/confirm-dialog'
 import { cn } from '@/lib/utils'
-import { saveReservation, deleteReservation, setReservationStatus, saveGuest, deleteGuest, setGuestArrived } from '../actions'
+import { saveReservation, deleteReservation, setReservationStatus, saveGuest, deleteGuest, setGuestArrived, setGuestFlag } from '../actions'
 
 const selectClass = 'h-8 rounded-lg border border-input bg-background px-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50'
 const czk = (n: number) => new Intl.NumberFormat('cs-CZ', { style: 'currency', currency: 'CZK', maximumFractionDigits: 0 }).format(Number(n) || 0)
@@ -94,29 +94,40 @@ function ReservationDialog({ eventId, r, onClose }: { eventId: string; r: any | 
 }
 
 // ── Guest list ──
+const FLAG_BTN = 'flex items-center gap-1 rounded-4xl border px-1.5 py-0.5 text-xs font-medium transition-colors disabled:cursor-default'
+
 export function GuestSection({ eventId, guests, canManage }: { eventId: string; guests: any[]; canManage: boolean }) {
   const [pending, startTransition] = useTransition()
   const heads = guests.reduce((a, g) => a + Number(g.party_size || 1), 0)
   const arrived = guests.filter((g) => g.arrived).reduce((a, g) => a + Number(g.party_size || 1), 0)
+  const vipCount = guests.filter((g) => g.is_vip).length
+  const permCount = guests.filter((g) => g.is_permanent).length
 
   function add(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault(); const form = e.currentTarget; const fd = new FormData(form); fd.set('eventId', eventId)
     startTransition(async () => { const r = await saveGuest(fd); if (r?.error) toast.error('Chyba', r.error); else { toast.success('Přidáno'); form.reset() } })
   }
   function toggle(g: any) { startTransition(async () => { const r = await setGuestArrived(g.id, !g.arrived); if (r?.error) toast.error('Chyba', r.error) }) }
+  function toggleFlag(g: any, field: 'is_vip' | 'is_permanent') { startTransition(async () => { const r = await setGuestFlag(g.id, field, !g[field]); if (r?.error) toast.error('Chyba', r.error) }) }
   function remove(g: any) { startTransition(async () => { const r = await deleteGuest(g.id); if (r?.error) toast.error('Chyba', r.error) }) }
 
   return (
     <section className="space-y-2">
-      <h3 className="flex items-center gap-1.5 text-sm font-semibold text-foreground"><Users className="size-4" />Guest list <span className="text-xs font-normal text-muted-foreground">({guests.length} jmen · {heads} osob · dorazilo {arrived})</span></h3>
+      <h3 className="flex items-center gap-1.5 text-sm font-semibold text-foreground"><Users className="size-4" />Guest list <span className="text-xs font-normal text-muted-foreground">({guests.length} jmen · {heads} osob · dorazilo {arrived}{vipCount ? ` · VIP ${vipCount}` : ''}{permCount ? ` · permostálých ${permCount}` : ''})</span></h3>
       <div className="space-y-1">
         {guests.length === 0 && <p className="text-sm text-muted-foreground">Zatím prázdný guest list.</p>}
         {guests.map((g) => (
-          <div key={g.id} className={cn('flex items-center gap-2 rounded-lg border border-border px-3 py-1.5 text-sm', g.arrived ? 'bg-success/5' : 'bg-card')}>
-            {canManage && <button onClick={() => toggle(g)} disabled={pending} className={cn('flex size-5 shrink-0 items-center justify-center rounded border', g.arrived ? 'border-success bg-success text-success-foreground' : 'border-input text-transparent')}><Check className="size-3.5" /></button>}
+          <div key={g.id} className={cn('flex flex-wrap items-center gap-2 rounded-lg border border-border px-3 py-1.5 text-sm', g.arrived ? 'bg-success/5' : 'bg-card')}>
+            {canManage && <button onClick={() => toggle(g)} disabled={pending} title="Dorazil/a" className={cn('flex size-5 shrink-0 items-center justify-center rounded border', g.arrived ? 'border-success bg-success text-success-foreground' : 'border-input text-transparent')}><Check className="size-3.5" /></button>}
             <span className={cn('font-medium', g.arrived ? 'text-muted-foreground' : 'text-foreground')}>{g.name}</span>
             {g.party_size > 1 && <span className="text-xs text-muted-foreground">+{g.party_size - 1}</span>}
-            <Badge variant="outline" className="ml-1">{GUEST_TYPE[g.type] || g.type}</Badge>
+            <Badge variant="outline">{GUEST_TYPE[g.type] || g.type}</Badge>
+            <button onClick={() => canManage && toggleFlag(g, 'is_vip')} disabled={pending || !canManage} title="VIP" className={cn(FLAG_BTN, g.is_vip ? 'border-transparent bg-amber-500/15 text-amber-600 dark:text-amber-400' : 'border-dashed border-border text-muted-foreground')}>
+              <Star className={cn('size-3', g.is_vip && 'fill-current')} />VIP
+            </button>
+            <button onClick={() => canManage && toggleFlag(g, 'is_permanent')} disabled={pending || !canManage} title="Permostálý" className={cn(FLAG_BTN, g.is_permanent ? 'border-transparent bg-info/15 text-info' : 'border-dashed border-border text-muted-foreground')}>
+              <Check className={cn('size-3', !g.is_permanent && 'opacity-0')} />Permostálý
+            </button>
             {canManage && <button onClick={() => remove(g)} className="ml-auto text-muted-foreground hover:text-destructive"><Trash2 className="size-3.5" /></button>}
           </div>
         ))}
@@ -126,6 +137,8 @@ export function GuestSection({ eventId, guests, canManage }: { eventId: string; 
           <Input name="name" placeholder="Jméno hosta" className="h-8 min-w-32 flex-1" required />
           <Input name="partySize" type="number" min={1} defaultValue={1} className="h-8 w-16" title="Počet osob" />
           <select name="type" defaultValue="guest" className={selectClass}>{Object.entries(GUEST_TYPE).map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select>
+          <label className="flex h-8 items-center gap-1.5 rounded-lg border border-input px-2 text-sm text-foreground"><input type="checkbox" name="isVip" className="size-3.5" />VIP</label>
+          <label className="flex h-8 items-center gap-1.5 rounded-lg border border-input px-2 text-sm text-foreground"><input type="checkbox" name="isPermanent" className="size-3.5" />Permostálý</label>
           <Button type="submit" size="sm" disabled={pending}><Plus className="size-4" /></Button>
         </form>
       )}

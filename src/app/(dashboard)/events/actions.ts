@@ -158,6 +158,55 @@ export async function deleteReservation(id: string): Promise<{ error?: string }>
   return {}
 }
 
+// ── Rozpočet ─────────────────────────────────────────────────
+export async function saveBudgetItem(formData: FormData): Promise<{ error?: string }> {
+  const c = await getCtx(); if ('error' in c) return c
+  if (!canManageEvents(c.role)) return { error: 'Nemáte oprávnění.' }
+  const eventId = opt(formData, 'eventId'); const id = opt(formData, 'id')
+  if (!id && !eventId) return { error: 'Chybí akce.' }
+  const item = str(formData, 'item'); if (!item) return { error: 'Zadej položku.' }
+  const row = { category: str(formData, 'category'), item, planned: numOrNull(formData, 'planned'), actual: numOrNull(formData, 'actual'), note: str(formData, 'note') }
+  if (id) {
+    const { error } = await c.admin.from('event_budget_items').update(row).eq('id', id).eq('tenant_id', c.tenantId)
+    if (error) return { error: error.message }
+  } else {
+    const { error } = await c.admin.from('event_budget_items').insert({ ...row, tenant_id: c.tenantId, event_id: eventId, created_by: c.userId })
+    if (error) return { error: error.message }
+  }
+  if (eventId) revalidatePath(`/events/${eventId}`)
+  return {}
+}
+
+export async function deleteBudgetItem(id: string): Promise<{ error?: string }> {
+  const c = await getCtx(); if ('error' in c) return c
+  if (!canManageEvents(c.role)) return { error: 'Nemáte oprávnění.' }
+  const { data } = await c.admin.from('event_budget_items').select('event_id').eq('id', id).eq('tenant_id', c.tenantId).maybeSingle()
+  const { error } = await c.admin.from('event_budget_items').delete().eq('id', id).eq('tenant_id', c.tenantId)
+  if (error) return { error: error.message }
+  if (data?.event_id) revalidatePath(`/events/${data.event_id}`)
+  return {}
+}
+
+// Import z Excelu — nahradí celý rozpočet akce nově nahranými řádky.
+export async function importBudgetItems(eventId: string, rows: { category?: string | null; item: string; planned?: number | null; actual?: number | null; note?: string | null }[]): Promise<{ error?: string; count?: number }> {
+  const c = await getCtx(); if ('error' in c) return c
+  if (!canManageEvents(c.role)) return { error: 'Nemáte oprávnění.' }
+  if (!eventId) return { error: 'Chybí akce.' }
+  const clean = rows.map((r) => ({ ...r, item: (r.item || '').trim() })).filter((r) => r.item)
+  if (clean.length === 0) return { error: 'Soubor neobsahuje žádné použitelné řádky.' }
+  const { error: delErr } = await c.admin.from('event_budget_items').delete().eq('event_id', eventId).eq('tenant_id', c.tenantId)
+  if (delErr) return { error: delErr.message }
+  const { error } = await c.admin.from('event_budget_items').insert(
+    clean.map((r, i) => ({
+      tenant_id: c.tenantId, event_id: eventId, created_by: c.userId, sort: i,
+      category: r.category || null, item: r.item, planned: r.planned ?? null, actual: r.actual ?? null, note: r.note || null,
+    }))
+  )
+  if (error) return { error: error.message }
+  revalidatePath(`/events/${eventId}`)
+  return { count: clean.length }
+}
+
 // ── Guest list ───────────────────────────────────────────────
 export async function saveGuest(formData: FormData): Promise<{ error?: string }> {
   const c = await getCtx(); if ('error' in c) return c
@@ -165,7 +214,11 @@ export async function saveGuest(formData: FormData): Promise<{ error?: string }>
   const eventId = opt(formData, 'eventId'); const id = opt(formData, 'id')
   if (!id && !eventId) return { error: 'Chybí akce.' }
   const name = str(formData, 'name'); if (!name) return { error: 'Zadej jméno hosta.' }
-  const row = { name, party_size: Math.max(1, Number(str(formData, 'partySize') || 1)), type: str(formData, 'type') || 'guest', note: str(formData, 'note') }
+  const row = {
+    name, party_size: Math.max(1, Number(str(formData, 'partySize') || 1)), type: str(formData, 'type') || 'guest', note: str(formData, 'note'),
+    is_vip: formData.get('isVip') === 'on' || formData.get('isVip') === 'true',
+    is_permanent: formData.get('isPermanent') === 'on' || formData.get('isPermanent') === 'true',
+  }
   if (id) {
     const { error } = await c.admin.from('guest_list').update(row).eq('id', id).eq('tenant_id', c.tenantId)
     if (error) return { error: error.message }
@@ -181,6 +234,16 @@ export async function setGuestArrived(id: string, arrived: boolean): Promise<{ e
   const c = await getCtx(); if ('error' in c) return c
   if (!canManageEvents(c.role)) return { error: 'Nemáte oprávnění.' }
   const { data, error } = await c.admin.from('guest_list').update({ arrived, arrived_at: arrived ? new Date().toISOString() : null }).eq('id', id).eq('tenant_id', c.tenantId).select('event_id').single()
+  if (error) return { error: error.message }
+  if (data?.event_id) revalidatePath(`/events/${data.event_id}`)
+  return {}
+}
+
+export async function setGuestFlag(id: string, field: 'is_vip' | 'is_permanent', value: boolean): Promise<{ error?: string }> {
+  const c = await getCtx(); if ('error' in c) return c
+  if (!canManageEvents(c.role)) return { error: 'Nemáte oprávnění.' }
+  if (field !== 'is_vip' && field !== 'is_permanent') return { error: 'Neplatný příznak.' }
+  const { data, error } = await c.admin.from('guest_list').update({ [field]: value }).eq('id', id).eq('tenant_id', c.tenantId).select('event_id').single()
   if (error) return { error: error.message }
   if (data?.event_id) revalidatePath(`/events/${data.event_id}`)
   return {}
