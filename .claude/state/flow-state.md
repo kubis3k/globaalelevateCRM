@@ -5,12 +5,11 @@
 - status: done
 
 ## Kde jsme skončili (checkpoint)
-- poslední dokončený krok: rozbalen flow-system.zip do `.claude/`, agenti (scout/architect/coder/critic/scribe)
-  rozšířeni o krok 0 "přečti learnings/<agent>.md" a výstupní sekci "## POZNATEK"; scribe rozšířen o
-  přelévání POZNATEK řádků do `.claude/state/learnings/*.md` (dedupe, limit 40 řádků); flow.md doplněn o sekci 2d;
-  originální README zipu zachováno jako `.claude/FLOW.md` (projektový README.md nepřepsán)
+- poslední dokončený krok: CLAUDE.md upraveno tak, že flow triáž (T0–T4) se aplikuje AUTOMATICKY na
+  každý prompt v tomto repu (ne jen na `/flow <úkol>`) — T0/T1 běží v hlavní session, T2+ plným flow
+  postupem. `.claude/FLOW.md` odpovídajícím způsobem doplněno ("Kdy se aktivuje").
 - rozpracovaný soubor + řádek: žádný — commit a push proběhly
-- další krok: až přijde další netriviální úkol, zvážit `/flow <úkol>` místo přímé práce v main session
+- další krok: na každý další prompt v tomto repu nejdřív přečíst tento stav, provést triáž, teprve pak jednat
 
 ## Mapa poznání (co víme o codebase)
 - src/app/(dashboard)/events/: modul AKCE (produkční hub) — events, event_lineup, event_timeline, vip_reservations, guest_list, event_budget_items
@@ -20,6 +19,7 @@
 - node/npm/vercel CLI nejsou v tomto shellu dostupné — build/dev/deploy nelze ověřit lokálně z téhle session
 
 ## Rozhodnutí (append-only)
+- [2026-07-13] Flow triáž (T0–T4) se aktivuje automaticky na každý prompt v tomto repu, ne jen na explicitní `/flow` — uživatel to tak výslovně chtěl. T0/T1 zůstává v hlavní session (spawn by byl zbytečný náklad), T2+ jede plný postup.
 - [2026-07-13] Zip README (obsahoval instrukce k vložení do CLAUDE.md) NEpřepsal projektový README.md — uložen zvlášť jako `.claude/FLOW.md`, aby se nesmazala existující Next.js dokumentace.
 - [2026-07-13] Sebezlepšování agentů řešeno explicitními git-verzovanými soubory `.claude/state/learnings/<agent>.md` (čitelné, prořezatelné scribem) vedle vestavěné opaque `memory: project` funkce Claude Code — ne náhradou, ale doplňkem.
 - [2026-07-13] Guest list (modul AKCE) rozšířen o odškrtávací příznaky is_vip / is_permanent vedle existujícího typu (guest/press/artist/staff/promoter); rozpočet akce nově má řádkové položky `event_budget_items` importovatelné z Excelu (knihovna `xlsx`, parsování v prohlížeči, server action nahradí celý rozpočet akce).

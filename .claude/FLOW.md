@@ -4,9 +4,10 @@
 > pokud projekt žádný nemá).
 
 ## Kdy se aktivuje
-- Explicitně: příkaz `/flow <úkol>`.
-- Automaticky: u úkolů, které zjevně spadají do T2+ (viz triáž níže), navrhni
-  uživateli spuštění flow režimu.
+- V tomto projektu automaticky na KAŽDÝ prompt (viz `CLAUDE.md` → sekce
+  "Flow systém") — triáž proběhne vždy, spawn týmu jen když to tier
+  odůvodňuje (T2+). Explicitní `/flow <úkol>` zůstává k dispozici, ale
+  není už podmínkou aktivace.
 
 ## Zlaté pravidlo tokenů
 Nejlevnější subagent je ten, který se nespawnul. Spawn má smysl jen když:
