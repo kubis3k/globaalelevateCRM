@@ -36,6 +36,11 @@ yarn-error.log*
 # vercel
 .vercel
 
+# claude flow system — local/ephemeral, not shared state
+/.claude/settings.local.json
+/.claude/agent-memory/
+/.claude/state/token-log/*.json
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
