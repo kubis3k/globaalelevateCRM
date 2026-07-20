@@ -7,7 +7,8 @@ import { usePathname } from 'next/navigation'
 import { Menu, X, LogOut, Bell, ChevronRight, KeyRound } from 'lucide-react'
 import { MODULES } from '@/lib/modules'
 import { cn } from '@/lib/utils'
-import { CollapsibleSidebar, MODULE_ICONS, NAV } from './collapsible-sidebar'
+import { MODULE_ICONS, NAV } from './collapsible-sidebar'
+import { TopNav } from './top-nav'
 import { PushSetupDialog } from './pwa/push-setup-dialog'
 import { ChangePasswordDialog } from './change-password-dialog'
 import { ThemeToggle } from './ui/theme-toggle'
@@ -50,8 +51,6 @@ export function AppShell({
 
   return (
     <div className="flex min-h-dvh bg-background">
-      <CollapsibleSidebar allowedModules={allowedModules} />
-
       {/* Mobile drawer */}
       {mobileOpen && (
         <div className="fixed inset-0 z-50 lg:hidden">
@@ -136,11 +135,17 @@ export function AppShell({
             <Menu className="size-5" />
           </button>
 
-          <h1 className="text-sm font-semibold text-foreground">
+          <Link href="/dashboard" className="hidden shrink-0 lg:block">
+            <Image src="/logo.png" alt="Globaal Elevate" width={110} height={32} className="logo-smart h-8 w-auto object-contain" priority />
+          </Link>
+
+          <h1 className="text-sm font-semibold text-foreground lg:hidden">
             {current?.label ?? 'Globaal Elevate'}
           </h1>
 
-          <div className="ml-auto flex items-center gap-1.5">
+          <TopNav allowedModules={allowedModules} />
+
+          <div className="ml-auto flex shrink-0 items-center gap-1.5">
             <ThemeToggle />
             <DropdownMenu>
               <DropdownMenuTrigger className="flex items-center gap-2 rounded-lg p-1 outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring sm:pr-2">
