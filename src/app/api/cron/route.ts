@@ -170,6 +170,82 @@ async function hrTrainingReminders(admin: any) {
   return { reminded }
 }
 
+const czkFmt = (n: any) => new Intl.NumberFormat('cs-CZ', { style: 'currency', currency: 'CZK', maximumFractionDigits: 0 }).format(Number(n || 0))
+
+async function managersOf(admin: any, tenantId: string): Promise<string[]> {
+  const { data } = await admin.from('tenant_users').select('user_id').eq('tenant_id', tenantId).in('role', ['admin', 'manager'])
+  return (data || []).map((r: any) => r.user_id)
+}
+
+// Denní akviziční digest: prospekti s next_touch_at <= dnes (mimo converted/dead),
+// seskupené dle ownera (bez ownera → management). Jeden souhrnný push (typ crm)
+// na skupinu. Guard digest_notified_at, aby se v rámci dne neopakoval.
+async function prospectDigest(admin: any) {
+  const today = new Date().toISOString().slice(0, 10)
+  const { data: due } = await admin.from('crm_prospects')
+    .select('id, tenant_id, name, score, owner, next_touch_at, status, digest_notified_at')
+    .not('next_touch_at', 'is', null).lte('next_touch_at', today)
+  const pending = (due || []).filter((p: any) => !['converted', 'dead'].includes(p.status) && p.digest_notified_at !== today)
+  if (!pending.length) return { notified: 0 }
+
+  const groups = new Map<string, any[]>()
+  for (const p of pending) {
+    const key = `${p.tenant_id}::${p.owner || ''}`
+    const arr = groups.get(key) || []
+    arr.push(p); groups.set(key, arr)
+  }
+
+  const mgrCache = new Map<string, string[]>()
+  let notified = 0
+  const doneIds: string[] = []
+  for (const [key, list] of groups) {
+    const [tenantId, owner] = key.split('::')
+    let recipients: string[]
+    if (owner) recipients = [owner]
+    else {
+      if (!mgrCache.has(tenantId)) mgrCache.set(tenantId, await managersOf(admin, tenantId))
+      recipients = mgrCache.get(tenantId) as string[]
+    }
+    if (recipients.length) {
+      const top = [...list].sort((a, b) => (b.score || 0) - (a.score || 0)).slice(0, 3).map((p) => p.name)
+      notified += await sendPushToUsers(admin, recipients, 'crm', {
+        title: 'Akvizice — follow-up',
+        body: `Dnes kontaktuj ${list.length} ${list.length === 1 ? 'prospekta' : 'prospektů'} (top: ${top.join(', ')})`,
+        url: '/prospects',
+        tag: `prospect-digest-${key}-${today}`,
+      })
+    }
+    for (const p of list) doneIds.push(p.id)
+  }
+  if (doneIds.length) await admin.from('crm_prospects').update({ digest_notified_at: today }).in('id', doneIds)
+  return { notified }
+}
+
+// Odeslané nabídky bez reakce 7+ dní → připomínka managementu (jednou, guard
+// stale_reminded_at).
+async function staleQuotes(admin: any) {
+  const today = new Date().toISOString().slice(0, 10)
+  const cutoff = new Date(Date.now() - 7 * 86400000).toISOString()
+  const { data: qs } = await admin.from('quotes')
+    .select('id, tenant_id, number, client_name, total, sent_at, stale_reminded_at, status')
+    .eq('status', 'sent').not('sent_at', 'is', null).lte('sent_at', cutoff).is('stale_reminded_at', null)
+  if (!qs?.length) return { reminded: 0 }
+  let reminded = 0
+  for (const q of qs) {
+    const recipients = await managersOf(admin, q.tenant_id)
+    if (recipients.length) {
+      reminded += await sendPushToUsers(admin, recipients, 'crm', {
+        title: 'Nabídka čeká na odpověď',
+        body: `${q.number} — ${q.client_name || 'klient'} · ${czkFmt(q.total)} · 7+ dní bez reakce`,
+        url: '/quotes',
+        tag: `quote-stale-${q.id}`,
+      })
+    }
+    await admin.from('quotes').update({ stale_reminded_at: today }).eq('id', q.id)
+  }
+  return { reminded }
+}
+
 async function run() {
   const admin = createAdminClient()
   const mail = await pollMail(admin)
@@ -177,7 +253,9 @@ async function run() {
   const social = await socialDuePosts(admin)
   const hr = await hrContractReminders(admin)
   const training = await hrTrainingReminders(admin)
-  return { ok: true, mail, crm, social, hr, training }
+  const prospects = await prospectDigest(admin)
+  const quotes = await staleQuotes(admin)
+  return { ok: true, mail, crm, social, hr, training, prospects, quotes }
 }
 
 export async function POST(req: NextRequest) {
