@@ -1,20 +1,29 @@
 import Link from 'next/link'
 import { requireModuleAccess } from '@/lib/supabase/tenant'
+import { getUctoSummary } from '@/lib/ucto'
 import { NoTenantView } from '@/components/ui/no-tenant-view'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { StatCard } from '@/components/ui/stat-card'
 import { EmptyState } from '@/components/ui/empty-state'
-import { DollarSign, FileText, Users, Calendar, ArrowDownLeft, ArrowUpRight, Activity, FolderKanban } from 'lucide-react'
+import { Landmark, Users, ArrowDownLeft, ArrowUpRight, TrendingUp, FileText, FolderKanban, Percent, Unplug } from 'lucide-react'
 import { CashflowChart } from '../finance/cashflow-chart'
 
 const czk = (n: number) =>
-  new Intl.NumberFormat('cs-CZ', { style: 'currency', currency: 'CZK' }).format(n)
+  new Intl.NumberFormat('cs-CZ', { style: 'currency', currency: 'CZK', maximumFractionDigits: 0 }).format(n)
 
 const TF_LABELS = [{ key: 'week', label: 'Týden' }, { key: 'month', label: 'Měsíc' }, { key: 'year', label: 'Rok' }]
 
+// Dashboard: finanční čísla jdou VÝHRADNĚ z účetního systému (ucto), provozní
+// data (cíle, projekty, tým) z work. Jen hlavní ukazatele — žádný balast.
 export default async function DashboardPage() {
   const { supabase, tenantId, allowedModules } = await requireModuleAccess('dashboard')
   if (!tenantId) return <NoTenantView />
+
+  const [ucto, teamResult] = await Promise.all([
+    getUctoSummary(),
+    supabase.from('tenant_users').select('*', { count: 'exact', head: true }).eq('tenant_id', tenantId),
+  ])
+  const teamCount = teamResult.count || 0
 
   const showGoals = allowedModules.includes('milestones')
   const { data: milestones } = showGoals
@@ -25,35 +34,6 @@ export default async function DashboardPage() {
     const avg = items.length ? Math.round(items.reduce((s: number, m: any) => s + (m.progress || 0), 0) / items.length) : 0
     return { ...t, count: items.length, avg }
   })
-
-  const [teamResult, invoicesResult, upcomingTasksResult, transactionsResult] = await Promise.all([
-    supabase.from('tenant_users').select('*', { count: 'exact', head: true }).eq('tenant_id', tenantId),
-    supabase.from('invoices').select('amount, status, type').eq('tenant_id', tenantId),
-    supabase.from('calendar_events').select('*', { count: 'exact', head: true }).eq('tenant_id', tenantId).gte('start_time', new Date().toISOString()),
-    supabase.from('transactions').select('amount, type, date, description, created_at').eq('tenant_id', tenantId).order('date', { ascending: true }),
-  ])
-
-  const teamCount = teamResult.count || 0
-  const invoices = invoicesResult.data || []
-  const upcomingTasks = upcomingTasksResult.count || 0
-  const transactions = transactionsResult.data || []
-
-  const unpaidInvoices = invoices.filter((i: any) => i.status === 'pending' || i.status === 'overdue').length
-  const issued = invoices.filter((i: any) => i.type === 'issued')
-  const received = invoices.filter((i: any) => i.type === 'received')
-  const revenue = issued.filter((i: any) => i.status === 'paid').reduce((a: number, i: any) => a + Number(i.amount || 0), 0)
-  const receivables = issued.filter((i: any) => i.status === 'pending' || i.status === 'overdue').reduce((a: number, i: any) => a + Number(i.amount || 0), 0)
-  const payables = received.filter((i: any) => i.status === 'pending' || i.status === 'overdue').reduce((a: number, i: any) => a + Number(i.amount || 0), 0)
-  const totalIncome = transactions.filter((t: any) => t.type === 'income').reduce((a: number, t: any) => a + Number(t.amount), 0)
-  const totalExpense = transactions.filter((t: any) => t.type === 'expense').reduce((a: number, t: any) => a + Number(t.amount), 0)
-  const balance = totalIncome - totalExpense
-  const recent = [...transactions]
-    .sort((a: any, b: any) =>
-      a.date === b.date
-        ? String(b.created_at ?? '').localeCompare(String(a.created_at ?? ''))
-        : (a.date < b.date ? 1 : -1)
-    )
-    .slice(0, 6)
 
   const showProjects = allowedModules.includes('projects')
   const { data: activeProjects } = showProjects
@@ -69,25 +49,52 @@ export default async function DashboardPage() {
     return { id: p.id, name: p.name, total: t.length, done: d, pct: t.length ? Math.round((d / t.length) * 100) : 0 }
   })
 
+  // Bankovní pohyby účta → tvar pro CashflowChart ({date, type, amount}).
+  const chartData = ucto.connected
+    ? ucto.months.flatMap((m) => [
+        { date: `${m.month}-01`, type: 'income', amount: m.inflow },
+        { date: `${m.month}-01`, type: 'expense', amount: m.outflow },
+      ]).filter((r) => r.amount > 0)
+    : []
+
   return (
     <div className="space-y-6">
       <div className="space-y-0.5">
         <h1 className="text-xl font-semibold tracking-tight text-foreground">Přehled</h1>
-        <p className="text-sm text-muted-foreground">Souhrn klíčových ukazatelů vaší organizace.</p>
+        <p className="text-sm text-muted-foreground">Finanční data z účetnictví · provoz z work.</p>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard title="Zůstatek cash-flow" value={czk(balance)} hint="Dle aktuálních transakcí" tone={balance >= 0 ? 'neutral' : 'negative'} icon={<DollarSign className="size-4" />} />
-        <StatCard title="Nezaplacené faktury" value={String(unpaidInvoices)} hint={unpaidInvoices === 0 ? 'Vše uhrazeno' : 'Vyžaduje pozornost'} icon={<FileText className="size-4" />} />
-        <StatCard title="Aktivní zaměstnanci" value={String(teamCount)} hint="Správa týmu" icon={<Users className="size-4" />} />
-        <StatCard title="Nadcházející úkoly" value={String(upcomingTasks)} hint="V kalendáři" icon={<Calendar className="size-4" />} />
-      </div>
+      {!ucto.connected && (
+        <div className="flex items-start gap-3 rounded-xl border border-warning/40 bg-warning/10 p-4 text-sm">
+          <Unplug className="mt-0.5 size-4 shrink-0 text-warning" />
+          <div>
+            <div className="font-medium text-foreground">Účetnictví není připojeno</div>
+            <div className="text-muted-foreground">{ucto.reason}</div>
+          </div>
+        </div>
+      )}
 
-      <div className="grid gap-4 sm:grid-cols-3">
-        <StatCard title="Tržby (uhrazené faktury)" value={czk(revenue)} tone="positive" hint="Vydané a uhrazené" icon={<ArrowUpRight className="size-4" />} />
-        <StatCard title="Pohledávky" value={czk(receivables)} hint="Neuhrazené vydané faktury" icon={<FileText className="size-4" />} />
-        <StatCard title="Závazky" value={czk(payables)} tone="negative" hint="Neuhrazené přijaté faktury" icon={<ArrowDownLeft className="size-4" />} />
-      </div>
+      {ucto.connected && (
+        <>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <StatCard title="Stav banky" value={czk(ucto.bankBalance)} tone={ucto.bankBalance >= 0 ? 'neutral' : 'negative'} hint="Z bankovních pohybů (účto)" icon={<Landmark className="size-4" />} />
+            <StatCard title="Tržby (rok)" value={czk(ucto.revenueYtd)} tone="positive" hint="Vydané faktury + pokladna" icon={<ArrowUpRight className="size-4" />} />
+            <StatCard title="Náklady (rok)" value={czk(ucto.costsYtd)} tone="negative" hint="Přijaté faktury + pokladna" icon={<ArrowDownLeft className="size-4" />} />
+            <StatCard title="Zisk (rok)" value={czk(ucto.profitYtd)} tone={ucto.profitYtd >= 0 ? 'positive' : 'negative'} hint="Tržby − náklady" icon={<TrendingUp className="size-4" />} />
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <StatCard title="Pohledávky" value={czk(ucto.receivables)} hint={`${ucto.receivablesCount} neuhrazených vydaných`} icon={<FileText className="size-4" />} />
+            <StatCard title="Závazky" value={czk(ucto.payables)} tone={ucto.payables > 0 ? 'negative' : 'neutral'} hint={`${ucto.payablesCount} neuhrazených přijatých`} icon={<FileText className="size-4" />} />
+            {ucto.isVatPayer ? (
+              <StatCard title="DPH k odvodu (Q)" value={czk(ucto.vatDueQuarter || 0)} hint="Běžné čtvrtletí" icon={<Percent className="size-4" />} />
+            ) : (
+              <StatCard title="Obrat 12 měsíců" value={czk(ucto.obrat12m || 0)} hint={`Do limitu DPH zbývá ${czk(ucto.zbyvaDoLimitu || 0)}`} icon={<Percent className="size-4" />} />
+            )}
+            <StatCard title="Aktivní tým" value={String(teamCount)} hint="Členové organizace" icon={<Users className="size-4" />} />
+          </div>
+        </>
+      )}
 
       {showGoals && (
         <Card>
@@ -146,49 +153,17 @@ export default async function DashboardPage() {
         </Card>
       )}
 
-      <div className="grid gap-4 lg:grid-cols-7">
-        <Card className="lg:col-span-4">
+      {ucto.connected && chartData.length > 0 && (
+        <Card>
           <CardHeader>
-            <CardTitle>Cash-flow přehled</CardTitle>
-            <CardDescription>Vývoj kumulativního zůstatku v čase</CardDescription>
+            <CardTitle>Cash-flow (účetnictví)</CardTitle>
+            <CardDescription>Bankovní pohyby za posledních 12 měsíců</CardDescription>
           </CardHeader>
           <CardContent>
-            <CashflowChart data={transactions} />
+            <CashflowChart data={chartData} />
           </CardContent>
         </Card>
-
-        <Card className="lg:col-span-3">
-          <CardHeader>
-            <CardTitle>Poslední transakce</CardTitle>
-            <CardDescription>Nejnovější pohyby na účtu</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {recent.length === 0 ? (
-              <EmptyState icon={Activity} title="Zatím žádné transakce" />
-            ) : (
-              <div className="divide-y divide-border">
-                {recent.map((t: any, i: number) => {
-                  const income = t.type === 'income'
-                  return (
-                    <div key={i} className="flex items-center gap-3 py-2.5 first:pt-0 last:pb-0">
-                      <span className={`flex size-8 shrink-0 items-center justify-center rounded-lg ${income ? 'bg-success/12 text-success' : 'bg-destructive/10 text-destructive'}`}>
-                        {income ? <ArrowUpRight className="size-4" /> : <ArrowDownLeft className="size-4" />}
-                      </span>
-                      <div className="min-w-0 flex-1">
-                        <div className="truncate text-sm font-medium text-foreground">{t.description || (income ? 'Příjem' : 'Výdaj')}</div>
-                        <div className="text-xs text-muted-foreground">{new Date(t.date).toLocaleDateString('cs-CZ')}</div>
-                      </div>
-                      <span className={`shrink-0 text-sm font-semibold tabular-nums ${income ? 'text-success' : 'text-destructive'}`}>
-                        {income ? '+' : '−'}{czk(Number(t.amount))}
-                      </span>
-                    </div>
-                  )
-                })}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+      )}
     </div>
   )
 }

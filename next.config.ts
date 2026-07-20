@@ -9,7 +9,7 @@ const nextConfig: NextConfig = {
     serverActions: { bodySizeLimit: '10mb' },
   },
   // Node-only mail/push libs — don't bundle; require at runtime on the server.
-  serverExternalPackages: ['imapflow', 'nodemailer', 'mailparser', 'web-push'],
+  serverExternalPackages: ['imapflow', 'nodemailer', 'mailparser', 'web-push', 'pg'],
   // esm-potrace-wasm (client-only, lazy) references node 'fs'/'path' in a
   // Node-only guarded branch; stub them so the browser bundle resolves.
   turbopack: {
