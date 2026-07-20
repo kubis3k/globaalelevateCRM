@@ -17,6 +17,7 @@ export const MODULES = [
   { id: 'visualizer', label: 'Vizualizátor', href: '/visualizer', color: '#22d3ee' },
   { id: 'social',    label: 'Sociální sítě', href: '/social',    color: '#2563eb' },
   { id: 'hr',        label: 'HR',        href: '/hr',        color: '#f43f5e' },
+  { id: 'departments', label: 'Oddělení', href: '/departments', color: '#0284c7' },
   { id: 'team',      label: 'Tým',       href: '/team',      color: '#8b5cf6' },
   { id: 'prospects', label: 'Akvizice',  href: '/prospects', color: '#fb7185' },
   { id: 'crm',       label: 'CRM',       href: '/crm',       color: '#06b6d4' },

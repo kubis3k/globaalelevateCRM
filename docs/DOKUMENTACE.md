@@ -206,10 +206,10 @@ Data: `quotes`, `quote_items`, `catalog_items`, `crm_clients`, `invoices`.
 ### 5.3 Finance
 
 #### Finance (`/finance`)
-- Cash-flow v reálném čase — zůstatek, příjmy, výdaje + graf kumulativního vývoje.
-- Ruční správa transakcí (příjem/výdaj) a kategorií.
-- **Import bankovních výpisů z CSV** (parsování + náhled, zápis dávkou, limit 1000 řádků).
-- Transakce mohou být navázané na faktury (`invoice_id`).
+- **Napojeno na účetní systém** (ucto.globaalelevate.com) přes read-only Postgres adaptér `src/lib/ucto.ts` (env `UCTO_DATABASE_URL`, schéma `ucetnictvi`). Účto je autoritativní zdroj finančních čísel.
+- Hlavní KPI z účta: stav banky, tržby/náklady/zisk (rok), pohledávky a závazky (kniha neuhrazených faktur), DPH k odvodu (plátce) / obrat 12 m vůči limitu DPH (neplátce) + cash-flow graf z bankovních pohybů. Bez env proměnné UI zobrazí „Účetnictví není připojeno".
+- Dashboard bere finanční čísla **výhradně z účta**; work data zůstávají pro provoz (cíle, projekty, tým).
+- Provozní evidence (work): ruční transakce, kategorie, **import CSV výpisů** (limit 1000 řádků), vazba na faktury (`invoice_id`) — sekce pod účetním souhrnem.
 
 Akce: `createTransaction`/`updateTransaction`/`deleteTransaction`, `createCategory`/`deleteCategory`, `importTransactions`.
 Data: `transactions`, `transaction_categories`, `invoices`. Propojení faktura→transakce řeší DB trigger `sync_invoice_transaction`.
@@ -294,6 +294,15 @@ Self-service portál zaměstnance (uvnitř dashboardu, **není** to klientský p
 - Kalendář jen s potvrzenými směnami; sekce K potvrzení, Docházka (report odpracování), Otevřené směny („Beru"), Žádost o volno.
 
 Volá přímo HR akce (`setAssignmentStatus`, `requestDecline`, `reportWorked`, `claimOpenShift`, `requestLeave`).
+
+#### Oddělení (`/departments`)
+Chat a úkoly per oddělení (`hr_departments`). Zaměstnanec vidí své oddělení (dle `hr_employees.department_id`), management všechna.
+- **Chat** — zprávy v reálném čase (polling 30 s), autor smaže vlastní, management vše; push členům oddělení.
+- **Úkoly oddělení** — název, popis, termín, priorita, přiřazení (konkrétní člen / celé oddělení), odškrtávání; push přiřazenému či oddělení.
+- Boční panel se členy oddělení (jméno + pozice).
+
+Akce: `sendDepartmentMessage`/`deleteDepartmentMessage`, `createDepartmentTask`/`toggleDepartmentTask`/`deleteDepartmentTask`.
+Data: `department_messages`, `department_tasks`, `hr_departments`, `hr_employees`.
 
 #### Tým (`/team`)
 Správa členů organizace a **custom rolí** (mutace jen admin):
@@ -481,6 +490,7 @@ Endpoint `src/app/api/cron/route.ts` (Node runtime, `maxDuration = 60`), volaný
 | `NEXT_PUBLIC_VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` | Web Push |
 | `ANTHROPIC_API_KEY` | Globaal AI |
 | `PROSPECTS_IMPORT_SECRET` | Bearer token pro import prospektů (`/api/prospects/import`) |
+| `UCTO_DATABASE_URL` | Read-only Postgres connection string účetního systému (schéma `ucetnictvi`) |
 
 > 🔒 Tajné klíče nikdy nepatří do repozitáře — jen do env proměnných na Vercelu/Supabase.
 
