@@ -22,6 +22,12 @@ export async function middleware(request: NextRequest) {
     return NextResponse.rewrite(url)
   }
 
+  // API routes si autorizaci řeší samy (Bearer tokeny u cron/importu, session
+  // v route handlerech). Redirect na /login by rozbil strojová volání (pg_cron).
+  if (request.nextUrl.pathname.startsWith('/api')) {
+    return NextResponse.next()
+  }
+
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL || '',
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '',
