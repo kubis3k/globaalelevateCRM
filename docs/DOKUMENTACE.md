@@ -160,6 +160,18 @@ Read-only agregace. Data: `invoices`, `transactions`, `transaction_categories`, 
 
 ### 5.2 Obchod a CRM
 
+#### Akvizice (`/prospects`)
+Akviziční vrstva **před CRM** — evidence prospektů (scrapnutých/nekvalifikovaných leadů), kadence follow-upů a metriky.
+- **Prospekti** — název, IČO/DIČ (doplnění přes ARES), region, zdroj (mapy/firmy/rejstřík/doporučení/IG/osobní/jiné), kontakty, **skóre 0–15** (badge dle pásma) a **signály** (JSONB — např. pagespeed, pixel, mobil, rok webu).
+- **Kadence follow-upů** — zalogování doteku (kanál + výsledek) automaticky posouvá `next_touch_at`: 1.→+3 dny, 2.→+4, 3.→+7; po 4. bez odpovědi → `nurture` (+90 dní). Odpověď/schůzka kadenci ukončí, odmítnutí → `dead`.
+- **Dnes kontaktovat** — sekce s prospekty po splatnosti doteku, řazená dle skóre.
+- **Konverze** — prospekt → CRM klient + příležitost (`crm_deals`) ve fázi lead; idempotentní.
+- **Import API** — `POST /api/prospects/import` (auth `Authorization: Bearer <PROSPECTS_IMPORT_SECRET>`, bez klíče 503), dávka až 500 záznamů, dedup dle IČO nebo název+region, vrací `{ inserted, skipped }`.
+- **Cron** — denní akviziční digest (prospekti k doteku → push ownerovi/managementu) + hlídač odeslaných nabídek bez reakce 7+ dní.
+
+Akce: `createProspect`/`updateProspect`/`deleteProspect`, `logTouch`, `convertProspectToClient`, `setProspectStatus`, `assignProspectOwner`.
+Data: `crm_prospects`, `crm_prospect_touches`, `crm_clients`, `crm_deals`. Metriky akvizice jsou i v modulu **Reporty** (výtěžnost zdrojů, konverze, leaderboard).
+
 #### CRM (`/crm`)
 - **Přehled** s KPI (klienti, otevřené příležitosti, hodnota pipeline, tržby za rok).
 - **Klienti** (`/crm/clients`, detail `/crm/clients/[id]`): kontaktní údaje, vlastník, kontaktní osoby, aktivity (poznámka/hovor/schůzka/e-mail/úkol s termínem), související faktury.
@@ -468,6 +480,7 @@ Endpoint `src/app/api/cron/route.ts` (Node runtime, `maxDuration = 60`), volaný
 | `CRON_SECRET` | Autorizace cron endpointu |
 | `NEXT_PUBLIC_VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` | Web Push |
 | `ANTHROPIC_API_KEY` | Globaal AI |
+| `PROSPECTS_IMPORT_SECRET` | Bearer token pro import prospektů (`/api/prospects/import`) |
 
 > 🔒 Tajné klíče nikdy nepatří do repozitáře — jen do env proměnných na Vercelu/Supabase.
 

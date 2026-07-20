@@ -4,8 +4,9 @@ import { PageHeader } from '@/components/ui/page-header'
 import { StatCard } from '@/components/ui/stat-card'
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card'
 import { EmptyState } from '@/components/ui/empty-state'
-import { ArrowUpRight, ArrowDownLeft, TrendingUp, Receipt, BarChart3 } from 'lucide-react'
+import { ArrowUpRight, ArrowDownLeft, TrendingUp, Receipt, BarChart3, Magnet, PhoneCall, ArrowRight, Users } from 'lucide-react'
 import { CashflowChart } from '../finance/cashflow-chart'
+import { ProspectsWeeklyChart } from './prospects-weekly-chart'
 
 const czk = (n: number) => new Intl.NumberFormat('cs-CZ', { style: 'currency', currency: 'CZK', maximumFractionDigits: 0 }).format(n)
 
@@ -107,6 +108,81 @@ export default async function ReportsPage() {
   const staffCount = (staffRes as any).count || 0
   const hasOps = allowedModules.includes('events') || allowedModules.includes('social') || allowedModules.includes('hr')
 
+  // ── Akvizice (jen s přístupem k modulu prospects) ────────────────────────
+  const hasProspects = allowedModules.includes('prospects')
+  const PROSPECT_SRC = [
+    { key: 'maps', label: 'Mapy', color: 'var(--chart-1)' },
+    { key: 'firmy', label: 'Firmy.cz', color: 'var(--chart-2)' },
+    { key: 'rejstrik', label: 'Rejstřík', color: 'var(--chart-3)' },
+    { key: 'referral', label: 'Doporučení', color: 'var(--chart-4)' },
+    { key: 'ig', label: 'Instagram', color: 'var(--chart-5)' },
+    { key: 'osobni', label: 'Osobní', color: '#f59e0b' },
+    { key: 'jine', label: 'Jiné', color: '#94a3b8' },
+  ]
+  let prosp: any = null
+  if (hasProspects) {
+    const monthAgo = new Date(Date.now() - 30 * 86400000).toISOString()
+    const [pRes, tRes] = await Promise.all([
+      supabase.from('crm_prospects').select('id, source, status, owner, converted_client_id, created_at, updated_at').eq('tenant_id', tenantId).gte('created_at', yearStart),
+      supabase.from('crm_prospect_touches').select('prospect_id, outcome, created_by, created_at').eq('tenant_id', tenantId).gte('created_at', yearStart),
+    ])
+    const ps = pRes.data ?? []
+    const ts = tRes.data ?? []
+    const isConv = (p: any) => p.status === 'converted' || !!p.converted_client_id
+
+    const repliedSet = new Set(ts.filter((t: any) => t.outcome === 'replied' || t.outcome === 'meeting').map((t: any) => t.prospect_id))
+
+    // Průměrný počet doteků do první odpovědi
+    const byProspect = new Map<string, any[]>()
+    for (const t of ts) { const a = byProspect.get(t.prospect_id) || []; a.push(t); byProspect.set(t.prospect_id, a) }
+    let sumTouches = 0, repliedProspects = 0
+    for (const [, list] of byProspect) {
+      const sorted = [...list].sort((a, b) => (a.created_at < b.created_at ? -1 : 1))
+      const idx = sorted.findIndex((t) => t.outcome === 'replied' || t.outcome === 'meeting')
+      if (idx >= 0) { sumTouches += idx + 1; repliedProspects++ }
+    }
+
+    const convertedCount = ps.filter(isConv).length
+    const sourceRows = PROSPECT_SRC.map((s) => {
+      const list = ps.filter((p: any) => p.source === s.key)
+      const count = list.length
+      const replied = list.filter((p: any) => repliedSet.has(p.id)).length
+      const converted = list.filter(isConv).length
+      return { key: s.key, label: s.label, count, repliedPct: count ? Math.round((replied / count) * 100) : 0, convertedPct: count ? Math.round((converted / count) * 100) : 0 }
+    }).filter((r) => r.count > 0).sort((a, b) => b.count - a.count)
+
+    // Noví po týdnech (12 týdnů) dle zdroje
+    const weeks: any[] = []
+    for (let i = 11; i >= 0; i--) {
+      const end = new Date(Date.now() - i * 7 * 86400000)
+      const start = new Date(Date.now() - (i + 1) * 7 * 86400000)
+      const row: any = { week: end.toLocaleDateString('cs-CZ', { day: 'numeric', month: 'numeric' }), _s: start.toISOString(), _e: end.toISOString() }
+      PROSPECT_SRC.forEach((s) => (row[s.key] = 0))
+      weeks.push(row)
+    }
+    for (const p of ps) {
+      for (const w of weeks) { if (p.created_at > w._s && p.created_at <= w._e) { w[p.source] = (w[p.source] || 0) + 1; break } }
+    }
+
+    // Leaderboard 30 dní
+    const touchByUser = new Map<string, number>()
+    for (const t of ts) { if (t.created_at >= monthAgo && t.created_by) touchByUser.set(t.created_by, (touchByUser.get(t.created_by) || 0) + 1) }
+    const convByUser = new Map<string, number>()
+    for (const p of ps) { if (isConv(p) && p.owner && (p.updated_at || '') >= monthAgo) convByUser.set(p.owner, (convByUser.get(p.owner) || 0) + 1) }
+    const leaderIds = [...new Set([...touchByUser.keys(), ...convByUser.keys()])]
+    const { data: leaderProfiles } = leaderIds.length ? await supabase.from('profiles').select('id, username, full_name').in('id', leaderIds) : { data: [] as any[] }
+    const nameOf = (id: string) => { const p = (leaderProfiles ?? []).find((x: any) => x.id === id); return p?.full_name || p?.username || id.slice(0, 8) }
+    const leaderboard = leaderIds.map((id) => ({ id, name: nameOf(id), touches: touchByUser.get(id) || 0, conv: convByUser.get(id) || 0 }))
+      .sort((a, b) => b.touches - a.touches || b.conv - a.conv).slice(0, 8)
+
+    prosp = {
+      newProspects: ps.length, totalTouches: ts.length, convertedCount,
+      conversionRate: ps.length ? Math.round((convertedCount / ps.length) * 100) : 0,
+      avgToReply: repliedProspects ? sumTouches / repliedProspects : 0,
+      sourceRows, weeks, leaderboard, series: PROSPECT_SRC,
+    }
+  }
+
   return (
     <div className="space-y-6">
       <PageHeader title="Reporty" description={`Analýzy a souhrny za rok ${year}.`} />
@@ -185,6 +261,61 @@ export default async function ReportsPage() {
           </Card>
         )}
       </div>
+
+      {hasProspects && prosp && (
+        <div className="space-y-4">
+          <h2 className="text-lg font-semibold text-foreground">Akvizice</h2>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <StatCard title="Noví prospekti" value={String(prosp.newProspects)} hint={`Za rok ${year}`} icon={<Magnet className="size-4" />} />
+            <StatCard title="Doteků celkem" value={String(prosp.totalTouches)} hint="Oslovení a follow-upy" icon={<PhoneCall className="size-4" />} />
+            <StatCard title="Konverze" value={`${prosp.conversionRate} %`} tone="positive" hint={`${prosp.convertedCount} → klient`} icon={<ArrowRight className="size-4" />} />
+            <StatCard title="Doteků do odpovědi" value={prosp.avgToReply.toLocaleString('cs-CZ', { maximumFractionDigits: 1 })} hint="Průměr" icon={<TrendingUp className="size-4" />} />
+          </div>
+          <div className="grid gap-4 lg:grid-cols-2">
+            <Card>
+              <CardHeader><CardTitle>Noví prospekti po týdnech</CardTitle><CardDescription>Posledních 12 týdnů dle zdroje</CardDescription></CardHeader>
+              <CardContent><ProspectsWeeklyChart data={prosp.weeks} series={prosp.series} /></CardContent>
+            </Card>
+            <Card>
+              <CardHeader><CardTitle>Výtěžnost zdrojů</CardTitle><CardDescription>Který kanál živit</CardDescription></CardHeader>
+              <CardContent>
+                {prosp.sourceRows.length === 0 ? <EmptyState icon={BarChart3} title="Žádní prospekti" /> : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead><tr className="text-left text-xs text-muted-foreground"><th className="pb-2 font-medium">Zdroj</th><th className="pb-2 text-right font-medium">Počet</th><th className="pb-2 text-right font-medium">% odpovědí</th><th className="pb-2 text-right font-medium">% konverzí</th></tr></thead>
+                      <tbody>
+                        {prosp.sourceRows.map((r: any) => (
+                          <tr key={r.key} className="border-t border-border">
+                            <td className="py-1.5 text-foreground">{r.label}</td>
+                            <td className="py-1.5 text-right tabular-nums text-foreground">{r.count}</td>
+                            <td className="py-1.5 text-right tabular-nums text-muted-foreground">{r.repliedPct} %</td>
+                            <td className="py-1.5 text-right tabular-nums text-muted-foreground">{r.convertedPct} %</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+          <Card>
+            <CardHeader><CardTitle>Leaderboard akvizice</CardTitle><CardDescription>Doteky a konverze za posledních 30 dní</CardDescription></CardHeader>
+            <CardContent>
+              {prosp.leaderboard.length === 0 ? <EmptyState icon={Users} title="Žádná aktivita" /> : (
+                <div className="space-y-2">
+                  {prosp.leaderboard.map((l: any) => (
+                    <div key={l.id} className="flex items-center justify-between gap-3 rounded-lg border border-border px-3 py-2 text-sm">
+                      <span className="font-medium text-foreground">{l.name}</span>
+                      <span className="text-muted-foreground">{l.touches} doteků · <span className="text-foreground">{l.conv} konverzí</span></span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
     </div>
   )
 }
