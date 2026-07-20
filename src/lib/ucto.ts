@@ -2,9 +2,11 @@ import 'server-only'
 
 // ─────────────────────────────────────────────────────────────────────────
 // Read-only adaptér na účetní systém (ucto.globaalelevate.com).
-// Připojuje se přímo na jeho Postgres (env UCTO_DATABASE_URL), schéma
-// `ucetnictvi` (viz repo ucetnictvi/db/001_schema.sql). Účto je autoritativní
-// zdroj finančních čísel — dashboard/Finance z něj čtou jen souhrn.
+// Připojuje se přímo na jeho Postgres (env UCTO_DATABASE_URL, Neon).
+// POZOR: nasazená webová verze má tabulky ve schématu `public` a používá
+// SQLite-styl typů (datumy jako ISO text, booleany jako 0/1) — dotazy tomu
+// odpovídají (texty se porovnávají lexikálně, což pro ISO datumy funguje).
+// Účto je autoritativní zdroj finančních čísel; work z něj čte jen souhrn.
 // Bez env proměnné (nebo při chybě) vrací { connected: false } a UI to řekne.
 // ─────────────────────────────────────────────────────────────────────────
 
@@ -15,14 +17,14 @@ export type UctoSummary = {
   revenueYtd: number      // tržby (faktury vydané + pokladní příjmy) od začátku roku
   costsYtd: number        // náklady (faktury přijaté + pokladní výdaje) od začátku roku
   profitYtd: number
-  receivables: number     // neuhrazené vydané faktury (kniha pohledávek)
+  receivables: number     // neuhrazené vydané faktury
   receivablesCount: number
-  payables: number        // neuhrazené přijaté faktury (kniha závazků)
+  payables: number        // neuhrazené přijaté faktury
   payablesCount: number
   bankBalance: number     // součet bankovních pohybů
   isVatPayer: boolean
   vatDueQuarter: number | null   // DPH k odvodu za běžné čtvrtletí (jen plátce)
-  obrat12m: number | null        // obrat 12 měsíců (neplátce — sledování limitu)
+  obrat12m: number | null        // obrat 12 měsíců (neplátce — sledování limitu 2 mil.)
   zbyvaDoLimitu: number | null
   months: { month: string; inflow: number; outflow: number }[]  // bankovní pohyby po měsících (12 m)
 }
@@ -50,6 +52,8 @@ function getPool(): Pool | null {
 let cache: { at: number; data: UctoResult } | null = null
 const CACHE_MS = 5 * 60_000
 
+const iso = (d: Date) => d.toISOString().slice(0, 10)
+
 export async function getUctoSummary(): Promise<UctoResult> {
   if (cache && Date.now() - cache.at < CACHE_MS && cache.data.connected) return cache.data
 
@@ -57,46 +61,65 @@ export async function getUctoSummary(): Promise<UctoResult> {
   if (!pool) return { connected: false, reason: 'Chybí UCTO_DATABASE_URL — přidej ji do env proměnných na Vercelu.' }
 
   try {
-    const yearStart = `${new Date().getFullYear()}-01-01`
+    const now = new Date()
+    const yearStart = `${now.getFullYear()}-01-01`
+    const twelveMonthsAgo = iso(new Date(now.getFullYear() - 1, now.getMonth(), now.getDate()))
+    const quarterStart = iso(new Date(now.getFullYear(), Math.floor(now.getMonth() / 3) * 3, 1))
 
     const [kpi, unpaid, bank, monthsRes, unit, vat, obrat] = await Promise.all([
       pool.query(
         `SELECT
            COALESCE(SUM(total_amount) FILTER (WHERE doc_type IN ('faktura_vydana','pokladni_prijem') AND issue_date >= $1), 0) AS revenue,
            COALESCE(SUM(total_amount) FILTER (WHERE doc_type IN ('faktura_prijata','pokladni_vydej') AND issue_date >= $1), 0) AS costs
-         FROM ucetnictvi.document
+         FROM document
          WHERE status <> 'stornovany'`,
         [yearStart],
       ),
+      // Kniha pohledávek a závazků — neuhrazené = bez spárované bankovní platby
+      // a bez zaplacené online platby (Stripe).
       pool.query(
-        `SELECT doc_type, COALESCE(SUM(total_amount), 0) AS total, COUNT(*)::int AS cnt
-         FROM ucetnictvi.v_kniha_pohledavky_zavazky
-         GROUP BY doc_type`,
+        `SELECT d.doc_type, COALESCE(SUM(d.total_amount), 0) AS total, COUNT(*)::int AS cnt
+         FROM document d
+         WHERE d.doc_type IN ('faktura_vydana','faktura_prijata')
+           AND d.status <> 'stornovany'
+           AND NOT EXISTS (SELECT 1 FROM bank_statement_line b WHERE b.matched_document_id = d.id)
+           AND NOT EXISTS (SELECT 1 FROM invoice_payment p WHERE p.document_id = d.id AND p.status = 'paid')
+         GROUP BY d.doc_type`,
       ),
-      pool.query(`SELECT COALESCE(SUM(amount), 0) AS balance FROM ucetnictvi.bank_statement_line`),
+      pool.query(`SELECT COALESCE(SUM(amount), 0) AS balance FROM bank_statement_line`),
+      // statement_date je ISO text → měsíc přes substr.
       pool.query(
-        `SELECT to_char(statement_date, 'YYYY-MM') AS month,
+        `SELECT substr(statement_date, 1, 7) AS month,
                 COALESCE(SUM(amount) FILTER (WHERE amount > 0), 0) AS inflow,
                 COALESCE(SUM(-amount) FILTER (WHERE amount < 0), 0) AS outflow
-         FROM ucetnictvi.bank_statement_line
-         WHERE statement_date >= (CURRENT_DATE - INTERVAL '12 months')
+         FROM bank_statement_line
+         WHERE statement_date >= $1
          GROUP BY 1 ORDER BY 1`,
+        [twelveMonthsAgo],
       ),
-      pool.query(`SELECT is_vat_payer FROM ucetnictvi.accounting_unit ORDER BY id LIMIT 1`),
+      pool.query(`SELECT is_vat_payer FROM accounting_unit ORDER BY id LIMIT 1`),
       pool.query(
         `SELECT COALESCE(SUM(vat_amount) FILTER (WHERE direction = 'uskutecnene'), 0)
               - COALESCE(SUM(vat_amount) FILTER (WHERE direction = 'prijate'), 0) AS vat_due
-         FROM ucetnictvi.vat_ledger_entry
-         WHERE duzp >= date_trunc('quarter', CURRENT_DATE)`,
+         FROM vat_ledger_entry
+         WHERE duzp >= $1`,
+        [quarterStart],
       ),
-      pool.query(`SELECT obrat_12m, zbyva_do_limitu FROM ucetnictvi.v_obrat_12m LIMIT 1`),
+      // Obrat 12 po sobě jdoucích měsíců vůči limitu povinné registrace k DPH.
+      pool.query(
+        `SELECT COALESCE(SUM(total_amount), 0) AS obrat
+         FROM document
+         WHERE doc_type = 'faktura_vydana' AND status <> 'stornovany' AND issue_date >= $1`,
+        [twelveMonthsAgo],
+      ),
     ])
 
     const revenueYtd = Number(kpi.rows[0]?.revenue || 0)
     const costsYtd = Number(kpi.rows[0]?.costs || 0)
     const rec = unpaid.rows.find((r: any) => r.doc_type === 'faktura_vydana')
     const pay = unpaid.rows.find((r: any) => r.doc_type === 'faktura_prijata')
-    const isVatPayer = !!unit.rows[0]?.is_vat_payer
+    const isVatPayer = Number(unit.rows[0]?.is_vat_payer || 0) === 1
+    const obrat12m = Number(obrat.rows[0]?.obrat || 0)
 
     const data: UctoSummary = {
       connected: true,
@@ -110,8 +133,8 @@ export async function getUctoSummary(): Promise<UctoResult> {
       bankBalance: Number(bank.rows[0]?.balance || 0),
       isVatPayer,
       vatDueQuarter: isVatPayer ? Number(vat.rows[0]?.vat_due || 0) : null,
-      obrat12m: obrat.rows[0] ? Number(obrat.rows[0].obrat_12m || 0) : 0,
-      zbyvaDoLimitu: obrat.rows[0] ? Number(obrat.rows[0].zbyva_do_limitu || 0) : 2_000_000,
+      obrat12m,
+      zbyvaDoLimitu: Math.max(0, 2_000_000 - obrat12m),
       months: monthsRes.rows.map((r: any) => ({ month: r.month, inflow: Number(r.inflow), outflow: Number(r.outflow) })),
     }
     cache = { at: Date.now(), data }
