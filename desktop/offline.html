@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="cs">
+<head>
+  <meta charset="utf-8" />
+  <title>Globaal Elevate Work — offline</title>
+  <style>
+    :root { color-scheme: light dark; }
+    body {
+      margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center;
+      font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+      background: #f7f7f8; color: #18181b;
+    }
+    @media (prefers-color-scheme: dark) { body { background: #09090b; color: #fafafa; } }
+    .card { text-align: center; padding: 3rem 2.5rem; max-width: 26rem; }
+    .icon { font-size: 2.5rem; margin-bottom: 1rem; }
+    h1 { font-size: 1.15rem; margin: 0 0 .4rem; }
+    p { font-size: .9rem; opacity: .7; margin: 0 0 1.5rem; line-height: 1.5; }
+    button {
+      font: inherit; font-weight: 600; padding: .6rem 1.6rem; border-radius: .6rem;
+      border: none; background: #6366f1; color: #fff; cursor: pointer;
+    }
+    button:hover { background: #4f46e5; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="icon">📡</div>
+    <h1>Nejste připojeni</h1>
+    <p>Aplikace Globaal Elevate Work potřebuje připojení k internetu. Zkontrolujte síť a zkuste to znovu.</p>
+    <button onclick="window.location.href='https://work.globaalelevate.com'">Zkusit znovu</button>
+  </div>
+</body>
+</html>
