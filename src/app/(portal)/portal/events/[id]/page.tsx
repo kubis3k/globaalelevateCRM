@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { EmptyState } from '@/components/ui/empty-state'
 import { ArrowLeft, CalendarDays, Clock, MapPin, Music, ListOrdered } from 'lucide-react'
-import { getPortalScope } from '../../scope'
+import { getPortalScope, getHiddenIds } from '../../scope'
 
 const STATUS: Record<string, { label: string; variant: 'secondary' | 'info' | 'success' | 'destructive' }> = {
   planning: { label: 'Plánování', variant: 'secondary' },
@@ -14,14 +14,18 @@ const STATUS: Record<string, { label: string; variant: 'secondary' | 'info' | 's
 }
 const hm = (t: string | null) => (t ? String(t).slice(0, 5) : null)
 
+// Auto-share: viditelné, pokud event.client_id patří přihlášenému klientovi
+// a nebylo výjimečně skryto (portal_visibility_overrides).
 export default async function PortalEventDetail({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const { supabase, user } = await getPortalScope()
+  const { supabase, tenantId, clientId } = await getPortalScope()
+  if (!clientId) notFound()
 
-  const { data: acc } = await supabase.from('portal_event_access').select('event_id').eq('user_id', user.id).eq('event_id', id).maybeSingle()
-  if (!acc) notFound()
-  const { data: event } = await supabase.from('events').select('*').eq('id', id).maybeSingle()
-  if (!event) notFound()
+  const { data: event } = await supabase.from('events').select('*').eq('id', id).eq('tenant_id', tenantId).maybeSingle()
+  if (!event || event.client_id !== clientId) notFound()
+
+  const hidden = await getHiddenIds(supabase, clientId, 'event')
+  if (hidden.has(event.id)) notFound()
 
   const [{ data: lineup }, { data: timeline }] = await Promise.all([
     supabase.from('event_lineup').select('artist, slot_start, slot_end, status, sort').eq('event_id', id).order('sort', { ascending: true }),

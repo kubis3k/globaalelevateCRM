@@ -32,6 +32,7 @@ function eventRow(fd: FormData) {
     location: str(fd, 'location'),
     capacity: numOrNull(fd, 'capacity'),
     client: str(fd, 'client'),
+    client_id: opt(fd, 'clientId'),
     status: str(fd, 'status') || 'planning',
     budget: numOrNull(fd, 'budget'),
     tech_notes: str(fd, 'techNotes'),

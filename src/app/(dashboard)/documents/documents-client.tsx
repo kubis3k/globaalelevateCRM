@@ -26,9 +26,11 @@ const fmtBytes = (n: number | null) => {
 type Doc = {
   id: string; name: string; category: string; source: string; source_ref: string | null
   file_size: number | null; created_at: string; uploaded_by: string | null; uploader_name: string
+  client_id: string | null; client_name: string | null
 }
+type Opt = { id: string; name: string }
 
-export function DocumentsClient({ documents, currentUserId, canManage }: { documents: Doc[]; currentUserId: string; canManage: boolean }) {
+export function DocumentsClient({ documents, clients, currentUserId, canManage }: { documents: Doc[]; clients: Opt[]; currentUserId: string; canManage: boolean }) {
   const [showUpload, setShowUpload] = useState(false)
   const [filter, setFilter] = useState('all')
   const [isPending, startTransition] = useTransition()
@@ -77,6 +79,7 @@ export function DocumentsClient({ documents, currentUserId, canManage }: { docum
               <TableRow>
                 <TableHead>Název</TableHead>
                 <TableHead>Kategorie</TableHead>
+                <TableHead>Klient</TableHead>
                 <TableHead>Zdroj</TableHead>
                 <TableHead className="text-right">Velikost</TableHead>
                 <TableHead>Nahrál</TableHead>
@@ -93,6 +96,7 @@ export function DocumentsClient({ documents, currentUserId, canManage }: { docum
                       <span title={d.source_ref || undefined}>{d.name}</span>
                     </TableCell>
                     <TableCell><Badge variant="secondary">{DOC_CATEGORIES[d.category] || d.category}</Badge></TableCell>
+                    <TableCell>{d.client_name ? <Badge variant="info">{d.client_name}</Badge> : <span className="text-muted-foreground">—</span>}</TableCell>
                     <TableCell>
                       {d.source === 'mail'
                         ? <Badge variant="outline" className="gap-1 text-[11px]"><Mail className="size-3" />Z pošty</Badge>
@@ -115,12 +119,12 @@ export function DocumentsClient({ documents, currentUserId, canManage }: { docum
         )}
       </div>
 
-      {showUpload && <UploadDialog onClose={() => setShowUpload(false)} />}
+      {showUpload && <UploadDialog clients={clients} onClose={() => setShowUpload(false)} />}
     </div>
   )
 }
 
-function UploadDialog({ onClose }: { onClose: () => void }) {
+function UploadDialog({ clients, onClose }: { clients: Opt[]; onClose: () => void }) {
   const [pending, startTransition] = useTransition()
   function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -155,6 +159,13 @@ function UploadDialog({ onClose }: { onClose: () => void }) {
           <div className="space-y-1.5">
             <Label className="text-xs text-muted-foreground">Popis (volitelné)</Label>
             <Input name="description" placeholder="Krátká poznámka" />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs text-muted-foreground">Klient (volitelné — sdílí se automaticky v portálu)</Label>
+            <select name="clientId" defaultValue="none" className={selectClass}>
+              <option value="none">— interní, nikomu se nesdílí —</option>
+              {clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
           </div>
           <div className="space-y-1.5">
             <Label className="text-xs text-muted-foreground">Soubor</Label>

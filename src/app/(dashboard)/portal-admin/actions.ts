@@ -70,27 +70,20 @@ export async function setPortalClient(userId: string, clientId: string | null): 
   revalidatePath('/portal-admin'); return {}
 }
 
-export async function setEventAccess(userId: string, eventId: string, grant: boolean): Promise<{ error?: string }> {
+// Auto-share model: vše s client_id = klientovi se zobrazí automaticky.
+// Tady se řeší jen výjimka — skrytí/odkrytí jednotlivé položky.
+export async function togglePortalVisibility(
+  clientId: string, itemType: 'event' | 'document' | 'contract' | 'deliverable', itemId: string, hidden: boolean,
+): Promise<{ error?: string }> {
   const c = await getCtx(); if ('error' in c) return c
-  if (grant) {
-    const { error } = await c.admin.from('portal_event_access').upsert(
-      { tenant_id: c.tenantId, user_id: userId, event_id: eventId }, { onConflict: 'user_id,event_id' })
+  if (hidden) {
+    const { error } = await c.admin.from('portal_visibility_overrides').upsert(
+      { tenant_id: c.tenantId, client_id: clientId, item_type: itemType, item_id: itemId, created_by: c.userId },
+      { onConflict: 'client_id,item_type,item_id' })
     if (error) return { error: error.message }
   } else {
-    const { error } = await c.admin.from('portal_event_access').delete().eq('user_id', userId).eq('event_id', eventId).eq('tenant_id', c.tenantId)
-    if (error) return { error: error.message }
-  }
-  revalidatePath('/portal-admin'); return {}
-}
-
-export async function setDocumentAccess(userId: string, documentId: string, grant: boolean): Promise<{ error?: string }> {
-  const c = await getCtx(); if ('error' in c) return c
-  if (grant) {
-    const { error } = await c.admin.from('portal_document_access').upsert(
-      { tenant_id: c.tenantId, user_id: userId, document_id: documentId }, { onConflict: 'user_id,document_id' })
-    if (error) return { error: error.message }
-  } else {
-    const { error } = await c.admin.from('portal_document_access').delete().eq('user_id', userId).eq('document_id', documentId).eq('tenant_id', c.tenantId)
+    const { error } = await c.admin.from('portal_visibility_overrides')
+      .delete().eq('client_id', clientId).eq('item_type', itemType).eq('item_id', itemId).eq('tenant_id', c.tenantId)
     if (error) return { error: error.message }
   }
   revalidatePath('/portal-admin'); return {}

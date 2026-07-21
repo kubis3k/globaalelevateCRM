@@ -4,7 +4,7 @@ import { StatCard } from '@/components/ui/stat-card'
 import { Badge } from '@/components/ui/badge'
 import { EmptyState } from '@/components/ui/empty-state'
 import { PartyPopper, CalendarDays, MapPin, FileText, FolderOpen, ArrowRight, Clock } from 'lucide-react'
-import { getPortalScope } from './scope'
+import { getPortalScope, getHiddenIds } from './scope'
 
 const czk = (n: number, c = 'CZK') => new Intl.NumberFormat('cs-CZ', { style: 'currency', currency: c, maximumFractionDigits: 0 }).format(n)
 const STATUS: Record<string, { label: string; variant: 'secondary' | 'info' | 'success' | 'destructive' }> = {
@@ -15,28 +15,33 @@ const STATUS: Record<string, { label: string; variant: 'secondary' | 'info' | 's
 }
 const hm = (t: string | null) => (t ? String(t).slice(0, 5) : null)
 
+// Auto-share: vše navázané na client_id klienta se zobrazí automaticky
+// (minus výjimečné skrytí adminem přes portal_visibility_overrides).
 export default async function PortalHomePage() {
-  const { supabase, user, tenantId, access, clientId } = await getPortalScope()
+  const { supabase, tenantId, access, clientId } = await getPortalScope()
   const today = new Date().toISOString().slice(0, 10)
 
-  const { data: links } = await supabase.from('portal_event_access').select('event_id').eq('user_id', user.id)
-  const eventIds = (links ?? []).map((l: any) => l.event_id)
-  const [{ data: events }, { data: invoices }, { data: docLinks }] = await Promise.all([
-    eventIds.length
-      ? supabase.from('events').select('id, name, event_date, doors_time, start_time, location, status, description').in('id', eventIds).order('event_date', { ascending: true })
+  const [{ data: events }, { data: invoices }, hiddenEventIds, { data: docs }, hiddenDocIds] = await Promise.all([
+    clientId
+      ? supabase.from('events').select('id, name, event_date, doors_time, start_time, location, status, description').eq('tenant_id', tenantId).eq('client_id', clientId).order('event_date', { ascending: true })
       : Promise.resolve({ data: [] as any[] }),
     clientId
       ? supabase.from('invoices').select('amount, currency, status').eq('tenant_id', tenantId).eq('client_id', clientId).eq('type', 'issued')
       : Promise.resolve({ data: [] as any[] }),
-    supabase.from('portal_document_access').select('document_id').eq('user_id', user.id),
+    clientId ? getHiddenIds(supabase, clientId, 'event') : Promise.resolve(new Set<string>()),
+    clientId
+      ? supabase.from('documents').select('id').eq('tenant_id', tenantId).eq('client_id', clientId)
+      : Promise.resolve({ data: [] as any[] }),
+    clientId ? getHiddenIds(supabase, clientId, 'document') : Promise.resolve(new Set<string>()),
   ])
 
-  const evs = events ?? []
+  const evs = (events ?? []).filter((e: any) => !hiddenEventIds.has(e.id))
   const upcoming = evs.filter((e: any) => !e.event_date || e.event_date >= today)
   const next = upcoming[0]
   const unpaid = (invoices ?? []).filter((i: any) => i.status === 'pending' || i.status === 'overdue')
   const unpaidAmount = unpaid.reduce((a: number, i: any) => a + Number(i.amount || 0), 0)
   const daysTo = next?.event_date ? Math.round((new Date(next.event_date).getTime() - Date.now()) / 864e5) : null
+  const docTotal = (docs ?? []).filter((d: any) => !hiddenDocIds.has(d.id)).length
 
   return (
     <div className="space-y-6">
@@ -48,7 +53,7 @@ export default async function PortalHomePage() {
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <StatCard title="Nadcházející akce" value={String(upcoming.length)} hint={`${evs.length} celkem`} icon={<PartyPopper className="size-4" />} />
         <StatCard title="Nezaplacené faktury" value={String(unpaid.length)} hint={unpaid.length ? czk(unpaidAmount) : 'Vše uhrazeno'} tone={unpaid.length ? 'negative' : 'positive'} icon={<FileText className="size-4" />} />
-        <StatCard title="Dokumenty" value={String((docLinks ?? []).length)} hint="Sdílené s vámi" icon={<FolderOpen className="size-4" />} />
+        <StatCard title="Dokumenty" value={String(docTotal)} hint="Sdílené s vámi" icon={<FolderOpen className="size-4" />} />
       </div>
 
       {next && (

@@ -25,6 +25,8 @@ export async function uploadDocument(formData: FormData): Promise<{ error?: stri
   if (!file || file.size === 0) return { error: 'Vyberte soubor.' }
   if (file.size > MAX_DOCUMENT_BYTES) return { error: 'Soubor je větší než 25 MB.' }
 
+  const clientId = ((formData.get('clientId') as string) || '').trim()
+
   const res = await storeDocument(c.admin, {
     tenantId: c.tenantId,
     uploadedBy: c.userId,
@@ -35,6 +37,7 @@ export async function uploadDocument(formData: FormData): Promise<{ error?: stri
     size: file.size,
     source: 'upload',
     sourceRef: ((formData.get('description') as string) || '').trim() || null,
+    clientId: clientId && clientId !== 'none' ? clientId : null,
   })
   if (res.error) return { error: res.error }
   revalidatePath('/documents')
@@ -62,7 +65,7 @@ export async function createUploadUrl(name: string): Promise<{ path?: string; to
   return { path: data.path, token: data.token }
 }
 
-export async function finalizeUpload(input: { path: string; name: string; contentType?: string; size?: number | null; category?: string; sourceRef?: string }): Promise<{ id?: string; error?: string }> {
+export async function finalizeUpload(input: { path: string; name: string; contentType?: string; size?: number | null; category?: string; sourceRef?: string; clientId?: string | null }): Promise<{ id?: string; error?: string }> {
   const c = await getCtx(); if ('error' in c) return { error: c.error }
   if (!input.path.startsWith(`${c.tenantId}/`)) return { error: 'Neplatná cesta.' }
   const { data, error } = await c.admin.from('documents').insert({
@@ -75,6 +78,7 @@ export async function finalizeUpload(input: { path: string; name: string; conten
     source: 'upload',
     source_ref: input.sourceRef || null,
     uploaded_by: c.userId,
+    client_id: input.clientId || null,
   }).select('id').single()
   if (error) { try { await c.admin.storage.from(DOCUMENTS_BUCKET).remove([input.path]) } catch { } ; return { error: error.message } }
   revalidatePath('/documents')

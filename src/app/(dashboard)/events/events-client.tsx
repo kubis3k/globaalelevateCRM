@@ -22,7 +22,9 @@ const czk = (n: number) => new Intl.NumberFormat('cs-CZ', { style: 'currency', c
 const t5 = (t: any) => (t ? String(t).slice(0, 5) : '')
 const fmtDate = (d: string | null) => d ? new Date(d).toLocaleDateString('cs-CZ', { weekday: 'short', day: 'numeric', month: 'numeric', year: 'numeric' }) : 'bez data'
 
-export function EventsClient({ events, canManage }: { events: any[]; canManage: boolean }) {
+type Opt = { id: string; name: string }
+
+export function EventsClient({ events, clients, canManage }: { events: any[]; clients: Opt[]; canManage: boolean }) {
   const [dialog, setDialog] = useState<{ open: boolean; event: any | null }>({ open: false, event: null })
   const [pending, startTransition] = useTransition()
 
@@ -73,12 +75,12 @@ export function EventsClient({ events, canManage }: { events: any[]; canManage: 
         </div>
       )}
 
-      {dialog.open && canManage && <EventDialog event={dialog.event} onClose={() => setDialog({ open: false, event: null })} />}
+      {dialog.open && canManage && <EventDialog event={dialog.event} clients={clients} onClose={() => setDialog({ open: false, event: null })} />}
     </div>
   )
 }
 
-export function EventDialog({ event, onClose }: { event: any | null; onClose: () => void }) {
+export function EventDialog({ event, clients, onClose }: { event: any | null; clients: Opt[]; onClose: () => void }) {
   const [pending, startTransition] = useTransition()
   const isEdit = !!event
   function onSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -106,8 +108,15 @@ export function EventDialog({ event, onClose }: { event: any | null; onClose: ()
             <div className="space-y-1.5"><Label className="text-xs text-muted-foreground">Konec</Label><Input type="time" name="endTime" defaultValue={t5(event?.end_time)} /></div>
             <div className="space-y-1.5"><Label className="text-xs text-muted-foreground">Kapacita</Label><Input type="number" min={0} name="capacity" defaultValue={event?.capacity ?? ''} /></div>
             <div className="space-y-1.5"><Label className="text-xs text-muted-foreground">Místo</Label><Input name="location" defaultValue={event?.location || ''} placeholder="OX Club" /></div>
-            <div className="space-y-1.5"><Label className="text-xs text-muted-foreground">Klient / promotér</Label><Input name="client" defaultValue={event?.client || ''} /></div>
+            <div className="space-y-1.5"><Label className="text-xs text-muted-foreground">Klient / promotér (text)</Label><Input name="client" defaultValue={event?.client || ''} /></div>
             <div className="space-y-1.5"><Label className="text-xs text-muted-foreground">Rozpočet (Kč)</Label><Input type="number" step="0.01" name="budget" defaultValue={event?.budget ?? ''} /></div>
+            <div className="col-span-2 space-y-1.5">
+              <Label className="text-xs text-muted-foreground">Klient v CRM (řídí, co uvidí v portálu)</Label>
+              <select name="clientId" defaultValue={event?.client_id ?? 'none'} className={selectClass}>
+                <option value="none">— nenavázáno —</option>
+                {clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+            </div>
           </div>
           <div className="space-y-1.5"><Label className="text-xs text-muted-foreground">Technika (LED, zvuk, světla…)</Label><Input name="techNotes" defaultValue={event?.tech_notes || ''} placeholder="LED: horní 1920×128, střed 1280×384…" /></div>
           <div className="space-y-1.5"><Label className="text-xs text-muted-foreground">Popis / poznámky</Label><Input name="description" defaultValue={event?.description || ''} /></div>

@@ -11,6 +11,8 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
   const { data: event } = await supabase.from('events').select('*').eq('id', id).eq('tenant_id', tenantId).maybeSingle()
   if (!event) notFound()
 
+  const { data: clients } = await supabase.from('crm_clients').select('id, name').eq('tenant_id', tenantId).order('name')
+
   const [{ data: lineup }, { data: timeline }, { data: reservations }, { data: guests }, { data: budgetItems }] = await Promise.all([
     supabase.from('event_lineup').select('*').eq('event_id', id).eq('tenant_id', tenantId).order('slot_start', { ascending: true, nullsFirst: true }).order('sort'),
     supabase.from('event_timeline').select('*').eq('event_id', id).eq('tenant_id', tenantId).order('at_time', { ascending: true, nullsFirst: true }).order('sort'),
@@ -30,5 +32,5 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
     shifts = (sh ?? []).map((s: any) => ({ ...s, assignments: (assigns ?? []).filter((a: any) => a.shift_id === s.id).map((a: any) => ({ ...a, name: nameOf(a.user_id) })) }))
   }
 
-  return <EventDetailClient event={event} lineup={lineup ?? []} timeline={timeline ?? []} reservations={reservations ?? []} guests={guests ?? []} budgetItems={budgetItems ?? []} shifts={shifts} canManage={canManageEvents(role)} />
+  return <EventDetailClient event={event} clients={clients ?? []} lineup={lineup ?? []} timeline={timeline ?? []} reservations={reservations ?? []} guests={guests ?? []} budgetItems={budgetItems ?? []} shifts={shifts} canManage={canManageEvents(role)} />
 }

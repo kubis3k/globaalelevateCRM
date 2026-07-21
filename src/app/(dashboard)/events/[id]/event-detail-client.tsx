@@ -19,8 +19,8 @@ const t5 = (t: any) => (t ? String(t).slice(0, 5) : '')
 const selectClass = 'h-8 rounded-lg border border-input bg-background px-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50'
 const LINEUP_STATUS: Record<string, string> = { booked: 'Rezervováno', confirmed: 'Potvrzeno', cancelled: 'Zrušeno' }
 
-export function EventDetailClient({ event, lineup, timeline, reservations, guests, budgetItems, shifts, canManage }: {
-  event: any; lineup: any[]; timeline: any[]; reservations: any[]; guests: any[]; budgetItems: any[]; shifts: any[]; canManage: boolean
+export function EventDetailClient({ event, clients, lineup, timeline, reservations, guests, budgetItems, shifts, canManage }: {
+  event: any; clients: { id: string; name: string }[]; lineup: any[]; timeline: any[]; reservations: any[]; guests: any[]; budgetItems: any[]; shifts: any[]; canManage: boolean
 }) {
   const [edit, setEdit] = useState(false)
   const [pending, startTransition] = useTransition()
@@ -147,7 +147,7 @@ export function EventDetailClient({ event, lineup, timeline, reservations, guest
         )}
       </section>
 
-      {edit && canManage && <EventDialog event={event} onClose={() => setEdit(false)} />}
+      {edit && canManage && <EventDialog event={event} clients={clients} onClose={() => setEdit(false)} />}
     </div>
   )
 }

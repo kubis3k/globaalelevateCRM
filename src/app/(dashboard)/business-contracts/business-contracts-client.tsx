@@ -37,14 +37,15 @@ function expiry(end: string | null, status: string) {
   return null
 }
 
-/** Upload a file straight to Storage (Documents library) and return its document id. */
-async function uploadToDocuments(file: File): Promise<string | null> {
+/** Upload a file straight to Storage (Documents library) and return its document id.
+ * Přebírá clientId smlouvy, aby se příloha automaticky sdílela stejnému klientovi v portálu. */
+async function uploadToDocuments(file: File, clientId: string | null): Promise<string | null> {
   const up = await createUploadUrl(file.name)
   if (up.error || !up.path || !up.token) { toast.error('Chyba', up.error || 'Nahrání se nepodařilo připravit.'); return null }
   const supabase = createClient()
   const { error: upErr } = await supabase.storage.from(DOCUMENTS_BUCKET).uploadToSignedUrl(up.path, up.token, file)
   if (upErr) { toast.error('Chyba', upErr.message); return null }
-  const fin = await finalizeUpload({ path: up.path, name: file.name, contentType: file.type || undefined, size: file.size, category: 'contract' })
+  const fin = await finalizeUpload({ path: up.path, name: file.name, contentType: file.type || undefined, size: file.size, category: 'contract', clientId })
   if (fin.error || !fin.id) { toast.error('Chyba', fin.error || 'Uložení dokumentu selhalo.'); return null }
   return fin.id
 }
@@ -139,14 +140,15 @@ function ContractDialog({ item, suppliers, clients, events, documents, onClose }
     e.preventDefault()
     const formEl = e.currentTarget
     const file = fileRef.current?.files?.[0] || null
+    const fd = new FormData(formEl)
     start(async () => {
       let documentId = docId
       if (file) {
-        const id = await uploadToDocuments(file)
+        const clientId = (fd.get('clientId') as string) || 'none'
+        const id = await uploadToDocuments(file, clientId !== 'none' ? clientId : null)
         if (!id) return
         documentId = id
       }
-      const fd = new FormData(formEl)
       fd.set('documentId', documentId)
       const r = item ? await updateBusinessContract(item.id, fd) : await createBusinessContract(fd)
       if (r?.error) { toast.error('Chyba', r.error); return }

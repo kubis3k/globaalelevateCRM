@@ -1,19 +1,22 @@
 import { PageHeader } from '@/components/ui/page-header'
 import { EmptyState } from '@/components/ui/empty-state'
 import { FolderOpen, FileText } from 'lucide-react'
-import { getPortalScope } from '../scope'
+import { getPortalScope, getHiddenIds } from '../scope'
 import { DocDownload } from './doc-download'
 
+// Auto-share: dokumenty navázané na klienta (documents.client_id) se ukážou
+// automaticky, minus výjimečné skrytí adminem.
 export default async function PortalDocumentsPage() {
-  const { supabase, user } = await getPortalScope()
+  const { supabase, tenantId, clientId } = await getPortalScope()
 
-  const { data: links } = await supabase.from('portal_document_access').select('document_id').eq('user_id', user.id)
-  const ids = (links ?? []).map((l: any) => l.document_id)
-  const { data: docs } = ids.length
-    ? await supabase.from('documents').select('id, name, category, created_at').in('id', ids).order('created_at', { ascending: false })
-    : { data: [] as any[] }
+  const [{ data: docs }, hidden] = await Promise.all([
+    clientId
+      ? supabase.from('documents').select('id, name, category, created_at').eq('tenant_id', tenantId).eq('client_id', clientId).order('created_at', { ascending: false })
+      : Promise.resolve({ data: [] as any[] }),
+    clientId ? getHiddenIds(supabase, clientId, 'document') : Promise.resolve(new Set<string>()),
+  ])
 
-  const list = docs ?? []
+  const list = (docs ?? []).filter((d: any) => !hidden.has(d.id))
 
   return (
     <div className="space-y-6">

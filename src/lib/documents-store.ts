@@ -16,6 +16,7 @@ type StoreInput = {
   size?: number | null
   source?: 'upload' | 'mail'
   sourceRef?: string | null
+  clientId?: string | null
 }
 
 // Uploads the file to the private bucket and inserts the metadata row.
@@ -41,6 +42,7 @@ export async function storeDocument(admin: any, input: StoreInput): Promise<{ id
       source: input.source || 'upload',
       source_ref: input.sourceRef || null,
       uploaded_by: input.uploadedBy,
+      client_id: input.clientId || null,
     })
     .select('id')
     .single()
