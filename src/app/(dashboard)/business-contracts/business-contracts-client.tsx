@@ -106,7 +106,12 @@ export function BusinessContractsClient({ contracts, suppliers, clients, events,
                     <TableCell className="text-right tabular-nums text-foreground">{c.value != null ? czk(Number(c.value), c.currency) : '—'}</TableCell>
                     <TableCell><Badge variant={st.variant}>{st.label}</Badge></TableCell>
                     <TableCell>
-                      {c.acknowledged_at
+                      {c.client_id ? (
+                        // Klient s vlastním portálovým přístupem akceptuje sám v /portal/contracts.
+                        c.acknowledged_at
+                          ? <Badge variant="success">Odsouhlaseno klientem {new Date(c.acknowledged_at).toLocaleDateString('cs-CZ')}</Badge>
+                          : <Badge variant="secondary">Čeká na klienta</Badge>
+                      ) : c.acknowledged_at
                         ? <Badge variant="success" className="cursor-pointer" onClick={() => ack(c)}>Akceptováno</Badge>
                         : <Button variant="outline" size="sm" disabled={isPending} onClick={() => ack(c)}><Check className="size-3.5" />Akceptovat</Button>}
                     </TableCell>
