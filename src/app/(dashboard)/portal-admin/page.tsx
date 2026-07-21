@@ -8,12 +8,13 @@ export default async function PortalAdminPage() {
   const { supabase, tenantId } = await requireModuleAccess('portal-admin')
   if (!tenantId) return <NoTenantView />
 
-  const [{ data: access }, { data: clients }, { data: events }, { data: documents }, { data: overrides }] = await Promise.all([
+  const [{ data: access }, { data: clients }, { data: events }, { data: documents }, { data: overrides }, { data: invites }] = await Promise.all([
     supabase.from('portal_access').select('user_id, client_id, display_name, created_at').eq('tenant_id', tenantId),
     supabase.from('crm_clients').select('id, name').eq('tenant_id', tenantId).order('name'),
     supabase.from('events').select('id, name, event_date, client_id').eq('tenant_id', tenantId).not('client_id', 'is', null).order('event_date', { ascending: false }).limit(300),
     supabase.from('documents').select('id, name, client_id').eq('tenant_id', tenantId).not('client_id', 'is', null).order('created_at', { ascending: false }).limit(300),
     supabase.from('portal_visibility_overrides').select('client_id, item_type, item_id').eq('tenant_id', tenantId),
+    supabase.from('portal_invites').select('id, email, display_name, client_id, created_at, expires_at, used_at').eq('tenant_id', tenantId).order('created_at', { ascending: false }).limit(50),
   ])
 
   const uids = (access ?? []).map((a: any) => a.user_id)
@@ -46,10 +47,12 @@ export default async function PortalAdminPage() {
     return { id: m.id, sender: a?.display_name || p?.username || '—', subject: m.subject, body: m.body, status: m.status, created_at: m.created_at }
   })
 
+  const invitesFull = (invites ?? []).map((i: any) => ({ ...i, client_name: (clients ?? []).find((c: any) => c.id === i.client_id)?.name ?? null }))
+
   return (
     <div className="space-y-6">
-      <PageHeader title="Klientský portál" description="Pozvi klienty — automaticky uvidí vše navázané na jejich firmu v CRM (akce, dokumenty, smlouvy). Jednotlivou položku můžeš výjimečně skrýt." />
-      <PortalAdminClient users={users} clients={clients ?? []} />
+      <PageHeader title="Klientský portál" description="Pozvi klienty e-mailem — automaticky uvidí vše navázané na jejich firmu v CRM (akce, dokumenty, smlouvy, dodávky). Jednotlivou položku můžeš výjimečně skrýt." />
+      <PortalAdminClient users={users} clients={clients ?? []} invites={invitesFull} />
       <PortalMessagesAdmin messages={messages} />
     </div>
   )

@@ -1,8 +1,11 @@
 'use server'
 
+import { randomBytes } from 'node:crypto'
 import { revalidatePath } from 'next/cache'
+import { headers } from 'next/headers'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { sendTransactionalEmail } from '@/lib/mail/invite'
 
 type Ctx = { admin: ReturnType<typeof createAdminClient>; userId: string; tenantId: string }
 
@@ -18,37 +21,76 @@ async function getCtx(): Promise<Ctx | { error: string }> {
 }
 
 const str = (fd: FormData, k: string) => { const v = (fd.get(k) as string)?.trim(); return v ? v : null }
+const opt = (fd: FormData, k: string) => { const v = str(fd, k); return v && v !== 'none' ? v : null }
 
-export async function invitePortalUser(formData: FormData): Promise<{ error?: string }> {
+async function inviteLink(token: string): Promise<string> {
+  const h = await headers()
+  const host = h.get('host') || 'work.globaalelevate.com'
+  const proto = host.startsWith('localhost') || host.startsWith('127.') ? 'http' : 'https'
+  return `${proto}://${host}/invite/${token}`
+}
+
+function inviteEmailHtml(displayName: string | null, link: string): string {
+  return `
+    <p>Dobrý den${displayName ? ` ${displayName}` : ''},</p>
+    <p>byli jste pozváni do klientského portálu <strong>Globaal Elevate</strong>. Uvidíte tam své akce, faktury, smlouvy a dodávky.</p>
+    <p>Nastavte si prosím heslo kliknutím na odkaz níže (platí 7 dní):</p>
+    <p><a href="${link}">${link}</a></p>
+    <p style="color:#888;font-size:12px">Pokud jste pozvánku nečekali, tento e-mail ignorujte.</p>
+  `.trim()
+}
+
+// Pozvánka e-mailem — klient si sám nastaví heslo na /invite/[token] (nahrazuje
+// dřívější ruční zadání jména+hesla adminem).
+export async function sendPortalInvite(formData: FormData): Promise<{ error?: string }> {
   const c = await getCtx(); if ('error' in c) return c
-  const username = str(formData, 'username')
-  const password = str(formData, 'password')
+  const email = str(formData, 'email')?.toLowerCase() ?? null
+  if (!email || !email.includes('@')) return { error: 'Zadejte platný e-mail.' }
   const displayName = str(formData, 'displayName')
-  const clientId = str(formData, 'clientId')
-  if (!username || !password) return { error: 'Vyplňte uživatelské jméno i heslo.' }
-  if (password.length < 6) return { error: 'Heslo musí mít alespoň 6 znaků.' }
+  const clientId = opt(formData, 'clientId')
 
-  const email = `${username}@globaalelevate.com`
-  const { data: existing } = await c.admin.from('profiles').select('id').eq('username', username).maybeSingle()
-  if (existing) return { error: 'Uživatelské jméno již existuje.' }
+  const { data: pending } = await c.admin.from('portal_invites')
+    .select('id').eq('tenant_id', c.tenantId).eq('email', email).is('used_at', null).gt('expires_at', new Date().toISOString()).maybeSingle()
+  if (pending) return { error: 'Pro tento e-mail už existuje nevyužitá pozvánka (lze poslat znovu tlačítkem Přeposlat).' }
 
-  const { data: newUser, error: authError } = await c.admin.auth.admin.createUser({ email, password, email_confirm: true })
-  if (authError || !newUser.user) return { error: authError?.message || 'Chyba při vytváření uživatele.' }
-  const uid = newUser.user.id
-
-  const { error: profErr } = await c.admin.from('profiles').upsert({ id: uid, username, full_name: displayName || username })
-  if (profErr) { await c.admin.auth.admin.deleteUser(uid); return { error: profErr.message } }
-
-  const { error: tuErr } = await c.admin.from('tenant_users').insert({ tenant_id: c.tenantId, user_id: uid, role: 'external' as any })
-  if (tuErr) { await c.admin.auth.admin.deleteUser(uid); return { error: tuErr.message } }
-
-  const { error: paErr } = await c.admin.from('portal_access').insert({
-    user_id: uid, tenant_id: c.tenantId,
-    client_id: clientId && clientId !== 'none' ? clientId : null,
-    display_name: displayName || username,
+  const token = randomBytes(24).toString('base64url')
+  const expiresAt = new Date(Date.now() + 7 * 86400000).toISOString()
+  const { error: insErr } = await c.admin.from('portal_invites').insert({
+    tenant_id: c.tenantId, client_id: clientId, email, display_name: displayName, token, invited_by: c.userId, expires_at: expiresAt,
   })
-  if (paErr) { await c.admin.auth.admin.deleteUser(uid); return { error: paErr.message } }
+  if (insErr) return { error: insErr.message }
 
+  const link = await inviteLink(token)
+  const sent = await sendTransactionalEmail(c.admin, c.tenantId, {
+    to: email, subject: 'Pozvánka do klientského portálu — Globaal Elevate', html: inviteEmailHtml(displayName, link),
+  })
+  if (sent.error) return { error: sent.error }
+
+  revalidatePath('/portal-admin'); return {}
+}
+
+export async function resendPortalInvite(inviteId: string): Promise<{ error?: string }> {
+  const c = await getCtx(); if ('error' in c) return c
+  const { data: inv } = await c.admin.from('portal_invites').select('*').eq('id', inviteId).eq('tenant_id', c.tenantId).maybeSingle()
+  if (!inv) return { error: 'Pozvánka nenalezena.' }
+  if (inv.used_at) return { error: 'Pozvánka už byla využita.' }
+
+  const expiresAt = new Date(Date.now() + 7 * 86400000).toISOString()
+  const { error: updErr } = await c.admin.from('portal_invites').update({ expires_at: expiresAt }).eq('id', inviteId)
+  if (updErr) return { error: updErr.message }
+
+  const link = await inviteLink(inv.token)
+  const sent = await sendTransactionalEmail(c.admin, c.tenantId, {
+    to: inv.email, subject: 'Pozvánka do klientského portálu — Globaal Elevate', html: inviteEmailHtml(inv.display_name, link),
+  })
+  if (sent.error) return { error: sent.error }
+  revalidatePath('/portal-admin'); return {}
+}
+
+export async function revokePortalInvite(inviteId: string): Promise<{ error?: string }> {
+  const c = await getCtx(); if ('error' in c) return c
+  const { error } = await c.admin.from('portal_invites').delete().eq('id', inviteId).eq('tenant_id', c.tenantId)
+  if (error) return { error: error.message }
   revalidatePath('/portal-admin'); return {}
 }
 

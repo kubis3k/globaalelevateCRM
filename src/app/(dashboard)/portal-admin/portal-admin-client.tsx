@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { Plus, Trash2, Eye, EyeOff, DoorOpen } from 'lucide-react'
+import { Plus, Trash2, Eye, EyeOff, DoorOpen, Mail, RotateCw, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -11,19 +11,31 @@ import { EmptyState } from '@/components/ui/empty-state'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { toast } from '@/components/ui/toast'
 import { confirmDialog } from '@/components/ui/confirm-dialog'
-import { invitePortalUser, deletePortalUser, setPortalClient, togglePortalVisibility } from './actions'
+import { sendPortalInvite, resendPortalInvite, revokePortalInvite, deletePortalUser, setPortalClient, togglePortalVisibility } from './actions'
 
 const selectClass = 'h-8 w-full rounded-lg border border-input bg-background px-2 text-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50'
 
 type Opt = { id: string; name: string }
 type ShareItem = { id: string; name: string; event_date?: string | null; hidden: boolean }
 type PortalUser = { user_id: string; username: string | null; display_name: string; client_id: string | null; client_name: string | null; events: ShareItem[]; documents: ShareItem[] }
+type Invite = { id: string; email: string; display_name: string | null; client_id: string | null; client_name: string | null; created_at: string; expires_at: string; used_at: string | null }
 
-export function PortalAdminClient({ users, clients }: { users: PortalUser[]; clients: Opt[] }) {
+export function PortalAdminClient({ users, clients, invites }: { users: PortalUser[]; clients: Opt[]; invites: Invite[] }) {
   const router = useRouter()
   const [showInvite, setShowInvite] = useState(false)
   const [manage, setManage] = useState<PortalUser | null>(null)
   const [isPending, start] = useTransition()
+
+  const pendingInvites = invites.filter((i) => !i.used_at)
+
+  function resend(inv: Invite) {
+    start(async () => { const r = await resendPortalInvite(inv.id); if (r?.error) toast.error('Chyba', r.error); else { toast.success('Pozvánka odeslána znovu'); router.refresh() } })
+  }
+  async function revoke(inv: Invite) {
+    const ok = await confirmDialog({ title: `Zrušit pozvánku pro ${inv.email}?`, confirmLabel: 'Zrušit', destructive: true })
+    if (!ok) return
+    start(async () => { const r = await revokePortalInvite(inv.id); if (r?.error) toast.error('Chyba', r.error); else router.refresh() })
+  }
 
   function changeClient(u: PortalUser, clientId: string) {
     start(async () => { const r = await setPortalClient(u.user_id, clientId); if (r?.error) toast.error('Chyba', r.error); else router.refresh() })
@@ -70,6 +82,29 @@ export function PortalAdminClient({ users, clients }: { users: PortalUser[]; cli
         </div>
       )}
 
+      {pendingInvites.length > 0 && (
+        <div className="space-y-2">
+          <h3 className="flex items-center gap-1.5 text-sm font-semibold text-foreground"><Mail className="size-4" />Čekající pozvánky</h3>
+          <div className="divide-y divide-border rounded-xl border border-border">
+            {pendingInvites.map((inv) => {
+              const expired = new Date(inv.expires_at) < new Date()
+              return (
+                <div key={inv.id} className="flex flex-wrap items-center gap-3 p-3">
+                  <div className="min-w-0 flex-1">
+                    <div className="text-sm font-medium text-foreground">{inv.email}</div>
+                    <div className="text-xs text-muted-foreground">
+                      {inv.client_name ? `Klient: ${inv.client_name} · ` : ''}{expired ? 'Vypršela' : `Platí do ${new Date(inv.expires_at).toLocaleDateString('cs-CZ')}`}
+                    </div>
+                  </div>
+                  <Button variant="outline" size="sm" disabled={isPending} onClick={() => resend(inv)}><RotateCw className="size-3.5" />Přeposlat</Button>
+                  <Button variant="ghost" size="icon-sm" aria-label="Zrušit pozvánku" className="text-muted-foreground hover:text-destructive" disabled={isPending} onClick={() => revoke(inv)}><X className="size-4" /></Button>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
       {showInvite && <InviteDialog clients={clients} onClose={() => setShowInvite(false)} onDone={() => router.refresh()} />}
       {manage && <VisibilityDialog user={manage} onClose={() => setManage(null)} />}
     </div>
@@ -81,18 +116,15 @@ function InviteDialog({ clients, onClose, onDone }: { clients: Opt[]; onClose: (
   function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     const fd = new FormData(e.currentTarget)
-    start(async () => { const r = await invitePortalUser(fd); if (r?.error) { toast.error('Chyba', r.error); return } toast.success('Klient pozván'); onClose(); onDone() })
+    start(async () => { const r = await sendPortalInvite(fd); if (r?.error) { toast.error('Chyba', r.error); return } toast.success('Pozvánka odeslána e-mailem'); onClose(); onDone() })
   }
   return (
     <Dialog open onOpenChange={(o) => { if (!o) onClose() }}>
       <DialogContent>
-        <DialogHeader><DialogTitle>Pozvat klienta do portálu</DialogTitle><DialogDescription>Vytvoří přihlašovací účet (role „external"). Přiřazením ke klientovi v CRM se mu automaticky zobrazí jeho akce, dokumenty a smlouvy.</DialogDescription></DialogHeader>
+        <DialogHeader><DialogTitle>Pozvat klienta do portálu</DialogTitle><DialogDescription>Klient dostane e-mail s odkazem, kde si sám nastaví heslo. Přiřazením ke klientovi v CRM se mu automaticky zobrazí jeho akce, dokumenty, smlouvy a dodávky.</DialogDescription></DialogHeader>
         <form onSubmit={onSubmit} className="space-y-3">
-          <div className="space-y-1.5"><Label className="text-xs text-muted-foreground">Jméno (zobrazení)</Label><Input name="displayName" placeholder="např. Promotér ABC" /></div>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5"><Label className="text-xs text-muted-foreground">Uživatelské jméno</Label><Input name="username" required placeholder="login" /></div>
-            <div className="space-y-1.5"><Label className="text-xs text-muted-foreground">Heslo</Label><Input name="password" type="text" required placeholder="min. 6 znaků" /></div>
-          </div>
+          <div className="space-y-1.5"><Label className="text-xs text-muted-foreground">E-mail klienta</Label><Input type="email" name="email" required placeholder="klient@firma.cz" /></div>
+          <div className="space-y-1.5"><Label className="text-xs text-muted-foreground">Jméno (zobrazení)</Label><Input name="displayName" placeholder="např. Jan Novák" /></div>
           <div className="space-y-1.5">
             <Label className="text-xs text-muted-foreground">Propojit s klientem (CRM)</Label>
             <select name="clientId" defaultValue="none" className={selectClass}>
@@ -102,7 +134,7 @@ function InviteDialog({ clients, onClose, onDone }: { clients: Opt[]; onClose: (
           </div>
           <div className="flex justify-end gap-2 pt-1">
             <Button type="button" variant="outline" size="lg" onClick={onClose}>Zrušit</Button>
-            <Button type="submit" size="lg" disabled={pending}>{pending ? 'Zakládám…' : 'Pozvat'}</Button>
+            <Button type="submit" size="lg" disabled={pending}>{pending ? 'Odesílám…' : 'Pozvat'}</Button>
           </div>
         </form>
       </DialogContent>

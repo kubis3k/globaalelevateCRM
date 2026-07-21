@@ -54,11 +54,11 @@ export default async function LoginPage({ searchParams }: Props) {
             )}
 
             <div className="space-y-1.5">
-              <Label htmlFor="username">Uživatelské jméno</Label>
+              <Label htmlFor="username">Uživatelské jméno nebo e-mail</Label>
               <Input
                 id="username"
                 name="username"
-                placeholder="např. jan.novak"
+                placeholder="jan.novak / klient@firma.cz"
                 required
                 autoComplete="username"
                 className="h-9"

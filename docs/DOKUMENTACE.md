@@ -413,23 +413,36 @@ Data: `documents`, bucket **`documents`** (privátní).
 
 ### 5.10 Klientský portál
 
-#### Portál (`/portal`)
-Samostatná route group (vlastní layout) jen pro **externí uživatele** (klienti/promotéři, role `external`; admin má náhled). Data se scopují ručně přes `portal_*` propojení.
-- **Přehled** — KPI (nadcházející akce, nezaplacené faktury, sdílené dokumenty), karta nejbližší akce s odpočtem, seznam přiřazených akcí.
-- **Detail akce** — datum/dveře/start/konec, místo, popis, line-up a run-of-show; **jen k akci explicitně přidělené** (`portal_event_access`).
-- **Faktury** — jen vydané faktury navázaného klienta, read-only.
-- **Dokumenty** — jen sdílené přes `portal_document_access`, stažení signed URL (120 s).
-- **Zprávy** — klient napíše venue (`portal_messages`), vidí historii a stav.
+Portál v2 (kompletní přestavba) — **auto-share podle `client_id`**: cokoliv navázané na klienta (akce, dokumenty, smlouvy, dodávky) se v jeho portálu zobrazí automaticky, bez ručního zaškrtávání. Admin může výjimečně jednotlivou položku skrýt (`portal_visibility_overrides`).
 
-Data: `portal_access`, `portal_event_access`, `portal_document_access`, `portal_messages`, `events`, `event_lineup`, `event_timeline`, `invoices`, `documents`, `crm_clients`.
+#### Portál (`/portal`)
+Samostatná route group, jen pro **externí uživatele** (role `external`; admin má náhled).
+- **Přehled** — KPI (nadcházející akce, nezaplacené faktury, počet dokumentů), karta nejbližší akce, seznam akcí.
+- **Detail akce** — line-up, run-of-show; viditelné, pokud `events.client_id` odpovídá klientovi.
+- **Faktury** — vydané faktury z účetního systému, spárované na klienta dle IČO/názvu (`getUctoInvoicesForClient`).
+- **Smlouvy** (`/portal/contracts`) — smlouvy s `client_id`; klient sám klikne **„Souhlasím"** (`acceptContract` — zapíše čas + IP, žádné staff potvrzování za klienta).
+- **Dodávky** (`/portal/deliverables`) — odevzdaná práce (soubor/odkaz) ke schválení; klient **Schválí** nebo **Žádá úpravu** s komentářem (`decideDeliverable`) — notifikuje interního vlastníka.
+- **Dokumenty** — dokumenty s `client_id`, stažení signed URL (120 s).
+- **Zprávy** — klient napíše venue, vidí historii a stav.
+
+Data: `portal_access`, `portal_visibility_overrides`, `portal_messages`, `deliverables`, `events.client_id`, `documents.client_id`, `business_contracts` (+ `acknowledged_ip`), `crm_clients`.
+
+#### Přihlášení klienta — pozvánka e-mailem
+Admin zadá jen e-mail a jméno klienta (`sendPortalInvite`) → vygeneruje se token (`portal_invites`, platnost 7 dní) → e-mail se odešle přes **existující sdílenou firemní schránku** (`mail_accounts` s `owner_id IS NULL`, žádná nová env proměnná). Klient otevře veřejnou stránku **`/invite/[token]`** a sám si nastaví heslo (`acceptInvite` — vytvoří `auth.users`, `profiles`, `tenant_users` role `external`, `portal_access`). Bez připojené sdílené schránky vrátí akce jasnou chybu ("Připojte firemní schránku v modulu Pošta").
+
+Přihlašovací formulář (`/login`) rozlišuje vstup: obsahuje-li `@`, použije se jako reálný e-mail (klienti); jinak se doplní interní doména jako u staffu.
 
 #### Správa portálu (`/portal-admin`)
-Administrace klientského portálu (**jen admin**):
-- Vytvoří externí účet (auth + profil + `tenant_users` role `external` + `portal_access`, s rollbackem), mazání účtu.
-- Přiřazení klienta k účtu a **granulární sdílení** — které akce a dokumenty externí uživatel uvidí.
-- Inbox zpráv z portálu (vyřízeno/nové, mazání).
+Administrace (**jen admin**):
+- **Pozvánky** — čekající (resend/revoke), odeslané, využité.
+- Přiřazení klienta k účtu (`setPortalClient`).
+- **„Co vidí"** — přehled auto-sdílených akcí a dokumentů daného klienta s přepínačem skrýt/zobrazit (`togglePortalVisibility`) — výjimka z auto-share, ne allowlist.
+- Inbox zpráv z portálu (vyřízeno/nové, mazání), mazání portálového účtu.
 
-Akce: `invitePortalUser`, `deletePortalUser`, `setPortalClient`, `setEventAccess`, `setDocumentAccess`, `resolvePortalMessage`, `deletePortalMessage`.
+Akce: `sendPortalInvite`/`resendPortalInvite`/`revokePortalInvite`, `deletePortalUser`, `setPortalClient`, `togglePortalVisibility`, `resolvePortalMessage`, `deletePortalMessage`.
+
+#### Dodávky — interní strana
+Sekce „Dodávky" v detailu **Projektu** i **Akce** (`src/components/deliverables/deliverable-dialog.tsx`, `src/lib/deliverables/actions.ts`): staff nahraje soubor nebo přiloží odkaz; `client_id` se odvodí z projektu/akce (musí mít klienta v CRM, jinak nelze odeslat). Příloha automaticky dostane stejný `client_id`, aby ji portál směl vydat ke stažení.
 
 ---
 
