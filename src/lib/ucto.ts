@@ -111,6 +111,47 @@ export async function getUctoInvoices(limit = 300): Promise<UctoInvoice[] | null
   }
 }
 
+// Vydané faktury pro konkrétního klienta klientského portálu — spárováno na
+// contact v účtu podle IČO (přesná shoda), jinak podle názvu firmy (case-
+// insensitive). Bez shody vrací prázdné pole (ne null — to je vyhrazeno pro
+// "účto nedostupné").
+export async function getUctoInvoicesForClient(client: { name: string; ico?: string | null }): Promise<UctoInvoice[] | null> {
+  const pool = getPool()
+  if (!pool) return null
+  try {
+    const { rows } = await pool.query(
+      `SELECT d.id, d.doc_type, d.doc_number, d.variable_symbol, d.issue_date, d.due_date,
+              d.description, d.total_amount, d.currency,
+              c.name AS contact_name,
+              (EXISTS (SELECT 1 FROM bank_statement_line b WHERE b.matched_document_id = d.id)
+               OR EXISTS (SELECT 1 FROM invoice_payment p WHERE p.document_id = d.id AND p.status = 'paid')) AS paid
+       FROM document d
+       JOIN contact c ON c.id = d.contact_id
+       WHERE d.doc_type = 'faktura_vydana' AND d.status <> 'stornovany'
+         AND ((c.ico IS NOT NULL AND c.ico = $1) OR lower(c.name) = lower($2))
+       ORDER BY d.issue_date DESC, d.id DESC
+       LIMIT 200`,
+      [client.ico || null, client.name],
+    )
+    return rows.map((r: any) => ({
+      id: Number(r.id),
+      docType: r.doc_type,
+      number: r.doc_number,
+      variableSymbol: r.variable_symbol || null,
+      contactName: r.contact_name || null,
+      description: r.description || '',
+      amount: Number(r.total_amount || 0),
+      currency: r.currency || 'CZK',
+      issueDate: r.issue_date,
+      dueDate: r.due_date || null,
+      paid: !!r.paid,
+    }))
+  } catch (e: any) {
+    console.error('[ucto] invoices for client failed', e?.message || e)
+    return null
+  }
+}
+
 export async function getUctoSummary(): Promise<UctoResult> {
   if (cache && Date.now() - cache.at < CACHE_MS && cache.data.connected) return cache.data
 
