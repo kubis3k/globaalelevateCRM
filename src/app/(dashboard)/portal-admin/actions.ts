@@ -5,7 +5,6 @@ import { revalidatePath } from 'next/cache'
 import { headers } from 'next/headers'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { sendTransactionalEmail } from '@/lib/mail/invite'
 
 type Ctx = { admin: ReturnType<typeof createAdminClient>; userId: string; tenantId: string }
 
@@ -30,19 +29,10 @@ async function inviteLink(token: string): Promise<string> {
   return `${proto}://${host}/invite/${token}`
 }
 
-function inviteEmailHtml(displayName: string | null, link: string): string {
-  return `
-    <p>Dobrý den${displayName ? ` ${displayName}` : ''},</p>
-    <p>byli jste pozváni do klientského portálu <strong>Globaal Elevate</strong>. Uvidíte tam své akce, faktury, smlouvy a dodávky.</p>
-    <p>Nastavte si prosím heslo kliknutím na odkaz níže (platí 7 dní):</p>
-    <p><a href="${link}">${link}</a></p>
-    <p style="color:#888;font-size:12px">Pokud jste pozvánku nečekali, tento e-mail ignorujte.</p>
-  `.trim()
-}
-
-// Pozvánka e-mailem — klient si sám nastaví heslo na /invite/[token] (nahrazuje
-// dřívější ruční zadání jména+hesla adminem).
-export async function sendPortalInvite(formData: FormData): Promise<{ error?: string }> {
+// Pozvánka — vygeneruje se odkaz s tokenem, klient si na něm sám nastaví
+// heslo (/invite/[token]). E-mail se NEODESÍLÁ automaticky přes systém —
+// odkaz si admin zkopíruje a pošle klientovi libovolným kanálem sám.
+export async function sendPortalInvite(formData: FormData): Promise<{ error?: string; link?: string }> {
   const c = await getCtx(); if ('error' in c) return c
   const email = str(formData, 'email')?.toLowerCase() ?? null
   if (!email || !email.includes('@')) return { error: 'Zadejte platný e-mail.' }
@@ -50,8 +40,8 @@ export async function sendPortalInvite(formData: FormData): Promise<{ error?: st
   const clientId = opt(formData, 'clientId')
 
   const { data: pending } = await c.admin.from('portal_invites')
-    .select('id').eq('tenant_id', c.tenantId).eq('email', email).is('used_at', null).gt('expires_at', new Date().toISOString()).maybeSingle()
-  if (pending) return { error: 'Pro tento e-mail už existuje nevyužitá pozvánka (lze poslat znovu tlačítkem Přeposlat).' }
+    .select('id, token').eq('tenant_id', c.tenantId).eq('email', email).is('used_at', null).gt('expires_at', new Date().toISOString()).maybeSingle()
+  if (pending) return { link: await inviteLink(pending.token) }
 
   const token = randomBytes(24).toString('base64url')
   const expiresAt = new Date(Date.now() + 7 * 86400000).toISOString()
@@ -60,16 +50,12 @@ export async function sendPortalInvite(formData: FormData): Promise<{ error?: st
   })
   if (insErr) return { error: insErr.message }
 
-  const link = await inviteLink(token)
-  const sent = await sendTransactionalEmail(c.admin, c.tenantId, {
-    to: email, subject: 'Pozvánka do klientského portálu — Globaal Elevate', html: inviteEmailHtml(displayName, link),
-  })
-  if (sent.error) return { error: sent.error }
-
-  revalidatePath('/portal-admin'); return {}
+  revalidatePath('/portal-admin')
+  return { link: await inviteLink(token) }
 }
 
-export async function resendPortalInvite(inviteId: string): Promise<{ error?: string }> {
+// Prodlouží platnost pozvánky o dalších 7 dní a vrátí odkaz ke zkopírování.
+export async function resendPortalInvite(inviteId: string): Promise<{ error?: string; link?: string }> {
   const c = await getCtx(); if ('error' in c) return c
   const { data: inv } = await c.admin.from('portal_invites').select('*').eq('id', inviteId).eq('tenant_id', c.tenantId).maybeSingle()
   if (!inv) return { error: 'Pozvánka nenalezena.' }
@@ -79,12 +65,8 @@ export async function resendPortalInvite(inviteId: string): Promise<{ error?: st
   const { error: updErr } = await c.admin.from('portal_invites').update({ expires_at: expiresAt }).eq('id', inviteId)
   if (updErr) return { error: updErr.message }
 
-  const link = await inviteLink(inv.token)
-  const sent = await sendTransactionalEmail(c.admin, c.tenantId, {
-    to: inv.email, subject: 'Pozvánka do klientského portálu — Globaal Elevate', html: inviteEmailHtml(inv.display_name, link),
-  })
-  if (sent.error) return { error: sent.error }
-  revalidatePath('/portal-admin'); return {}
+  revalidatePath('/portal-admin')
+  return { link: await inviteLink(inv.token) }
 }
 
 export async function revokePortalInvite(inviteId: string): Promise<{ error?: string }> {

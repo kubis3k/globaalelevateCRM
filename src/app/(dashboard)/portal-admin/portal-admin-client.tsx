@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { Plus, Trash2, Eye, EyeOff, DoorOpen, Mail, RotateCw, X } from 'lucide-react'
+import { Plus, Trash2, Eye, EyeOff, DoorOpen, Mail, Link as LinkIcon, Copy, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -24,12 +24,18 @@ export function PortalAdminClient({ users, clients, invites }: { users: PortalUs
   const router = useRouter()
   const [showInvite, setShowInvite] = useState(false)
   const [manage, setManage] = useState<PortalUser | null>(null)
+  const [linkDialog, setLinkDialog] = useState<string | null>(null)
   const [isPending, start] = useTransition()
 
   const pendingInvites = invites.filter((i) => !i.used_at)
 
   function resend(inv: Invite) {
-    start(async () => { const r = await resendPortalInvite(inv.id); if (r?.error) toast.error('Chyba', r.error); else { toast.success('Pozvánka odeslána znovu'); router.refresh() } })
+    start(async () => {
+      const r = await resendPortalInvite(inv.id)
+      if (r?.error) { toast.error('Chyba', r.error); return }
+      router.refresh()
+      if (r.link) setLinkDialog(r.link)
+    })
   }
   async function revoke(inv: Invite) {
     const ok = await confirmDialog({ title: `Zrušit pozvánku pro ${inv.email}?`, confirmLabel: 'Zrušit', destructive: true })
@@ -96,7 +102,7 @@ export function PortalAdminClient({ users, clients, invites }: { users: PortalUs
                       {inv.client_name ? `Klient: ${inv.client_name} · ` : ''}{expired ? 'Vypršela' : `Platí do ${new Date(inv.expires_at).toLocaleDateString('cs-CZ')}`}
                     </div>
                   </div>
-                  <Button variant="outline" size="sm" disabled={isPending} onClick={() => resend(inv)}><RotateCw className="size-3.5" />Přeposlat</Button>
+                  <Button variant="outline" size="sm" disabled={isPending} onClick={() => resend(inv)}><LinkIcon className="size-3.5" />Odkaz</Button>
                   <Button variant="ghost" size="icon-sm" aria-label="Zrušit pozvánku" className="text-muted-foreground hover:text-destructive" disabled={isPending} onClick={() => revoke(inv)}><X className="size-4" /></Button>
                 </div>
               )
@@ -105,23 +111,36 @@ export function PortalAdminClient({ users, clients, invites }: { users: PortalUs
         </div>
       )}
 
-      {showInvite && <InviteDialog clients={clients} onClose={() => setShowInvite(false)} onDone={() => router.refresh()} />}
+      {showInvite && (
+        <InviteDialog
+          clients={clients}
+          onClose={() => setShowInvite(false)}
+          onCreated={(link) => setLinkDialog(link)}
+          onDone={() => router.refresh()}
+        />
+      )}
       {manage && <VisibilityDialog user={manage} onClose={() => setManage(null)} />}
+      {linkDialog && <LinkDialog link={linkDialog} onClose={() => setLinkDialog(null)} />}
     </div>
   )
 }
 
-function InviteDialog({ clients, onClose, onDone }: { clients: Opt[]; onClose: () => void; onDone: () => void }) {
+function InviteDialog({ clients, onClose, onCreated, onDone }: { clients: Opt[]; onClose: () => void; onCreated: (link: string) => void; onDone: () => void }) {
   const [pending, start] = useTransition()
   function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     const fd = new FormData(e.currentTarget)
-    start(async () => { const r = await sendPortalInvite(fd); if (r?.error) { toast.error('Chyba', r.error); return } toast.success('Pozvánka odeslána e-mailem'); onClose(); onDone() })
+    start(async () => {
+      const r = await sendPortalInvite(fd)
+      if (r?.error) { toast.error('Chyba', r.error); return }
+      onClose(); onDone()
+      if (r.link) onCreated(r.link)
+    })
   }
   return (
     <Dialog open onOpenChange={(o) => { if (!o) onClose() }}>
       <DialogContent>
-        <DialogHeader><DialogTitle>Pozvat klienta do portálu</DialogTitle><DialogDescription>Klient dostane e-mail s odkazem, kde si sám nastaví heslo. Přiřazením ke klientovi v CRM se mu automaticky zobrazí jeho akce, dokumenty, smlouvy a dodávky.</DialogDescription></DialogHeader>
+        <DialogHeader><DialogTitle>Pozvat klienta do portálu</DialogTitle><DialogDescription>Vygeneruje se odkaz, kde si klient sám nastaví heslo — zkopírujete ho a pošlete klientovi sami (e-mail, WhatsApp…). Přiřazením ke klientovi v CRM se mu automaticky zobrazí jeho akce, dokumenty, smlouvy a dodávky.</DialogDescription></DialogHeader>
         <form onSubmit={onSubmit} className="space-y-3">
           <div className="space-y-1.5"><Label className="text-xs text-muted-foreground">E-mail klienta</Label><Input type="email" name="email" required placeholder="klient@firma.cz" /></div>
           <div className="space-y-1.5"><Label className="text-xs text-muted-foreground">Jméno (zobrazení)</Label><Input name="displayName" placeholder="např. Jan Novák" /></div>
@@ -134,9 +153,33 @@ function InviteDialog({ clients, onClose, onDone }: { clients: Opt[]; onClose: (
           </div>
           <div className="flex justify-end gap-2 pt-1">
             <Button type="button" variant="outline" size="lg" onClick={onClose}>Zrušit</Button>
-            <Button type="submit" size="lg" disabled={pending}>{pending ? 'Odesílám…' : 'Pozvat'}</Button>
+            <Button type="submit" size="lg" disabled={pending}>{pending ? 'Vytvářím…' : 'Vytvořit odkaz'}</Button>
           </div>
         </form>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+function LinkDialog({ link, onClose }: { link: string; onClose: () => void }) {
+  function copy() {
+    if (!navigator.clipboard) { toast.error('Zkopírujte odkaz ručně z pole níže.'); return }
+    navigator.clipboard.writeText(link).then(
+      () => toast.success('Odkaz zkopírován do schránky'),
+      () => toast.error('Chyba', 'Zkopírujte odkaz ručně z pole níže.'),
+    )
+  }
+  return (
+    <Dialog open onOpenChange={(o) => { if (!o) onClose() }}>
+      <DialogContent>
+        <DialogHeader><DialogTitle>Odkaz na pozvánku</DialogTitle><DialogDescription>Zkopírujte a pošlete klientovi libovolným kanálem. Platí 7 dní od tohoto vygenerování.</DialogDescription></DialogHeader>
+        <div className="flex gap-2">
+          <Input readOnly value={link} onFocus={(e) => e.currentTarget.select()} className="font-mono text-xs" />
+          <Button type="button" onClick={copy}><Copy className="size-3.5" />Kopírovat</Button>
+        </div>
+        <div className="flex justify-end pt-1">
+          <Button type="button" size="lg" onClick={onClose}>Hotovo</Button>
+        </div>
       </DialogContent>
     </Dialog>
   )

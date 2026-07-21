@@ -427,14 +427,14 @@ Samostatná route group, jen pro **externí uživatele** (role `external`; admin
 
 Data: `portal_access`, `portal_visibility_overrides`, `portal_messages`, `deliverables`, `events.client_id`, `documents.client_id`, `business_contracts` (+ `acknowledged_ip`), `crm_clients`.
 
-#### Přihlášení klienta — pozvánka e-mailem
-Admin zadá jen e-mail a jméno klienta (`sendPortalInvite`) → vygeneruje se token (`portal_invites`, platnost 7 dní) → e-mail se odešle přes **existující sdílenou firemní schránku** (`mail_accounts` s `owner_id IS NULL`, žádná nová env proměnná). Klient otevře veřejnou stránku **`/invite/[token]`** a sám si nastaví heslo (`acceptInvite` — vytvoří `auth.users`, `profiles`, `tenant_users` role `external`, `portal_access`). Bez připojené sdílené schránky vrátí akce jasnou chybu ("Připojte firemní schránku v modulu Pošta").
+#### Přihlášení klienta — pozvánka odkazem
+Admin zadá jen e-mail a jméno klienta (`sendPortalInvite`) → vygeneruje se token (`portal_invites`, platnost 7 dní) a **odkaz na pozvánku** (`/invite/[token]`), který se zobrazí v dialogu s tlačítkem Kopírovat — **žádný e-mail se automaticky přes systém neodesílá** (Zoho SMTP blokuje odchozí pošta z Vercelu jako podezřelou — `554 5.7.8 Access Restricted`); admin odkaz zkopíruje a pošle klientovi libovolným kanálem (e-mail, WhatsApp…) sám. Klient odkaz otevře a sám si nastaví heslo (`acceptInvite` — vytvoří `auth.users`, `profiles`, `tenant_users` role `external`, `portal_access`).
 
 Přihlašovací formulář (`/login`) rozlišuje vstup: obsahuje-li `@`, použije se jako reálný e-mail (klienti); jinak se doplní interní doména jako u staffu.
 
 #### Správa portálu (`/portal-admin`)
 Administrace (**jen admin**):
-- **Pozvánky** — čekající (resend/revoke), odeslané, využité.
+- **Pozvánky** — čekající (tlačítko „Odkaz" prodlouží platnost a znovu ukáže odkaz ke zkopírování / „Zrušit"), využité.
 - Přiřazení klienta k účtu (`setPortalClient`).
 - **„Co vidí"** — přehled auto-sdílených akcí a dokumentů daného klienta s přepínačem skrýt/zobrazit (`togglePortalVisibility`) — výjimka z auto-share, ne allowlist.
 - Inbox zpráv z portálu (vyřízeno/nové, mazání), mazání portálového účtu.
