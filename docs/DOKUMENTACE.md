@@ -493,7 +493,7 @@ Endpoint `src/app/api/cron/route.ts` (Node runtime, `maxDuration = 60`), volaný
 
 **Deploy:** push do `main` (GitHub `kubis3k/globaalelevateCRM`) → automatický deploy na Vercelu. Migrace se aplikují přes Supabase (projekt `vqyjrsxnmlwshhazaqjs`).
 
-**Desktopová aplikace (PC):** složka `desktop/` — Electron shell nad work.globaalelevate.com (stejné funkce, sdílená DB, realtime; klíče zůstávají na serveru). Design a zdůvodnění: [DESKTOP-DESIGN.md](DESKTOP-DESIGN.md). Build Windows instalátoru: `cd desktop && npm install && npm run dist` → `desktop/dist/Globaal Elevate Work Setup <verze>.exe`. Funkce se aktualizují automaticky s každým deployem — reinstalace není potřeba.
+**Desktopová aplikace (PC/Mac):** složka `desktop/` — Electron shell nad work.globaalelevate.com (stejné funkce, sdílená DB, realtime; klíče zůstávají na serveru). Design a zdůvodnění: [DESKTOP-DESIGN.md](DESKTOP-DESIGN.md). Instalátory se stahují přímo z webu (`/downloads/GlobaalElevateWork-Setup.exe`, `…-arm64.dmg`, `…-x64.dmg`) — nabízí je zavíratelný banner „Aplikace pro počítač" v dashboardu (jen v prohlížeči na počítači). Windows build lokálně (`cd desktop && npm run dist`), macOS přes GitHub Actions („Desktop installers (mac)"). Funkce se aktualizují automaticky s každým deployem — reinstalace není potřeba.
 
 **Proměnné prostředí (jen názvy):**
 

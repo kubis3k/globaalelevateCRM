@@ -9,6 +9,7 @@
   "scripts": {
     "start": "electron .",
     "dist": "electron-builder --win nsis",
+    "dist:mac": "electron-builder --mac dmg --x64 --arm64",
     "dist:dir": "electron-builder --win dir"
   },
   "devDependencies": {
@@ -28,7 +29,20 @@
     ],
     "win": {
       "target": "nsis",
-      "icon": "build/icon.png"
+      "icon": "build/icon.png",
+      "artifactName": "GlobaalElevateWork-Setup.${ext}"
+    },
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": ["x64", "arm64"]
+        }
+      ],
+      "icon": "build/icon.png",
+      "identity": null,
+      "category": "public.app-category.business",
+      "artifactName": "GlobaalElevateWork-${arch}.${ext}"
     },
     "nsis": {
       "oneClick": false,

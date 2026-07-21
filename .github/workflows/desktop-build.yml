@@ -1,0 +1,44 @@
+# Build macOS instalátorů desktop appky (DMG pro Apple Silicon + Intel) a
+# jejich commit do public/downloads — odtud je servíruje web
+# (work.globaalelevate.com/downloads/...) a nabízí banner "Stáhnout aplikaci".
+#
+# macOS build vyžaduje macOS runner, proto CI. Windows instalátor se builduje
+# lokálně (cd desktop && npm run dist) a commituje ručně do public/downloads.
+# Nepotřebuje žádné secrets — commit jde přes vestavěný GITHUB_TOKEN.
+#
+# Spuštění: ručně (Actions → Desktop installers (mac) → Run workflow)
+# nebo pushnutím tagu `desktop-v*`.
+name: Desktop installers (mac)
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ['desktop-v*']
+
+permissions:
+  contents: write
+
+jobs:
+  mac:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - run: npm ci
+        working-directory: desktop
+      - run: npx electron-builder --mac dmg --x64 --arm64
+        working-directory: desktop
+      - name: Commit DMGs to public/downloads
+        run: |
+          mkdir -p public/downloads
+          cp desktop/dist/GlobaalElevateWork-x64.dmg public/downloads/
+          cp desktop/dist/GlobaalElevateWork-arm64.dmg public/downloads/
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add public/downloads/*.dmg
+          git commit -m "chore(desktop): mac instalátory (CI build)" || exit 0
+          git pull --rebase origin main
+          git push origin HEAD:main

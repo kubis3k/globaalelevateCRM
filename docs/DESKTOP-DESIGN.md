@@ -81,7 +81,17 @@ Bezpečnostní argument je rozhodující: aplikace je multi-tenant se service-ro
 ```bash
 cd desktop
 npm install
-npm run dist        # → desktop/dist/Globaal Elevate Work Setup <verze>.exe
+npm run dist        # Windows → desktop/dist/GlobaalElevateWork-Setup.exe
+npm run dist:mac    # macOS DMG (jen na macOS — v praxi přes GitHub Actions)
 ```
 
-Instalátor se distribuuje ručně (sdílený disk / odkaz). `desktop/node_modules` a `desktop/dist` jsou mimo git.
+**Distribuce = přímo z webu.** Instalátory leží v `public/downloads/` a web je servíruje na:
+- `work.globaalelevate.com/downloads/GlobaalElevateWork-Setup.exe` (Windows)
+- `work.globaalelevate.com/downloads/GlobaalElevateWork-arm64.dmg` (Mac Apple Silicon)
+- `work.globaalelevate.com/downloads/GlobaalElevateWork-x64.dmg` (Mac Intel)
+
+Uživatelům je nabízí zavíratelný banner **„Aplikace pro počítač"** (`src/components/pwa/download-desktop-banner.tsx`) — zobrazuje se jen v desktopovém prohlížeči, nikdy uvnitř samotné appky (detekce UA „Electron") ani na mobilu. Hosting přes repo byl zvolen záměrně: žádné nové klíče/účty, funguje s privátním GitHub repem (Releases by vyžadovaly token) a Supabase Storage má 50MB limit na soubor.
+
+**macOS buildy**: GitHub Actions workflow `.github/workflows/desktop-build.yml` (macOS runner — DMG nejde postavit na Windows). Spouští se ručně (Actions → „Desktop installers (mac)" → Run workflow) nebo tagem `desktop-v*`; hotové DMG commitne do `public/downloads` → Vercel je automaticky nasadí. Bez potřeby secrets (vestavěný GITHUB_TOKEN). Nepodepsané DMG: macOS vyžaduje první otevření přes pravý klik → Otevřít.
+
+`desktop/node_modules` a `desktop/dist` jsou mimo git; samotné instalátory v `public/downloads` v gitu jsou (proto arch-specifické DMG místo universal — držíme se pod 100MB limitem GitHubu na soubor).
