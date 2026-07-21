@@ -1,10 +1,10 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useMemo, useState, useTransition } from 'react'
 import Link from 'next/link'
 import {
   ArrowLeft, Plus, Trash2, Phone, Mail, Globe, MapPin, Star, FileText,
-  StickyNote, PhoneCall, Users, CheckSquare, Square, Building2,
+  StickyNote, PhoneCall, Users, CheckSquare, Square, Building2, DoorOpen,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -31,7 +31,7 @@ const INV_STATUS: Record<string, { variant: 'secondary' | 'info' | 'success' | '
   draft: { variant: 'secondary', label: 'Koncept' }, pending: { variant: 'info', label: 'Čeká' }, paid: { variant: 'success', label: 'Uhrazeno' }, overdue: { variant: 'destructive', label: 'Po splatnosti' }, cancelled: { variant: 'warning', label: 'Storno' },
 }
 
-export function ClientDetail({ client, contacts, activities, invoices }: { client: any; contacts: any[]; activities: any[]; invoices: any[] }) {
+export function ClientDetail({ client, contacts, activities, portalMessages, invoices }: { client: any; contacts: any[]; activities: any[]; portalMessages: any[]; invoices: any[] }) {
   const [showContact, setShowContact] = useState(false)
   const [showActivity, setShowActivity] = useState(false)
   const [isPending, startTransition] = useTransition()
@@ -39,6 +39,14 @@ export function ClientDetail({ client, contacts, activities, invoices }: { clien
 
   const billed = invoices.reduce((a, i) => a + Number(i.amount || 0), 0)
   const paid = invoices.filter((i) => i.status === 'paid').reduce((a, i) => a + Number(i.amount || 0), 0)
+
+  // Sloučený feed: interní CRM aktivity + zprávy z klientského portálu — jedno
+  // místo pro celou komunikaci s klientem.
+  const feed = useMemo(() => {
+    const a = activities.map((x) => ({ kind: 'activity' as const, at: x.created_at, data: x }))
+    const m = portalMessages.map((x) => ({ kind: 'message' as const, at: x.created_at, data: x }))
+    return [...a, ...m].sort((x, y) => (x.at < y.at ? 1 : -1))
+  }, [activities, portalMessages])
 
   async function removeContact(c: any) {
     const ok = await confirmDialog({ title: `Smazat kontakt „${c.name}"?`, confirmLabel: 'Smazat', destructive: true })
@@ -136,25 +144,48 @@ export function ClientDetail({ client, contacts, activities, invoices }: { clien
         </section>
       </div>
 
-      {/* Activities */}
+      {/* Activities + komunikace z portálu (jeden feed) */}
       <section className="space-y-2">
         <div className="flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-foreground">Aktivity</h3>
+          <h3 className="text-sm font-semibold text-foreground">Aktivity a komunikace</h3>
           <Button variant="outline" size="sm" onClick={() => setShowActivity(true)}><Plus className="size-3.5" />Aktivita</Button>
         </div>
         <div className="overflow-hidden rounded-xl border border-border bg-card shadow-xs">
-          {activities.length === 0 ? <EmptyState icon={StickyNote} title="Žádné aktivity" description="Zaznamenejte hovor, schůzku nebo poznámku." /> : (
+          {feed.length === 0 ? <EmptyState icon={StickyNote} title="Žádné aktivity" description="Zaznamenejte hovor, schůzku nebo poznámku — případně zprávy z portálu se objeví zde automaticky." /> : (
             <div className="divide-y divide-border">
-              {activities.map((a) => {
+              {feed.map((f) => {
+                if (f.kind === 'message') {
+                  const m = f.data
+                  return (
+                    <div key={`m-${m.id}`} className="flex items-start gap-3 bg-info/5 p-3">
+                      <span className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-lg bg-info/15 text-info"><DoorOpen className="size-3.5" /></span>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-medium text-foreground">{m.subject || 'Zpráva z portálu'}</span>
+                          <Badge variant="info" className="h-4 px-1.5 text-[10px]">Klient</Badge>
+                          <Badge variant={m.status === 'resolved' ? 'success' : 'secondary'} className="h-4 px-1.5 text-[10px]">{m.status === 'resolved' ? 'Vyřízeno' : 'Nové'}</Badge>
+                        </div>
+                        <p className="mt-0.5 whitespace-pre-wrap text-xs text-muted-foreground">{m.body}</p>
+                        <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                          <span>{new Date(m.created_at).toLocaleString('cs-CZ')}</span>
+                          <span>·</span>
+                          <Link href="/portal-admin" className="text-primary hover:underline">Vyřídit v Portál-adminu</Link>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                }
+                const a = f.data
                 const t = ACT_TYPES[a.type] ?? ACT_TYPES.note
                 const Icon = t.icon
                 return (
-                  <div key={a.id} className="flex items-start gap-3 p-3">
+                  <div key={`a-${a.id}`} className="flex items-start gap-3 p-3">
                     <span className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground"><Icon className="size-3.5" /></span>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
                         <span className={cn('text-sm font-medium text-foreground', a.done && 'text-muted-foreground line-through')}>{a.subject}</span>
                         <Badge variant="secondary" className="h-4 px-1.5 text-[10px]">{t.label}</Badge>
+                        {a.visible_to_client && <Badge variant="info" className="h-4 px-1.5 text-[10px]">Vidí klient</Badge>}
                       </div>
                       {a.content && <p className="mt-0.5 text-xs text-muted-foreground">{a.content}</p>}
                       <div className="mt-0.5 text-[11px] text-muted-foreground">{new Date(a.created_at).toLocaleDateString('cs-CZ')}{a.due_date && ` · termín ${new Date(a.due_date).toLocaleDateString('cs-CZ')}`}</div>
@@ -229,6 +260,10 @@ function ActivityDialog({ clientId, onClose }: { clientId: string; onClose: () =
           </div>
           <div className="space-y-1.5"><Label className="text-xs text-muted-foreground">Předmět</Label><Input name="subject" required placeholder="Např. Úvodní hovor" /></div>
           <div className="space-y-1.5"><Label className="text-xs text-muted-foreground">Popis</Label><Input name="content" placeholder="Detaily…" /></div>
+          <label className="flex items-center gap-2 text-sm text-foreground">
+            <input type="checkbox" name="visibleToClient" className="size-4 rounded border-input" />
+            Zobrazit klientovi v portálu (komunikace)
+          </label>
           <div className="flex justify-end gap-2 pt-1">
             <Button type="button" variant="outline" size="lg" onClick={onClose}>Zrušit</Button>
             <Button type="submit" size="lg" disabled={pending}>{pending ? 'Ukládám…' : 'Přidat'}</Button>

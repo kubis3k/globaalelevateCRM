@@ -76,9 +76,11 @@ export async function deleteContact(id: string, clientId: string): Promise<{ err
 export async function createActivity(clientId: string, formData: FormData): Promise<{ error?: string }> {
   const c = await getCtx(); if ('error' in c) return c
   const subject = str(formData, 'subject'); if (!subject) return { error: 'Zadejte předmět.' }
+  const visibleToClient = formData.get('visibleToClient') === 'on'
   const { error } = await c.admin.from('crm_activities').insert({
     tenant_id: c.tenantId, client_id: clientId, type: str(formData, 'type') || 'note',
     subject, content: str(formData, 'content'), due_date: str(formData, 'dueDate'), created_by: c.userId,
+    visible_to_client: visibleToClient,
   })
   if (error) return { error: error.message }
   // Notify CRM managers about new tasks that carry a deadline (best-effort).
@@ -97,7 +99,7 @@ export async function createActivity(clientId: string, formData: FormData): Prom
       }
     }
   } catch (e) { console.error('[push] crm activity notify failed', e) }
-  revalidatePath(`/crm/clients/${clientId}`); return {}
+  revalidatePath(`/crm/clients/${clientId}`); revalidatePath('/portal/messages'); return {}
 }
 
 export async function toggleActivity(id: string, clientId: string, done: boolean): Promise<{ error?: string }> {

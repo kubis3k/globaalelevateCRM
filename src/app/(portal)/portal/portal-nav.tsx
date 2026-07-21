@@ -11,7 +11,7 @@ const SECTIONS = [
   { href: '/portal/contracts', label: 'Smlouvy', icon: FileSignature },
   { href: '/portal/deliverables', label: 'Dodávky', icon: PackageCheck },
   { href: '/portal/documents', label: 'Dokumenty', icon: FolderOpen },
-  { href: '/portal/messages', label: 'Zprávy', icon: MessageSquare },
+  { href: '/portal/messages', label: 'Komunikace', icon: MessageSquare },
 ]
 
 export function PortalNav() {

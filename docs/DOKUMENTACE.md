@@ -174,7 +174,7 @@ Data: `crm_prospects`, `crm_prospect_touches`, `crm_clients`, `crm_deals`. Metri
 
 #### CRM (`/crm`)
 - **Přehled** s KPI (klienti, otevřené příležitosti, hodnota pipeline, tržby za rok).
-- **Klienti** (`/crm/clients`, detail `/crm/clients/[id]`): kontaktní údaje, vlastník, kontaktní osoby, aktivity (poznámka/hovor/schůzka/e-mail/úkol s termínem), související faktury.
+- **Klienti** (`/crm/clients`, detail `/crm/clients/[id]`): kontaktní údaje, vlastník, kontaktní osoby, aktivity (poznámka/hovor/schůzka/e-mail/úkol s termínem), související faktury. Aktivita může být označena **„Zobrazit klientovi v portálu"** (`visible_to_client`) — pak se objeví klientovi v `/portal/messages` (Komunikace). Feed aktivit navíc sloučí i zprávy, které klient poslal přes portál (`portal_messages`) — staff vidí celou komunikaci na jednom místě.
 - **Příležitosti** (`/crm/pipeline`): obchodní pipeline po fázích (lead → qualified → proposal → negotiation → won/lost).
 - **ARES lookup** — doplnění názvu, DIČ a adresy podle IČO (české veřejné API `ares.gov.cz`).
 - Push notifikace managementu při vytvoření CRM úkolu s termínem.
