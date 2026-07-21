@@ -1,103 +1,98 @@
 import { requireModuleAccess } from '@/lib/supabase/tenant'
+import { getUctoInvoices } from '@/lib/ucto'
 import { NoTenantView } from '@/components/ui/no-tenant-view'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
 import { PageHeader } from '@/components/ui/page-header'
+import { Badge } from '@/components/ui/badge'
 import { EmptyState } from '@/components/ui/empty-state'
-import { FilePlus, ArrowUpRight, ArrowDownLeft, FileText } from 'lucide-react'
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
-import { InvoiceForm } from './invoice-form'
-import { InvoiceRowActions } from './invoice-row-actions'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { ArrowDownLeft, ArrowUpRight, ExternalLink, FileText, Unplug } from 'lucide-react'
 
-type BadgeVariant = 'secondary' | 'info' | 'success' | 'destructive' | 'warning'
-const STATUS: Record<string, { variant: BadgeVariant; label: string }> = {
-  draft: { variant: 'secondary', label: 'Koncept' },
-  pending: { variant: 'info', label: 'Čeká na úhradu' },
-  paid: { variant: 'success', label: 'Uhrazeno' },
-  overdue: { variant: 'destructive', label: 'Po splatnosti' },
-  cancelled: { variant: 'warning', label: 'Stornováno' },
-}
+const czk = (n: number, currency = 'CZK') =>
+  new Intl.NumberFormat('cs-CZ', { style: 'currency', currency, maximumFractionDigits: 2 }).format(n)
 
+const fmtDate = (d: string | null) => (d ? new Date(d).toLocaleDateString('cs-CZ') : '—')
+
+// Faktury = read-only zrcadlo účetního systému. Doklady se vystavují a párují
+// v účtu (ucto.globaalelevate.com); tady je jen přehled se stavem úhrady.
 export default async function InvoicesPage() {
-  const { supabase, tenantId } = await requireModuleAccess('invoices')
+  const { tenantId } = await requireModuleAccess('invoices')
   if (!tenantId) return <NoTenantView />
 
-  const [{ data: invoices }, { data: clients }] = await Promise.all([
-    supabase.from('invoices').select('*').eq('tenant_id', tenantId).order('issue_date', { ascending: false }),
-    supabase.from('crm_clients').select('id, name').eq('tenant_id', tenantId).order('name'),
-  ])
-
-  const safe = invoices || []
+  const invoices = await getUctoInvoices()
+  const today = new Date().toISOString().slice(0, 10)
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Faktury" description="Správa vydaných a přijatých dokladů.">
-        <Dialog>
-          <DialogTrigger render={<Button size="lg" />}>
-            <FilePlus className="size-4" />
-            Nová faktura
-          </DialogTrigger>
-          <DialogContent className="sm:max-w-lg">
-            <DialogHeader>
-              <DialogTitle>Vytvořit nový doklad</DialogTitle>
-              <DialogDescription>Vyplňte údaje faktury. Doklad bude ihned zařazen do účetnictví.</DialogDescription>
-            </DialogHeader>
-            <InvoiceForm clients={clients ?? []} />
-          </DialogContent>
-        </Dialog>
-      </PageHeader>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <PageHeader title="Faktury" description="Vydané a přijaté doklady z účetního systému." />
+        <a
+          href="https://ucto.globaalelevate.com"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-muted"
+        >
+          <ExternalLink className="size-3.5" />
+          Vystavit / spravovat v účetnictví
+        </a>
+      </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Přehled faktur</CardTitle>
-          <CardDescription>Všechny doklady evidované ve vaší organizaci.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {safe.length === 0 ? (
-            <EmptyState icon={FileText} title="Žádné faktury" description="Zatím nebyly evidovány žádné faktury." />
+      {invoices === null ? (
+        <div className="flex items-start gap-3 rounded-xl border border-warning/40 bg-warning/10 p-4 text-sm">
+          <Unplug className="mt-0.5 size-4 shrink-0 text-warning" />
+          <div>
+            <div className="font-medium text-foreground">Účetnictví není připojeno</div>
+            <div className="text-muted-foreground">Zkontroluj UCTO_DATABASE_URL v env proměnných na Vercelu.</div>
+          </div>
+        </div>
+      ) : (
+        <div className="overflow-hidden rounded-xl border border-border bg-card shadow-xs">
+          {invoices.length === 0 ? (
+            <EmptyState icon={FileText} title="Žádné doklady" description="V účetnictví zatím nejsou žádné faktury." />
           ) : (
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>Typ</TableHead>
                   <TableHead>Číslo</TableHead>
-                  <TableHead>Odběratel / Dodavatel</TableHead>
+                  <TableHead>Protistrana</TableHead>
+                  <TableHead className="hidden lg:table-cell">Popis</TableHead>
                   <TableHead className="text-right">Částka</TableHead>
-                  <TableHead>Splatnost</TableHead>
+                  <TableHead className="hidden sm:table-cell">Splatnost</TableHead>
                   <TableHead>Stav</TableHead>
-                  <TableHead className="w-10" />
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {safe.map((invoice) => {
-                  const status = STATUS[invoice.status] ?? STATUS.draft
-                  const issued = invoice.type === 'issued'
+                {invoices.map((inv) => {
+                  const issued = inv.docType === 'faktura_vydana'
+                  const overdue = !inv.paid && inv.dueDate && inv.dueDate < today
                   return (
-                    <TableRow key={invoice.id}>
+                    <TableRow key={inv.id}>
                       <TableCell>
-                        <span className={`inline-flex items-center gap-1 font-medium ${issued ? 'text-success' : 'text-destructive'}`}>
-                          {issued ? <ArrowUpRight className="size-4" /> : <ArrowDownLeft className="size-4" />}
+                        <span className={`inline-flex items-center gap-1.5 text-sm font-medium ${issued ? 'text-success' : 'text-destructive'}`}>
+                          {issued ? <ArrowUpRight className="size-3.5" /> : <ArrowDownLeft className="size-3.5" />}
                           {issued ? 'Vydaná' : 'Přijatá'}
                         </span>
                       </TableCell>
-                      <TableCell className="font-medium text-foreground">{invoice.invoice_number}</TableCell>
-                      <TableCell>{invoice.client_name}</TableCell>
-                      <TableCell className="text-right font-semibold tabular-nums text-foreground">
-                        {new Intl.NumberFormat('cs-CZ', { style: 'currency', currency: invoice.currency }).format(invoice.amount)}
+                      <TableCell className="font-medium text-foreground">{inv.number}{inv.variableSymbol && inv.variableSymbol !== inv.number ? <span className="ml-1 text-xs text-muted-foreground">VS {inv.variableSymbol}</span> : null}</TableCell>
+                      <TableCell className="text-foreground">{inv.contactName || '—'}</TableCell>
+                      <TableCell className="hidden max-w-72 truncate lg:table-cell text-muted-foreground">{inv.description}</TableCell>
+                      <TableCell className="text-right font-semibold tabular-nums text-foreground">{czk(inv.amount, inv.currency)}</TableCell>
+                      <TableCell className="hidden sm:table-cell text-muted-foreground">{fmtDate(inv.dueDate)}</TableCell>
+                      <TableCell>
+                        {inv.paid
+                          ? <Badge variant="success">Uhrazeno</Badge>
+                          : overdue
+                            ? <Badge variant="destructive">Po splatnosti</Badge>
+                            : <Badge variant="warning">Čeká na úhradu</Badge>}
                       </TableCell>
-                      <TableCell className="text-muted-foreground">{new Date(invoice.due_date).toLocaleDateString('cs-CZ')}</TableCell>
-                      <TableCell><Badge variant={status.variant}>{status.label}</Badge></TableCell>
-                      <TableCell className="text-right"><InvoiceRowActions invoice={invoice} clients={clients ?? []} /></TableCell>
                     </TableRow>
                   )
                 })}
               </TableBody>
             </Table>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      )}
     </div>
   )
 }

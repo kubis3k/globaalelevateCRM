@@ -54,6 +54,63 @@ const CACHE_MS = 5 * 60_000
 
 const iso = (d: Date) => d.toISOString().slice(0, 10)
 
+export type UctoInvoice = {
+  id: number
+  docType: 'faktura_vydana' | 'faktura_prijata'
+  number: string
+  variableSymbol: string | null
+  contactName: string | null
+  description: string
+  amount: number
+  currency: string
+  issueDate: string
+  dueDate: string | null
+  paid: boolean
+}
+
+let invCache: { at: number; data: UctoInvoice[] } | null = null
+
+// Faktury z účta (read-only zrcadlo pro modul Faktury). Uhrazenost = spárovaná
+// bankovní platba NEBO zaplacená online platba (Stripe).
+export async function getUctoInvoices(limit = 300): Promise<UctoInvoice[] | null> {
+  if (invCache && Date.now() - invCache.at < CACHE_MS) return invCache.data
+  const pool = getPool()
+  if (!pool) return null
+  try {
+    const { rows } = await pool.query(
+      `SELECT d.id, d.doc_type, d.doc_number, d.variable_symbol, d.issue_date, d.due_date,
+              d.description, d.total_amount, d.currency,
+              c.name AS contact_name,
+              (EXISTS (SELECT 1 FROM bank_statement_line b WHERE b.matched_document_id = d.id)
+               OR EXISTS (SELECT 1 FROM invoice_payment p WHERE p.document_id = d.id AND p.status = 'paid')) AS paid
+       FROM document d
+       LEFT JOIN contact c ON c.id = d.contact_id
+       WHERE d.doc_type IN ('faktura_vydana','faktura_prijata') AND d.status <> 'stornovany'
+       ORDER BY d.issue_date DESC, d.id DESC
+       LIMIT $1`,
+      [limit],
+    )
+    const data: UctoInvoice[] = rows.map((r: any) => ({
+      id: Number(r.id),
+      docType: r.doc_type,
+      number: r.doc_number,
+      variableSymbol: r.variable_symbol || null,
+      contactName: r.contact_name || null,
+      description: r.description || '',
+      amount: Number(r.total_amount || 0),
+      currency: r.currency || 'CZK',
+      issueDate: r.issue_date,
+      dueDate: r.due_date || null,
+      paid: !!r.paid,
+    }))
+    invCache = { at: Date.now(), data }
+    return data
+  } catch (e: any) {
+    console.error('[ucto] invoices failed', e?.message || e)
+    return null
+  }
+}
+
 export async function getUctoSummary(): Promise<UctoResult> {
   if (cache && Date.now() - cache.at < CACHE_MS && cache.data.connected) return cache.data
 
