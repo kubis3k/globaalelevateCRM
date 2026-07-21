@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react'
 import Link from 'next/link'
 import {
   ArrowLeft, Plus, Trash2, Pencil, FolderKanban, Building2, User, CalendarDays, Wallet, Flag, Clock,
+  PackageCheck, Download, LinkIcon, MessageSquare,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -15,6 +16,9 @@ import { toast } from '@/components/ui/toast'
 import { confirmDialog } from '@/components/ui/confirm-dialog'
 import { cn } from '@/lib/utils'
 import { updateProject, deleteProject, createTask, setTaskStatus, deleteTask } from '../actions'
+import { getDocumentUrl } from '../../documents/actions'
+import { deleteDeliverable } from '@/lib/deliverables/actions'
+import { DeliverableDialog, DELIVERABLE_STATUS } from '@/components/deliverables/deliverable-dialog'
 
 const selectClass = 'h-8 w-full rounded-lg border border-input bg-background px-2 text-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50'
 const czk = (n: number, c = 'CZK') => new Intl.NumberFormat('cs-CZ', { style: 'currency', currency: c, maximumFractionDigits: 0 }).format(n)
@@ -40,9 +44,10 @@ const TASK_STATUSES: { id: string; label: string }[] = [
 type Client = { id: string; name: string }
 type Person = { user_id: string; name: string }
 
-export function ProjectDetail({ project, tasks, clients, people }: { project: any; tasks: any[]; clients: Client[]; people: Person[] }) {
+export function ProjectDetail({ project, tasks, deliverables, clients, people }: { project: any; tasks: any[]; deliverables: any[]; clients: Client[]; people: Person[] }) {
   const [showEdit, setShowEdit] = useState(false)
   const [showTask, setShowTask] = useState(false)
+  const [showDeliverable, setShowDeliverable] = useState(false)
   const [isPending, startTransition] = useTransition()
   const st = PROJECT_STATUS[project.status] ?? PROJECT_STATUS.planning
   const pr = PRIORITY[project.priority] ?? PRIORITY.medium
@@ -62,6 +67,18 @@ export function ProjectDetail({ project, tasks, clients, people }: { project: an
     const ok = await confirmDialog({ title: `Smazat projekt „${project.name}"?`, description: 'Smažou se i všechny úkoly v projektu.', confirmLabel: 'Smazat', destructive: true })
     if (!ok) return
     startTransition(async () => { const res = await deleteProject(project.id); if (res?.error) toast.error('Chyba', res.error) })
+  }
+  async function removeDeliverable(d: any) {
+    const ok = await confirmDialog({ title: `Smazat dodávku „${d.title}"?`, confirmLabel: 'Smazat', destructive: true })
+    if (!ok) return
+    startTransition(async () => { const res = await deleteDeliverable(d.id); if (res?.error) toast.error('Chyba', res.error); else toast.success('Dodávka smazána') })
+  }
+  function downloadDeliverable(documentId: string) {
+    startTransition(async () => {
+      const res = await getDocumentUrl(documentId)
+      if (res?.error || !res.url) { toast.error('Chyba', res?.error || 'Nepodařilo se otevřít.'); return }
+      window.open(res.url, '_blank', 'noopener,noreferrer')
+    })
   }
 
   return (
@@ -144,8 +161,51 @@ export function ProjectDetail({ project, tasks, clients, people }: { project: an
         </div>
       )}
 
+      {/* Dodávky — odevzdávání práce klientovi ke schválení */}
+      <div className="flex items-center justify-between gap-2">
+        <h3 className="text-sm font-semibold text-foreground">Dodávky</h3>
+        <Button size="lg" disabled={!project.client_id} title={project.client_id ? undefined : 'Projekt musí mít přiřazeného klienta (Upravit → Klient)'} onClick={() => setShowDeliverable(true)}><Plus className="size-4" />Odeslat dodávku</Button>
+      </div>
+      {!project.client_id ? (
+        <p className="text-sm text-muted-foreground">Přiřaď projektu klienta v CRM, aby bylo možné odesílat dodávky do jeho portálu.</p>
+      ) : deliverables.length === 0 ? (
+        <EmptyState icon={PackageCheck} title="Zatím žádné dodávky" description="Odešli klientovi soubor nebo odkaz ke schválení." />
+      ) : (
+        <div className="space-y-2">
+          {deliverables.map((d: any) => {
+            const st = DELIVERABLE_STATUS[d.status] ?? DELIVERABLE_STATUS.submitted
+            return (
+              <div key={d.id} className="rounded-lg border border-border bg-card p-3 shadow-xs">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="text-sm font-medium text-foreground">{d.title}</div>
+                    {d.description && <div className="text-xs text-muted-foreground">{d.description}</div>}
+                  </div>
+                  <div className="flex shrink-0 items-center gap-1.5">
+                    <Badge variant={st.variant}>{st.label}</Badge>
+                    <Button variant="ghost" size="icon-xs" aria-label="Smazat" className="text-muted-foreground hover:text-destructive" disabled={isPending} onClick={() => removeDeliverable(d)}><Trash2 className="size-3.5" /></Button>
+                  </div>
+                </div>
+                {d.client_comment && (
+                  <div className="mt-2 flex items-start gap-1.5 rounded-md bg-muted/50 p-2 text-xs text-foreground/90">
+                    <MessageSquare className="mt-0.5 size-3 shrink-0 text-muted-foreground" />{d.client_comment}
+                  </div>
+                )}
+                {(d.document_name || d.external_url) && (
+                  <div className="mt-2 flex items-center gap-3 text-xs">
+                    {d.document_name && <button onClick={() => downloadDeliverable(d.document_id)} className="inline-flex items-center gap-1 text-primary hover:underline"><Download className="size-3" />{d.document_name}</button>}
+                    {d.external_url && <a href={d.external_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-primary hover:underline"><LinkIcon className="size-3" />Odkaz</a>}
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      )}
+
       {showEdit && <EditProjectDialog project={project} clients={clients} people={people} onClose={() => setShowEdit(false)} />}
       {showTask && <TaskDialog projectId={project.id} people={people} onClose={() => setShowTask(false)} />}
+      {showDeliverable && <DeliverableDialog projectId={project.id} onClose={() => setShowDeliverable(false)} />}
     </div>
   )
 }

@@ -2,13 +2,14 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LayoutGrid, FileText, FolderOpen, MessageSquare, FileSignature } from 'lucide-react'
+import { LayoutGrid, FileText, FolderOpen, MessageSquare, FileSignature, PackageCheck } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const SECTIONS = [
   { href: '/portal', label: 'Přehled', icon: LayoutGrid },
   { href: '/portal/invoices', label: 'Faktury', icon: FileText },
   { href: '/portal/contracts', label: 'Smlouvy', icon: FileSignature },
+  { href: '/portal/deliverables', label: 'Dodávky', icon: PackageCheck },
   { href: '/portal/documents', label: 'Dokumenty', icon: FolderOpen },
   { href: '/portal/messages', label: 'Zprávy', icon: MessageSquare },
 ]
