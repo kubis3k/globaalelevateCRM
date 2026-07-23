@@ -6,6 +6,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { canManageDocuments } from '@/lib/permissions'
 import { DOCUMENTS_BUCKET, MAX_DOCUMENT_BYTES } from '@/lib/documents'
 import { storeDocument } from '@/lib/documents-store'
+import { recordAudit } from '@/lib/audit'
 
 type Ctx = { admin: ReturnType<typeof createAdminClient>; userId: string; tenantId: string; role: string }
 
@@ -94,6 +95,7 @@ export async function deleteDocument(id: string): Promise<{ error?: string }> {
   await c.admin.storage.from(DOCUMENTS_BUCKET).remove([doc.storage_path])
   const { error } = await c.admin.from('documents').delete().eq('id', id).eq('tenant_id', c.tenantId)
   if (error) return { error: error.message }
+  await recordAudit(c.admin, { tenantId: c.tenantId, userId: c.userId, action: 'documents.delete', entity: 'documents', entityId: id })
   revalidatePath('/documents')
   return {}
 }

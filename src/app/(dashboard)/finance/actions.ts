@@ -1,20 +1,11 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { createClient } from '@/lib/supabase/server'
-import { createAdminClient } from '@/lib/supabase/admin'
+import { requirePermission } from '@/lib/auth/context'
+import { recordAudit } from '@/lib/audit'
 
-type Ctx = { admin: ReturnType<typeof createAdminClient>; userId: string; tenantId: string }
-
-async function getCtx(): Promise<Ctx | { error: string }> {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: 'Nejste přihlášen.' }
-  const admin = createAdminClient()
-  const { data: tu } = await admin.from('tenant_users').select('tenant_id').eq('user_id', user.id).maybeSingle()
-  if (!tu?.tenant_id) return { error: 'Organizace nenalezena.' }
-  return { admin, userId: user.id, tenantId: tu.tenant_id }
-}
+// Autorizace: finance smí spravovat admin/manager (requirePermission).
+const getCtx = () => requirePermission('finance.manage')
 
 const str = (fd: FormData, k: string) => { const v = (fd.get(k) as string)?.trim(); return v ? v : null }
 const cat = (fd: FormData) => { const v = str(fd, 'categoryId'); return v && v !== 'none' ? v : null }
@@ -35,8 +26,9 @@ export async function createTransaction(formData: FormData): Promise<{ error?: s
   const c = await getCtx(); if ('error' in c) return c
   const row = txRow(formData)
   if (!row.date) return { error: 'Zadejte datum.' }
-  const { error } = await c.admin.from('transactions').insert({ ...row, tenant_id: c.tenantId, created_by: c.userId })
+  const { data, error } = await c.admin.from('transactions').insert({ ...row, tenant_id: c.tenantId, created_by: c.userId }).select('id').maybeSingle()
   if (error) return { error: error.message }
+  await recordAudit(c.admin, { tenantId: c.tenantId, userId: c.userId, action: 'finance.transaction.create', entity: 'transactions', entityId: data?.id, summary: `${row.type} ${row.amount} ${row.currency}`, meta: { date: row.date } })
   refresh(); return {}
 }
 
@@ -53,6 +45,7 @@ export async function deleteTransaction(transactionId: string): Promise<{ error?
   const c = await getCtx(); if ('error' in c) return c
   const { error } = await c.admin.from('transactions').delete().eq('id', transactionId).eq('tenant_id', c.tenantId)
   if (error) return { error: error.message }
+  await recordAudit(c.admin, { tenantId: c.tenantId, userId: c.userId, action: 'finance.transaction.delete', entity: 'transactions', entityId: transactionId })
   refresh(); return {}
 }
 
@@ -91,5 +84,6 @@ export async function importTransactions(rows: ImportRow[]): Promise<{ error?: s
   }))
   const { error } = await c.admin.from('transactions').insert(payload)
   if (error) return { error: error.message }
+  await recordAudit(c.admin, { tenantId: c.tenantId, userId: c.userId, action: 'finance.transaction.import', entity: 'transactions', summary: `Import ${payload.length} transakcí` })
   refresh(); return { count: payload.length }
 }

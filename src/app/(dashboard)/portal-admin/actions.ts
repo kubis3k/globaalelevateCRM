@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache'
 import { headers } from 'next/headers'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { recordAudit } from '@/lib/audit'
 
 type Ctx = { admin: ReturnType<typeof createAdminClient>; userId: string; tenantId: string }
 
@@ -50,6 +51,7 @@ export async function sendPortalInvite(formData: FormData): Promise<{ error?: st
   })
   if (insErr) return { error: insErr.message }
 
+  await recordAudit(c.admin, { tenantId: c.tenantId, userId: c.userId, action: 'portal.invite.create', entity: 'portal_invites', summary: email, meta: { clientId } })
   revalidatePath('/portal-admin')
   return { link: await inviteLink(token) }
 }
@@ -82,6 +84,7 @@ export async function deletePortalUser(userId: string): Promise<{ error?: string
   const { data: pa } = await c.admin.from('portal_access').select('user_id').eq('user_id', userId).eq('tenant_id', c.tenantId).maybeSingle()
   if (!pa) return { error: 'Účet portálu nenalezen.' }
   await c.admin.auth.admin.deleteUser(userId) // cascade smaže tenant_users + portal_* (FK ON DELETE CASCADE)
+  await recordAudit(c.admin, { tenantId: c.tenantId, userId: c.userId, action: 'portal.user.delete', entity: 'portal_access', entityId: userId })
   revalidatePath('/portal-admin'); return {}
 }
 

@@ -1,20 +1,11 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { createClient } from '@/lib/supabase/server'
-import { createAdminClient } from '@/lib/supabase/admin'
+import { requirePermission } from '@/lib/auth/context'
+import { recordAudit } from '@/lib/audit'
 
-type Ctx = { admin: ReturnType<typeof createAdminClient>; userId: string; tenantId: string }
-
-async function getCtx(): Promise<Ctx | { error: string }> {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: 'Nejste přihlášen.' }
-  const admin = createAdminClient()
-  const { data: tu } = await admin.from('tenant_users').select('tenant_id').eq('user_id', user.id).maybeSingle()
-  if (!tu?.tenant_id) return { error: 'Organizace nenalezena.' }
-  return { admin, userId: user.id, tenantId: tu.tenant_id }
-}
+// Autorizace: obchodní smlouvy smí spravovat admin/manager.
+const getCtx = () => requirePermission('contracts.manage')
 
 const str = (fd: FormData, k: string) => { const v = (fd.get(k) as string)?.trim(); return v ? v : null }
 const opt = (fd: FormData, k: string) => { const v = str(fd, k); return v && v !== 'none' ? v : null }
@@ -42,8 +33,9 @@ function contractRow(fd: FormData) {
 export async function createBusinessContract(formData: FormData): Promise<{ error?: string }> {
   const c = await getCtx(); if ('error' in c) return c
   const row = contractRow(formData); if (!row.title) return { error: 'Zadejte název smlouvy.' }
-  const { error } = await c.admin.from('business_contracts').insert({ tenant_id: c.tenantId, created_by: c.userId, ...row })
+  const { data, error } = await c.admin.from('business_contracts').insert({ tenant_id: c.tenantId, created_by: c.userId, ...row }).select('id').maybeSingle()
   if (error) return { error: error.message }
+  await recordAudit(c.admin, { tenantId: c.tenantId, userId: c.userId, action: 'contracts.create', entity: 'business_contracts', entityId: data?.id, summary: row.title })
   revalidatePath('/business-contracts'); return {}
 }
 
@@ -59,6 +51,7 @@ export async function deleteBusinessContract(id: string): Promise<{ error?: stri
   const c = await getCtx(); if ('error' in c) return c
   const { error } = await c.admin.from('business_contracts').delete().eq('id', id).eq('tenant_id', c.tenantId)
   if (error) return { error: error.message }
+  await recordAudit(c.admin, { tenantId: c.tenantId, userId: c.userId, action: 'contracts.delete', entity: 'business_contracts', entityId: id })
   revalidatePath('/business-contracts'); return {}
 }
 

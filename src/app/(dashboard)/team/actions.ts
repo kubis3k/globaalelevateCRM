@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { recordAudit } from '@/lib/audit'
 
 // ─── Team members ──────────────────────────────────────────────
 
@@ -53,6 +54,7 @@ export async function addTeamMember(formData: FormData): Promise<{ error?: strin
     return { error: membershipError.message }
   }
 
+  await recordAudit(admin, { tenantId: tenantUser.tenant_id, userId: user.id, action: 'team.member.add', entity: 'tenant_users', entityId: newUser.user.id, summary: `${username} (${role})` })
   revalidatePath('/team')
   return {}
 }
@@ -68,6 +70,7 @@ export async function removeTeamMember(userId: string) {
   if (!tenantUser || tenantUser.role !== 'admin') throw new Error('Nemáte oprávnění mazat uživatele.')
 
   await admin.auth.admin.deleteUser(userId)
+  await recordAudit(admin, { tenantId: tenantUser.tenant_id, userId: user.id, action: 'team.member.remove', entity: 'tenant_users', entityId: userId })
   revalidatePath('/team')
 }
 
@@ -143,5 +146,6 @@ export async function assignCustomRole(userId: string, customRoleId: string | nu
   if (!tenantUser || tenantUser.role !== 'admin') throw new Error('Nemáte oprávnění.')
 
   await admin.from('tenant_users').update({ custom_role_id: customRoleId }).eq('user_id', userId).eq('tenant_id', tenantUser.tenant_id)
+  await recordAudit(admin, { tenantId: tenantUser.tenant_id, userId: user.id, action: 'team.role.assign', entity: 'tenant_users', entityId: userId, meta: { customRoleId } })
   revalidatePath('/team')
 }
