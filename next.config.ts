@@ -1,8 +1,10 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // TS chyby nyní build zastaví (baseline 0 chyb, tsconfig strict).
+  // Historicky bylo true; viz docs/adr/0002. Ověřuj `npm run typecheck`.
   typescript: {
-    ignoreBuildErrors: true,
+    ignoreBuildErrors: false,
   },
   experimental: {
     // Veřejná přihláška na kariérní stránce nahrává CV přes server action.

@@ -153,7 +153,7 @@ function TemplateDialog({ tpl, onClose }: { tpl: Template | null; onClose: () =>
     const fd = new FormData()
     if (isEdit) fd.set('id', tpl.id)
     fd.set('name', name.trim()); fd.set('kind', kind)
-    for (const line of text.split('\n').map((s) => s.trim()).filter(Boolean)) fd.append('items', line)
+    for (const line of text.split('\n').map((s: string) => s.trim()).filter(Boolean)) fd.append('items', line)
     startTransition(async () => { const r = await saveChecklistTemplate(fd); if (r?.error) toast.error('Chyba', r.error); else { toast.success('Šablona uložena'); onClose() } })
   }
 

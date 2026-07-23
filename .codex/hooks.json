@@ -1,0 +1,24 @@
+{
+  "hooks": {
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 'C:\\Users\\jakub\\Desktop\\globaalelevate CRM\\.claude\\worktrees\\funny-rosalind-785b85\\.codex\\hooks\\token_tracker.py'"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 'C:\\Users\\jakub\\Desktop\\globaalelevate CRM\\.claude\\worktrees\\funny-rosalind-785b85\\.codex\\hooks\\token_tracker.py'"
+          }
+        ]
+      }
+    ]
+  }
+}
