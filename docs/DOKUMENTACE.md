@@ -500,7 +500,8 @@ Endpoint `src/app/api/cron/route.ts` (Node runtime, `maxDuration = 60`), volaný
 | Proměnná | Účel |
 |---|---|
 | `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase klient |
-| `SUPABASE_SERVICE_ROLE_KEY` | Service-role (server, obchází RLS; též klíč pro šifrování mailu) |
+| `SUPABASE_SERVICE_ROLE_KEY` | Service-role (server, obchází RLS) |
+| `MAIL_ENCRYPTION_KEY` | Dedikovaný klíč pro šifrování hesel e-mailových schránek (odděleno od service-role — viz ADR-0003). Bez něj se použije zpětně kompatibilní derivace ze service-role. |
 | `CRON_SECRET` | Autorizace cron endpointu |
 | `NEXT_PUBLIC_VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` | Web Push |
 | `ANTHROPIC_API_KEY` | Globaal AI |
