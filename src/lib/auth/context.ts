@@ -1,4 +1,6 @@
 import 'server-only'
+import { eq } from 'drizzle-orm'
+import { db, schema } from '@/lib/db'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { can, type Permission } from './permissions'
@@ -40,4 +42,11 @@ export async function requirePermission(permission: Permission): Promise<AuthRes
   if (isAuthError(ctx)) return ctx
   if (!can(ctx.role, permission)) return { error: 'Nemáte oprávnění k této akci.' }
   return ctx
+}
+
+// Dočasné heslo po Neon cutoveru (viz api/admin/seed-passwords) — layouty
+// (dashboard i portal) na true přesměrují na /force-password-change.
+export async function mustChangePassword(userId: string): Promise<boolean> {
+  const [row] = await db.select({ v: schema.users.mustChangePassword }).from(schema.users).where(eq(schema.users.id, userId)).limit(1)
+  return row?.v ?? false
 }

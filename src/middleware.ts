@@ -1,11 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server'
-import { createServerClient } from '@supabase/ssr'
+import { getSessionCookie } from 'better-auth/cookies'
 
 export async function middleware(request: NextRequest) {
-  let supabaseResponse = NextResponse.next({
-    request,
-  })
-
   // Předcházení běhu pro statické soubory
   if (
     request.nextUrl.pathname.startsWith('/_next') ||
@@ -28,46 +24,25 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next()
   }
 
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL || '',
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '',
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll()
-        },
-        setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
-          supabaseResponse = NextResponse.next({
-            request,
-          })
-          cookiesToSet.forEach(({ name, value, options }) =>
-            supabaseResponse.cookies.set(name, value, options)
-          )
-        },
-      },
-    }
-  )
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  // Jen kontrola existence cookie (edge runtime, žádné DB dotazy) — autoritativní
+  // ověření session dělá getAuthContext()/requireTenant() (Node runtime).
+  const hasSession = !!getSessionCookie(request)
 
   const isAuthRoute = request.nextUrl.pathname.startsWith('/login') || request.nextUrl.pathname.startsWith('/auth') || request.nextUrl.pathname.startsWith('/jobs') || request.nextUrl.pathname.startsWith('/invite')
 
-  if (!user && !isAuthRoute) {
+  if (!hasSession && !isAuthRoute) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
     return NextResponse.redirect(url)
   }
 
-  if (user && request.nextUrl.pathname === '/login') {
+  if (hasSession && request.nextUrl.pathname === '/login') {
     const url = request.nextUrl.clone()
     url.pathname = '/dashboard'
     return NextResponse.redirect(url)
   }
 
-  return supabaseResponse
+  return NextResponse.next()
 }
 
 export const config = {

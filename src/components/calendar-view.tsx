@@ -12,7 +12,6 @@ import { PageHeader } from '@/components/ui/page-header'
 import { confirmDialog } from '@/components/ui/confirm-dialog'
 import { toast } from '@/components/ui/toast'
 import { createEvent, deleteEvent } from '@/app/(dashboard)/calendar/actions'
-import { createClient } from '@/lib/supabase/client'
 import { cn } from '@/lib/utils'
 
 type CalendarViewProps = {
@@ -39,7 +38,6 @@ const ROLE_CHIP: Record<string, string> = {
 }
 
 export function CalendarView({ initialEvents, teamMembers, companyRoles, currentUserId, currentUserRole, currentUserCustomRoleId, tenantId }: CalendarViewProps) {
-  const supabase = createClient()
   const roleNameById = new Map(companyRoles.map((r) => [r.id, r.name]))
   const eventRoleName = (ev: any): string | null =>
     ev?.assigned_custom_role_id ? (roleNameById.get(ev.assigned_custom_role_id) || 'Role')
@@ -76,25 +74,9 @@ export function CalendarView({ initialEvents, teamMembers, companyRoles, current
 
   useEffect(() => { setEvents(initialEvents) }, [initialEvents])
 
-  useEffect(() => {
-    const channel = supabase
-      .channel('calendar-realtime-changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'calendar_events', filter: `tenant_id=eq.${tenantId}` }, (payload) => {
-        if (payload.eventType === 'INSERT') {
-          const newEvent = payload.new
-          setEvents((prev) => (prev.some((e) => e.id === newEvent.id) ? prev : [...prev, newEvent].sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime())))
-          if (newEvent.assigned_to === currentUserId || newEvent.assigned_role === currentUserRole || (newEvent.assigned_custom_role_id && newEvent.assigned_custom_role_id === currentUserCustomRoleId)) {
-            triggerLocalNotification(`Nová událost: ${newEvent.title}`, newEvent.description || 'Byla vám přiřazena nová událost v kalendáři.')
-          }
-        } else if (payload.eventType === 'DELETE') {
-          setEvents((prev) => prev.filter((e) => e.id !== payload.old.id))
-        } else if (payload.eventType === 'UPDATE') {
-          setEvents((prev) => prev.map((e) => (e.id === payload.new.id ? { ...e, ...payload.new } : e)))
-        }
-      })
-      .subscribe()
-    return () => { supabase.removeChannel(channel) }
-  }, [supabase, tenantId, currentUserId, currentUserRole, currentUserCustomRoleId])
+  // Živé postgres_changes přes Supabase Realtime odstraněno s přechodem na
+  // Neon (žádná ekvivalentní služba) — kalendář se teď aktualizuje jen po
+  // akci/obnovení stránky, ne automaticky mezi klienty v reálném čase.
 
   const year = currentDate.getFullYear()
   const month = currentDate.getMonth()

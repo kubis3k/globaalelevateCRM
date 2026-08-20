@@ -1,23 +1,24 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { Loader2 } from 'lucide-react'
 import { authClient } from '@/lib/auth/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { toast } from '@/components/ui/toast'
+import { clearMustChangePassword } from './actions'
 
-// Lets the signed-in user set a new password. Verifies the current password
-// first (re-auth) so a borrowed/unlocked session can't silently change it.
-export function ChangePasswordDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
+// Po přechodu na Neon dostali všichni stávající uživatelé dočasné heslo —
+// tahle stránka je donutí ho při prvním přihlášení změnit (viz middleware +
+// dashboard layout, které sem přesměrují dokud users.must_change_password).
+export default function ForcePasswordChangePage() {
+  const router = useRouter()
   const [cur, setCur] = useState('')
   const [pw, setPw] = useState('')
   const [pw2, setPw2] = useState('')
   const [busy, setBusy] = useState(false)
-
-  function reset() { setCur(''); setPw(''); setPw2('') }
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
@@ -25,27 +26,26 @@ export function ChangePasswordDialog({ open, onClose }: { open: boolean; onClose
     if (pw !== pw2) { toast.error('Hesla se neshodují', 'Zadej dvakrát stejné nové heslo.'); return }
     setBusy(true)
     try {
-      // changePassword ověří currentPassword samo (server-side) — žádný
-      // samostatný re-auth krok navíc není potřeba.
       const { error } = await authClient.changePassword({ newPassword: pw, currentPassword: cur, revokeOtherSessions: false })
-      if (error) { toast.error('Chyba', error.message?.toLowerCase().includes('password') ? 'Současné heslo není správné.' : (error.message || 'Heslo se nepodařilo změnit.')); return }
+      if (error) { toast.error('Chyba', error.message?.toLowerCase().includes('password') ? 'Dočasné heslo není správné.' : (error.message || 'Heslo se nepodařilo změnit.')); return }
+      await clearMustChangePassword()
       toast.success('Heslo bylo změněno')
-      reset(); onClose()
+      router.push('/dashboard')
     } catch (err: any) {
       toast.error('Chyba', err?.message || 'Heslo se nepodařilo změnit.')
     } finally { setBusy(false) }
   }
 
   return (
-    <Dialog open={open} onOpenChange={(o) => { if (!o) { reset(); onClose() } }}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Změnit heslo</DialogTitle>
-          <DialogDescription>Pro potvrzení zadej současné heslo a nastav nové. Po změně zůstaneš přihlášen.</DialogDescription>
-        </DialogHeader>
+    <div className="flex min-h-screen items-center justify-center bg-muted/30 p-4">
+      <div className="w-full max-w-sm rounded-lg border bg-background p-6 shadow-sm space-y-4">
+        <div>
+          <h1 className="text-lg font-semibold">Nastav si nové heslo</h1>
+          <p className="text-sm text-muted-foreground">Přechod na nový systém — dočasné heslo je potřeba jednou změnit.</p>
+        </div>
         <form onSubmit={submit} className="space-y-3">
           <div className="space-y-1">
-            <Label className="text-xs">Současné heslo</Label>
+            <Label className="text-xs">Dočasné heslo</Label>
             <Input type="password" value={cur} onChange={(e) => setCur(e.target.value)} autoComplete="current-password" autoFocus />
           </div>
           <div className="space-y-1">
@@ -57,12 +57,9 @@ export function ChangePasswordDialog({ open, onClose }: { open: boolean; onClose
             <Input type="password" value={pw2} onChange={(e) => setPw2(e.target.value)} autoComplete="new-password" minLength={8} />
           </div>
           <p className="text-[11px] text-muted-foreground">Alespoň 8 znaků. Doporučujeme kombinaci písmen, čísel a symbolů.</p>
-          <div className="flex justify-end gap-2 pt-1">
-            <Button type="button" variant="ghost" onClick={() => { reset(); onClose() }}>Zrušit</Button>
-            <Button type="submit" disabled={busy}>{busy && <Loader2 className="size-4 animate-spin" />}Změnit heslo</Button>
-          </div>
+          <Button type="submit" disabled={busy} className="w-full">{busy && <Loader2 className="size-4 animate-spin" />}Změnit heslo</Button>
         </form>
-      </DialogContent>
-    </Dialog>
+      </div>
+    </div>
   )
 }

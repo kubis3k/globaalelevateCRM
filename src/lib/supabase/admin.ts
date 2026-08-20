@@ -1,18 +1,66 @@
-import { createClient } from '@supabase/supabase-js'
+import { createClient as createSupabaseJs } from '@supabase/supabase-js'
+import { randomUUID } from 'crypto'
+import { eq } from 'drizzle-orm'
+import { db, schema } from '@/lib/db'
+import { auth } from '@/lib/auth/auth'
+import { from } from '@/lib/db/pg-shim'
 
-// Klient je zatím záměrně NETYPOVANÝ (schema `any`). Reálné DB typy existují
-// v @/types/database.types (Tables<>, TablesInsert<>) a doménová vrstva je
-// přebírá postupně (Fáze 3) — hromadné otypování klienta = big-bang (~110 chyb),
-// viz docs/adr/0002. Netypovaný klient drží zpětnou kompatibilitu call-sites.
+// `.from()` a `.auth.admin.*` jdou přes Neon/Drizzle + Better-Auth (viz
+// server.ts). `.storage` zůstává na reálném Supabase service-role klientovi —
+// Storage se na Vercel Blob přesouvá jako samostatný navazující krok, do té
+// doby zůstávají soubory (dokumenty, HR přílohy, CV) beze změny na Supabase.
+const storageClient = createSupabaseJs(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  { auth: { autoRefreshToken: false, persistSession: false } },
+)
+
 export function createAdminClient() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    {
-      auth: {
-        autoRefreshToken: false,
-        persistSession: false
-      }
-    }
-  )
+  return {
+    from,
+    storage: storageClient.storage,
+    auth: {
+      admin: {
+        async createUser(opts: { email: string; password: string; email_confirm?: boolean }) {
+          try {
+            const existing = await db.select().from(schema.users).where(eq(schema.users.email, opts.email)).limit(1)
+            if (existing.length) return { data: { user: null }, error: { message: 'already registered' } }
+
+            const ctx = await auth.$context
+            const passwordHash = await ctx.password.hash(opts.password)
+            const userId = randomUUID()
+            const now = new Date()
+            await db.insert(schema.users).values({
+              id: userId,
+              email: opts.email,
+              name: opts.email.split('@')[0],
+              emailVerified: opts.email_confirm ?? true,
+              createdAt: now,
+              updatedAt: now,
+            })
+            await db.insert(schema.account).values({
+              id: randomUUID(),
+              userId,
+              accountId: opts.email,
+              providerId: 'credential',
+              password: passwordHash,
+              createdAt: now,
+              updatedAt: now,
+            })
+            return { data: { user: { id: userId, email: opts.email } }, error: null }
+          } catch (err: any) {
+            return { data: { user: null }, error: { message: err?.message ?? String(err) } }
+          }
+        },
+        async deleteUser(userId: string) {
+          try {
+            await db.delete(schema.users).where(eq(schema.users.id, userId))
+            return { data: null, error: null }
+          } catch (err: any) {
+            return { data: null, error: { message: err?.message ?? String(err) } }
+          }
+        },
+      },
+    },
+  }
 }

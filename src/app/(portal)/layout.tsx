@@ -2,9 +2,11 @@ import { redirect } from 'next/navigation'
 import Image from 'next/image'
 import { getPortalScope } from './portal/scope'
 import { PortalNav } from './portal/portal-nav'
+import { mustChangePassword } from '@/lib/auth/context'
 
 export default async function PortalLayout({ children }: { children: React.ReactNode }) {
-  const { role, access } = await getPortalScope()
+  const { role, access, user } = await getPortalScope()
+  if (await mustChangePassword(user.id)) redirect('/force-password-change')
   // Portál je jen pro externí uživatele (klienti/promotéři); admin smí náhled.
   if (role !== 'external' && role !== 'admin') redirect('/dashboard')
   const name = access?.display_name || 'Klient'
