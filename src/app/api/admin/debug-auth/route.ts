@@ -17,6 +17,25 @@ export async function GET(req: NextRequest) {
   const email = req.nextUrl.searchParams.get('email') || 'jakub.lucan@globaalelevate.com'
   const password = req.nextUrl.searchParams.get('password') || 'Globaal43!'
 
+  if (req.nextUrl.searchParams.get('mode') === 'freshwrite') {
+    // Overwrite this account's password hash right now, in this same request,
+    // then immediately call the real signInEmail — eliminates any staleness
+    // from the hash having been written in an earlier, separate request.
+    const { eq, and } = await import('drizzle-orm')
+    const { db, schema } = await import('@/lib/db')
+    const ctx = await auth.$context
+    const hash = await ctx.password.hash(password)
+    const found = await ctx.internalAdapter.findUserByEmail(email)
+    if (!found) return NextResponse.json({ error: 'no user' })
+    await db.update(schema.account).set({ password: hash }).where(and(eq(schema.account.userId, found.user.id), eq(schema.account.providerId, 'credential')))
+    try {
+      const result = await auth.api.signInEmail({ body: { email, password } })
+      return NextResponse.json({ ok: true, result })
+    } catch (err: any) {
+      return NextResponse.json({ ok: false, message: err?.message, body: err?.body })
+    }
+  }
+
   if (req.nextUrl.searchParams.get('mode') === 'roundtrip') {
     const ctx = await auth.$context
     const hash = await ctx.password.hash(password)
