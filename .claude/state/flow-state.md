@@ -4,8 +4,9 @@
   jeden ucelený cutover (auth+tenant lookup je sdílená infrastruktura, nejde migrovat po jednom modulu bez
   rozjetých dat) — 675 `.from()` volání ve 114 souborech, middleware.ts, src/lib/auth/*, src/lib/supabase/*,
   storage (8 souborů) na Vercel Blob
-- tier: T4 (jádro/bezpečnost/migrace) — architekt schválil plán (PostgREST-shim strategie), implementace hotová
-- status: running (kód hotový a commitnutý/pushnutý, čeká se na uživatele: Vercel env vary + build log + seed-passwords)
+- tier: T4 (jádro/bezpečnost/migrace) — architekt schválil plán (PostgREST-shim strategie)
+- status: DONE (build zelený na produkci, uživatel potvrdil "funguje to" — přihlášení přes Better-Auth funkční,
+  seed-passwords proběhl). Zbývají jen navazující, NEBLOKUJÍCÍ úklidové kroky (viz níže).
 
 ## Kde jsme skončili (checkpoint)
 - poslední dokončený krok: cutover implementován jako PostgREST-kompatibilní shim (architektův návrh) —
@@ -24,19 +25,16 @@
   stránka + `must_change_password` flag na `users` (gate v dashboard i portal layoutu) + jednorázový
   `/api/admin/seed-passwords` route (heslo `Globaal43!` všem 14 uživatelům, Bearer CRON_SECRET).
   Smazáno: `src/types/database.{generated,types}.ts` (nepoužívané, nahrazeno `src/lib/db/schema.ts`).
-- rozpracovaný soubor + řádek: žádný — vše hotové, commit/push proveden
-- další krok (na uživateli, MUSÍ proběhnout než appka půjde spustit):
-  1. Vercel env: `DATABASE_URL` (Neon pooled connection string), `BETTER_AUTH_SECRET` (random) — bez nich
-     appka spadne na každém requestu. `NEXT_PUBLIC_SUPABASE_*`/`SUPABASE_SERVICE_ROLE_KEY`/`CRON_SECRET`
-     ZŮSTÁVAJÍ (storage passthrough + seed-passwords je používají).
-  2. Zkontrolovat Vercel build log (typescript.ignoreBuildErrors=false → build spadne na první TS chybě,
-     to je jediný "compiler" co tuhle migraci ověří — node/npm/tsc nejde lokálně).
-  3. Po zeleném buildu zavolat `POST /api/admin/seed-passwords` (Bearer CRON_SECRET) — nastaví heslo
-     `Globaal43!` všem, kdo ještě nemají credential účet, a `must_change_password=true`.
-  4. Ověřit přihlášení v browseru (login → force-password-change → dashboard).
-- pak (samostatný navazující krok, ne blokující): Storage Supabase→Vercel Blob (8 souborů), teprve poté
-  smazat `@supabase/*` z package.json a SUPABASE_* env + nastavit `MAIL_ENCRYPTION_KEY` (jinak se ztratí
-  dešifrovatelnost mail_accounts.secret_enc — uživatel už odsouhlasil, že to tehdy nevadí).
+- rozpracovaný soubor + řádek: žádný — vše hotové, commit/push proveden, build i login ověřeny funkční
+- CRON_SECRET byl rotován (stará hodnota byla ve Vercelu uložená jako "Sensitive" → zpětně needitelná/needitovatelná v UI)
+  — nová hodnota nastavena ve Vercelu; hodnota samotná se nikam needituje/needukládá dál.
+- Build fix-iterace (6 kol, viz Rozhodnutí) — všechny problémy byly v `src/lib/db/{pg-shim,schema}.ts`
+  (peer-dep verze, `any` vs `any[]` typing, `nullsFirst`, union typ na `.returning()`, numeric() defaulty
+  jako string) — žádný z 675 existujících call-sites potřeboval úpravu, přesně jak architekt navrhoval.
+- další krok (volitelný navazující úklid, NEBLOKUJÍCÍ — appka je plně funkční i beze všeho níže):
+  1. Storage Supabase→Vercel Blob (8 souborů)
+  2. teprve poté smazat `@supabase/*` z package.json a SUPABASE_* env + nastavit `MAIL_ENCRYPTION_KEY`
+     (jinak se ztratí dešifrovatelnost mail_accounts.secret_enc — uživatel už odsouhlasil, že to nevadí)
 - POST-cutover (T2 úkoly, až po ověřeném zeleném buildu): postupný přepis 675 `.from()` volání na nativní
   Drizzle po doménách (viz architektův plán P-a..P-e: hr, crm/finance, projects/events/time,
   portal/social/ops/team, documents/mail/ai/misc) — shim zůstává funkční, dokud nejsou VŠECHNY hotové.
@@ -72,9 +70,10 @@
 - [2026-08-20] Push přímo na `main` bez feature-branch/preview pojistky — uživatel vědomě zvolil rychlejší/rizikovější variantu i bez možnosti lokálního ověření (chybí Node).
 - [2026-08-20] RLS na Neonu neutralizováno (CREATE POLICY i ENABLE ROW LEVEL SECURITY odstraněny při přenosu migrací) — nahradí ho aplikační autorizace v `getAuthContext()`/`requirePermission()`. Postgres table owner (neondb_owner) by RLS s nulou policies stejně bypassoval.
 - [2026-08-20] Objeven schema drift oběma směry mezi tracked migracemi a živou Supabase produkcí: chybějící `mail_accounts`/`meetings`/`meeting_action_items` (existovaly v prod, ne v migracích) a chybějící `invoices.overdue_notified_at`/`notification_prefs.{events,invoices,meetings,portal}` (opačně) — obojí doplněno na Neon. Nesouvisející legacy tabulky `Role`/`User` (Prisma styl, 1 řádek každá, žádné FK) v zdrojové DB NEbyly migrovány.
+- [2026-08-20] Bez lokálního Node/tsc se build ověřoval čistě přes 6 iterací push→Vercel-build-log→fix. Vzorec: chyby byly VŽDY v `src/lib/db/pg-shim.ts`/`schema.ts` (peer-dep verze drizzle-kit/drizzle-orm vůči better-auth, `data: any` vs `any[]` — starý Supabase klient typoval `any[]|null`, `order()` chybějící `nullsFirst`, union typ `any[] | QueryResult<never>` na `.returning()`, `numeric()` defaulty musí být string ne number) — NIKDY v žádném z 675 existujících call-sites. Potvrzuje architektův shim-design: cutover rizikový povrch je opravdu jen těch ~8 infra souborů.
+- [2026-08-20] Cutover funkčně ověřen uživatelem živě (přihlášení přes Better-Auth + seed-passwords proběhly) — T4 úkol uzavřen jako DONE; zbylé kroky (storage→Blob, native Drizzle rewrite) jsou samostatné budoucí T2/T3 úkoly, ne pokračování téhož T4.
 
 ## Otevřené otázky / blokery
-- Node.js není v tomto shellu dostupné vůbec — každá TS/build chyba se pozná jen z Vercel build logu po push, ne lokálně.
-- Uživatel MUSÍ přidat `DATABASE_URL` + `BETTER_AUTH_SECRET` do Vercel env, jinak appka nenaběhne (viz checkpoint).
-- Vercel MCP nemá nástroj na čtení/zápis env var hodnot — kopírování SUPABASE_SERVICE_ROLE_KEY do MAIL_ENCRYPTION_KEY (až přijde na řadu) musí udělat uživatel ručně v dashboardu.
-- Better-Auth API povrch (drizzleAdapter import cesta, nextCookies, ctx.password.hash, getSessionCookie) ověřen jen přes WebFetch/WebSearch dokumentace, NE lokálním compilerem — riziko drobné nepřesnosti v nějakém detailu, sledovat build log.
+- Storage (8 souborů) pořád na reálném Supabase service-role klientovi — funguje, ale závislost na Supabase projektu/klíčích trvá, dokud neproběhne Vercel Blob migrace.
+- `MAIL_ENCRYPTION_KEY` ještě nenastaven — dokud SUPABASE_SERVICE_ROLE_KEY existuje, mail/crypto.ts na něm dál běží beze změny; až se Supabase bude odpojovat, uživatel už odsouhlasil ztrátu starých mailových hesel.
+- Better-Auth API povrch (drizzleAdapter import cesta, nextCookies, ctx.password.hash, getSessionCookie) ověřen přes WebFetch/WebSearch dokumentaci a nakonec i živým Vercel buildem + reálným přihlášením — funguje.
