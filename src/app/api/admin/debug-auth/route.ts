@@ -27,7 +27,7 @@ export async function GET(req: NextRequest) {
     if (mode === 'verify') {
       const user = await ctx.internalAdapter.findUserByEmail(email, { includeAccounts: true })
       const acct = user?.accounts?.find((a: any) => a.providerId === 'credential')
-      if (!acct) return NextResponse.json({ ok: false, reason: 'no credential account found via findUserByEmail', user })
+      if (!acct || !acct.password) return NextResponse.json({ ok: false, reason: 'no credential account (or no password hash) found via findUserByEmail', user })
       const verified = await ctx.password.verify({ hash: acct.password, password })
       return NextResponse.json({ ok: true, verified, acctId: acct.id, hashPrefix: String(acct.password).slice(0, 15) })
     }
