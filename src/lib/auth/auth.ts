@@ -10,7 +10,11 @@ import { db, schema } from '@/lib/db'
 export const auth = betterAuth({
   database: drizzleAdapter(db, {
     provider: 'pg',
-    schema,
+    // Explicit key aliasing (user -> our `users` table) in addition to the
+    // modelName override below — belt-and-suspenders, since drizzleAdapter's
+    // schema-key resolution vs. the modelName override isn't fully clear
+    // without a local compiler/runtime to verify against.
+    schema: { ...schema, user: schema.users },
   }),
   user: {
     modelName: 'users',
