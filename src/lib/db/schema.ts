@@ -1,7 +1,7 @@
 // AUTO-GENERATED from the live Neon schema. Do not hand-edit column definitions;
 // regenerate via scripts/gen-drizzle-schema if the DB schema changes.
 import { pgTable, pgEnum, uuid, text, boolean, integer, bigint, numeric, timestamp, date, time, jsonb, doublePrecision, real, varchar } from 'drizzle-orm/pg-core'
-import { sql } from 'drizzle-orm'
+import { sql, relations } from 'drizzle-orm'
 
 export const appRoleEnum = pgEnum("app_role", ["admin", "manager", "employee", "external"])
 export const bcPartyTypeEnum = pgEnum("bc_party_type", ["artist", "rental", "supplier", "client", "other"])
@@ -1228,3 +1228,18 @@ export const vipReservations = pgTable("vip_reservations", {
   created_by: uuid("created_by"),
   created_at: timestamp("created_at", { withTimezone: true }).defaultNow(),
 })
+
+// Better-Auth needs these to be discoverable via its `with: { accounts: true }`
+// relational lookups (e.g. findUserByEmail(email, { includeAccounts: true })
+// inside signInEmail) — without them the join returns empty and every sign-in
+// fails with INVALID_EMAIL_OR_PASSWORD even when the account/password are fine.
+export const usersRelations = relations(users, ({ many }) => ({
+  accounts: many(account),
+  sessions: many(session),
+}))
+export const accountRelations = relations(account, ({ one }) => ({
+  user: one(users, { fields: [account.userId], references: [users.id] }),
+}))
+export const sessionRelations = relations(session, ({ one }) => ({
+  user: one(users, { fields: [session.userId], references: [users.id] }),
+}))
