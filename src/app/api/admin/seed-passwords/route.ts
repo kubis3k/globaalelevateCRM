@@ -38,6 +38,7 @@ export async function POST(req: NextRequest) {
       userId: u.id,
       accountId: u.id, // Better-Auth convention: credential accounts use the user's own id as accountId, not the email.
       providerId: 'credential',
+      issuer: 'local:credential', // Better-Auth >=1.7 requires this synthetic issuer to match a credential account during sign-in.
       password: passwordHash,
       createdAt: now,
       updatedAt: now,
