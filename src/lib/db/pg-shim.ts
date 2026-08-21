@@ -171,8 +171,8 @@ class Query<TData = any[]> implements PromiseLike<{ data: TData; error: PgError;
 
       if (this.mode === 'insert') {
         const returning = buildReturning(this.table, this.returningCols)
-        const q = db.insert(this.table).values(this.payload)
-        const rows = returning ? await q.returning(returning) : await q.returning()
+        const q: any = db.insert(this.table).values(this.payload)
+        const rows: any = returning ? await q.returning(returning) : await q.returning()
         return this.finish(rows, null)
       }
 
@@ -182,8 +182,8 @@ class Query<TData = any[]> implements PromiseLike<{ data: TData; error: PgError;
         const rowsArr = Array.isArray(this.payload) ? this.payload : [this.payload]
         const setShape: Record<string, any> = {}
         for (const key of Object.keys(rowsArr[0])) setShape[key] = sql.raw(`excluded."${key}"`)
-        const q = db.insert(this.table).values(this.payload).onConflictDoUpdate({ target, set: setShape })
-        const rows = returning ? await q.returning(returning) : await q.returning()
+        const q: any = db.insert(this.table).values(this.payload).onConflictDoUpdate({ target, set: setShape })
+        const rows: any = returning ? await q.returning(returning) : await q.returning()
         return this.finish(rows, null)
       }
 
@@ -191,7 +191,7 @@ class Query<TData = any[]> implements PromiseLike<{ data: TData; error: PgError;
         const returning = buildReturning(this.table, this.returningCols)
         let q: any = db.update(this.table).set(this.payload)
         if (where) q = q.where(where)
-        const rows = returning ? await q.returning(returning) : await q.returning()
+        const rows: any = returning ? await q.returning(returning) : await q.returning()
         return this.finish(rows, null)
       }
 
@@ -199,7 +199,7 @@ class Query<TData = any[]> implements PromiseLike<{ data: TData; error: PgError;
         const returning = buildReturning(this.table, this.returningCols)
         let q: any = db.delete(this.table)
         if (where) q = q.where(where)
-        const rows = returning ? await q.returning(returning) : await q.returning()
+        const rows: any = returning ? await q.returning(returning) : await q.returning()
         return this.finish(rows, null)
       }
 
