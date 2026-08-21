@@ -81,7 +81,10 @@ function buildReturning(table: any, cols: string[]): Record<string, any> | undef
 
 type SelectOpts = { count?: 'exact' | 'planned' | 'estimated'; head?: boolean }
 
-class Query implements PromiseLike<{ data: any; error: PgError; count: number | null }> {
+// TData defaults to any[] (matches supabase-js: unannotated `(data ?? []).map(x => ...)`
+// call-sites across the codebase rely on the array element type being inferrable, not
+// bare `any` — see .single()/.maybeSingle() below, which narrow it to plain `any`).
+class Query<TData = any[]> implements PromiseLike<{ data: TData; error: PgError; count: number | null }> {
   private tableName: string
   private table: any
   private mode: 'select' | 'insert' | 'update' | 'upsert' | 'delete' = 'select'
@@ -135,8 +138,8 @@ class Query implements PromiseLike<{ data: any; error: PgError; count: number | 
     return this
   }
   limit(n: number) { this.limitN = n; return this }
-  single() { this.wantSingle = 'single'; return this }
-  maybeSingle() { this.wantSingle = 'maybeSingle'; return this }
+  single(): Query<any> { this.wantSingle = 'single'; return this as unknown as Query<any> }
+  maybeSingle(): Query<any> { this.wantSingle = 'maybeSingle'; return this as unknown as Query<any> }
 
   private whereClause(): any {
     return this.conditions.length ? and(...this.conditions) : undefined
@@ -213,11 +216,11 @@ class Query implements PromiseLike<{ data: any; error: PgError; count: number | 
     return { data: rows, error, count: null }
   }
 
-  then<TResult1 = { data: any; error: PgError; count: number | null }, TResult2 = never>(
-    onfulfilled?: ((value: { data: any; error: PgError; count: number | null }) => TResult1 | PromiseLike<TResult1>) | null,
+  then<TResult1 = { data: TData; error: PgError; count: number | null }, TResult2 = never>(
+    onfulfilled?: ((value: { data: TData; error: PgError; count: number | null }) => TResult1 | PromiseLike<TResult1>) | null,
     onrejected?: ((reason: any) => TResult2 | PromiseLike<TResult2>) | null,
   ): PromiseLike<TResult1 | TResult2> {
-    return this.run().then(onfulfilled, onrejected)
+    return this.run().then(onfulfilled as any, onrejected)
   }
 }
 
