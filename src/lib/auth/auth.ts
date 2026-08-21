@@ -36,5 +36,17 @@ export const auth = betterAuth({
   },
   secret: process.env.BETTER_AUTH_SECRET,
   baseURL: process.env.BETTER_AUTH_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : undefined),
+  // Appka běží na 3 vlastních doménách (work/jobs/klient.globaalelevate.com) + Vercel preview
+  // aliasy — baseURL sám o sobě pokrývá jen jednu (VERCEL_URL je navíc per-deployment, ne stabilní).
+  // Bez trustedOrigins better-auth při jakémkoli AUTHENTICATED requestu (cookie už existuje, viz
+  // origin-check middleware) odmítne Origin header s FORBIDDEN/INVALID_ORIGIN — sign-in samotný to
+  // nechytí (žádná cookie ještě není), proto vypadal cutover funkční, ale např. changePassword
+  // (poslal cookie) padal na "Invalid origin".
+  trustedOrigins: [
+    'https://work.globaalelevate.com',
+    'https://jobs.globaalelevate.com',
+    'https://klient.globaalelevate.com',
+    'https://*.vercel.app',
+  ],
   plugins: [nextCookies()], // musí být poslední — zajistí Set-Cookie ze server actions
 })
