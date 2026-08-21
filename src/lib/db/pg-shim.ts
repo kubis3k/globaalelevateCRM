@@ -1,7 +1,7 @@
 import 'server-only'
 import {
   and, or as drizzleOr, not as drizzleNot, eq, ne, gt, gte, lt, lte, like, ilike,
-  isNull, inArray, asc, desc, sql,
+  isNull, inArray, sql,
 } from 'drizzle-orm'
 import { db, schema } from './index'
 
@@ -159,9 +159,12 @@ class Query<TData = any[]> implements PromiseLike<{ data: TData; error: PgError;
         let q: any = shape ? db.select(shape).from(this.table) : db.select().from(this.table)
         if (where) q = q.where(where)
         for (const o of this.orderBy) {
-          let dir: any = o.ascending ? asc(col(this.table, o.col)) : desc(col(this.table, o.col))
-          if (o.nullsFirst === true) dir = dir.nullsFirst()
-          else if (o.nullsFirst === false) dir = dir.nullsLast()
+          // Built via raw `sql` (not asc()/desc()'s .nullsFirst()/.nullsLast()
+          // chaining) — that chaining API isn't stable across drizzle-orm
+          // versions and silently threw at runtime on the resolved version here.
+          let dir: any = sql`${col(this.table, o.col)} ${sql.raw(o.ascending ? 'ASC' : 'DESC')}`
+          if (o.nullsFirst === true) dir = sql`${dir} NULLS FIRST`
+          else if (o.nullsFirst === false) dir = sql`${dir} NULLS LAST`
           q = q.orderBy(dir)
         }
         if (this.limitN != null) q = q.limit(this.limitN)
