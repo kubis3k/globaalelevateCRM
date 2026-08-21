@@ -41,7 +41,7 @@ export function createAdminClient() {
             await db.insert(schema.account).values({
               id: randomUUID(),
               userId,
-              accountId: opts.email,
+              accountId: userId, // Better-Auth convention: credential accounts use the user's own id as accountId, not the email.
               providerId: 'credential',
               password: passwordHash,
               createdAt: now,

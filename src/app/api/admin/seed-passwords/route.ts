@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
     await db.insert(schema.account).values({
       id: randomUUID(),
       userId: u.id,
-      accountId: u.email,
+      accountId: u.id, // Better-Auth convention: credential accounts use the user's own id as accountId, not the email.
       providerId: 'credential',
       password: passwordHash,
       createdAt: now,
