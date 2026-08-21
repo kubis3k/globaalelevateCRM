@@ -91,7 +91,7 @@ class Query<TData = any[]> implements PromiseLike<{ data: TData; error: PgError;
   private payload: any
   private onConflictCols: string[] | null = null
   private conditions: any[] = []
-  private orderBy: { col: string; ascending: boolean }[] = []
+  private orderBy: { col: string; ascending: boolean; nullsFirst?: boolean }[] = []
   private limitN: number | null = null
   private wantSingle: 'single' | 'maybeSingle' | null = null
   private returningCols: string[] = ['*']
@@ -133,8 +133,8 @@ class Query<TData = any[]> implements PromiseLike<{ data: TData; error: PgError;
     return this
   }
 
-  order(c: string, opts?: { ascending?: boolean }) {
-    this.orderBy.push({ col: c, ascending: opts?.ascending !== false })
+  order(c: string, opts?: { ascending?: boolean; nullsFirst?: boolean }) {
+    this.orderBy.push({ col: c, ascending: opts?.ascending !== false, nullsFirst: opts?.nullsFirst })
     return this
   }
   limit(n: number) { this.limitN = n; return this }
@@ -158,7 +158,12 @@ class Query<TData = any[]> implements PromiseLike<{ data: TData; error: PgError;
         const shape = buildReturning(this.table, this.returningCols)
         let q: any = shape ? db.select(shape).from(this.table) : db.select().from(this.table)
         if (where) q = q.where(where)
-        for (const o of this.orderBy) q = q.orderBy(o.ascending ? asc(col(this.table, o.col)) : desc(col(this.table, o.col)))
+        for (const o of this.orderBy) {
+          let dir: any = o.ascending ? asc(col(this.table, o.col)) : desc(col(this.table, o.col))
+          if (o.nullsFirst === true) dir = dir.nullsFirst()
+          else if (o.nullsFirst === false) dir = dir.nullsLast()
+          q = q.orderBy(dir)
+        }
         if (this.limitN != null) q = q.limit(this.limitN)
         const rows = await q
         return this.finish(rows, null)
