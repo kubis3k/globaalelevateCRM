@@ -135,9 +135,11 @@ export const catalogItems = pgTable("catalog_items", {
   name: text("name").notNull(),
   description: text("description"),
   unit: text("unit").notNull().default("ks"),
-  unit_price: numeric("unit_price", { precision: 12, scale: 2 }).notNull().default(0),
+  unit_price: numeric("unit_price", { precision: 12, scale: 2 }).notNull().default("0"),
+
   currency: text("currency").notNull().default("CZK"),
-  vat_rate: numeric("vat_rate", { precision: 5, scale: 2 }).notNull().default(21),
+  vat_rate: numeric("vat_rate", { precision: 5, scale: 2 }).notNull().default("21"),
+
   active: boolean("active").notNull().default(true),
   created_at: timestamp("created_at", { withTimezone: true }).defaultNow(),
 })
@@ -148,7 +150,8 @@ export const companySettings = pgTable("company_settings", {
   ico: text("ico"),
   dic: text("dic"),
   vat_payer: boolean("vat_payer").notNull().default(true),
-  default_vat_rate: numeric("default_vat_rate", { precision: 5, scale: 2 }).notNull().default(21),
+  default_vat_rate: numeric("default_vat_rate", { precision: 5, scale: 2 }).notNull().default("21"),
+
   street: text("street"),
   city: text("city"),
   zip: text("zip"),
@@ -577,7 +580,8 @@ export const hrLeaveRequests = pgTable("hr_leave_requests", {
   type: hrLeaveTypeEnum("type").notNull().default("vacation"),
   start_date: date("start_date").notNull(),
   end_date: date("end_date").notNull(),
-  working_days: numeric("working_days", { precision: 5, scale: 1 }).notNull().default(0),
+  working_days: numeric("working_days", { precision: 5, scale: 1 }).notNull().default("0"),
+
   reason: text("reason"),
   status: hrLeaveStatusEnum("status").notNull().default("pending"),
   reviewed_by: uuid("reviewed_by"),
@@ -785,21 +789,36 @@ export const payrollConfig = pgTable("payroll_config", {
   id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
   tenant_id: uuid("tenant_id").notNull(),
   year: integer("year").notNull(),
-  sp_emp: numeric("sp_emp", { precision: 6, scale: 4 }).notNull().default(0.071),
-  zp_emp: numeric("zp_emp", { precision: 6, scale: 4 }).notNull().default(0.045),
-  sp_er: numeric("sp_er", { precision: 6, scale: 4 }).notNull().default(0.248),
-  zp_er: numeric("zp_er", { precision: 6, scale: 4 }).notNull().default(0.09),
-  tax_rate1: numeric("tax_rate1", { precision: 6, scale: 4 }).notNull().default(0.15),
-  tax_rate2: numeric("tax_rate2", { precision: 6, scale: 4 }).notNull().default(0.23),
-  tax_progress_monthly: numeric("tax_progress_monthly", { precision: 12, scale: 2 }).notNull().default(139671),
-  credit_taxpayer: numeric("credit_taxpayer", { precision: 10, scale: 2 }).notNull().default(2570),
-  credit_child1: numeric("credit_child1", { precision: 10, scale: 2 }).notNull().default(1267),
-  credit_child2: numeric("credit_child2", { precision: 10, scale: 2 }).notNull().default(1860),
-  credit_child3: numeric("credit_child3", { precision: 10, scale: 2 }).notNull().default(2320),
-  min_wage_hour: numeric("min_wage_hour", { precision: 8, scale: 2 }).notNull().default(134.40),
-  dpp_threshold: numeric("dpp_threshold", { precision: 10, scale: 2 }).notNull().default(12000),
-  dpc_threshold: numeric("dpc_threshold", { precision: 10, scale: 2 }).notNull().default(4500),
-  srazkova_rate: numeric("srazkova_rate", { precision: 6, scale: 4 }).notNull().default(0.15),
+  sp_emp: numeric("sp_emp", { precision: 6, scale: 4 }).notNull().default("0.071"),
+
+  zp_emp: numeric("zp_emp", { precision: 6, scale: 4 }).notNull().default("0.045"),
+
+  sp_er: numeric("sp_er", { precision: 6, scale: 4 }).notNull().default("0.248"),
+
+  zp_er: numeric("zp_er", { precision: 6, scale: 4 }).notNull().default("0.09"),
+
+  tax_rate1: numeric("tax_rate1", { precision: 6, scale: 4 }).notNull().default("0.15"),
+
+  tax_rate2: numeric("tax_rate2", { precision: 6, scale: 4 }).notNull().default("0.23"),
+
+  tax_progress_monthly: numeric("tax_progress_monthly", { precision: 12, scale: 2 }).notNull().default("139671"),
+
+  credit_taxpayer: numeric("credit_taxpayer", { precision: 10, scale: 2 }).notNull().default("2570"),
+
+  credit_child1: numeric("credit_child1", { precision: 10, scale: 2 }).notNull().default("1267"),
+
+  credit_child2: numeric("credit_child2", { precision: 10, scale: 2 }).notNull().default("1860"),
+
+  credit_child3: numeric("credit_child3", { precision: 10, scale: 2 }).notNull().default("2320"),
+
+  min_wage_hour: numeric("min_wage_hour", { precision: 8, scale: 2 }).notNull().default("134.40"),
+
+  dpp_threshold: numeric("dpp_threshold", { precision: 10, scale: 2 }).notNull().default("12000"),
+
+  dpc_threshold: numeric("dpc_threshold", { precision: 10, scale: 2 }).notNull().default("4500"),
+
+  srazkova_rate: numeric("srazkova_rate", { precision: 6, scale: 4 }).notNull().default("0.15"),
+
   updated_at: timestamp("updated_at", { withTimezone: true }).defaultNow(),
 })
 
@@ -809,16 +828,24 @@ export const payrollItems = pgTable("payroll_items", {
   run_id: uuid("run_id").notNull(),
   user_id: uuid("user_id").notNull(),
   contract_type: text("contract_type").notNull().default("hpp"),
-  gross: numeric("gross", { precision: 12, scale: 2 }).notNull().default(0),
+  gross: numeric("gross", { precision: 12, scale: 2 }).notNull().default("0"),
+
   children: integer("children").notNull().default(0),
   taxpayer_credit: boolean("taxpayer_credit").notNull().default(true),
-  sp_emp: numeric("sp_emp", { precision: 12, scale: 2 }).notNull().default(0),
-  zp_emp: numeric("zp_emp", { precision: 12, scale: 2 }).notNull().default(0),
-  tax: numeric("tax", { precision: 12, scale: 2 }).notNull().default(0),
-  net: numeric("net", { precision: 12, scale: 2 }).notNull().default(0),
-  sp_er: numeric("sp_er", { precision: 12, scale: 2 }).notNull().default(0),
-  zp_er: numeric("zp_er", { precision: 12, scale: 2 }).notNull().default(0),
-  employer_cost: numeric("employer_cost", { precision: 12, scale: 2 }).notNull().default(0),
+  sp_emp: numeric("sp_emp", { precision: 12, scale: 2 }).notNull().default("0"),
+
+  zp_emp: numeric("zp_emp", { precision: 12, scale: 2 }).notNull().default("0"),
+
+  tax: numeric("tax", { precision: 12, scale: 2 }).notNull().default("0"),
+
+  net: numeric("net", { precision: 12, scale: 2 }).notNull().default("0"),
+
+  sp_er: numeric("sp_er", { precision: 12, scale: 2 }).notNull().default("0"),
+
+  zp_er: numeric("zp_er", { precision: 12, scale: 2 }).notNull().default("0"),
+
+  employer_cost: numeric("employer_cost", { precision: 12, scale: 2 }).notNull().default("0"),
+
   regime: text("regime"),
   note: text("note"),
   created_at: timestamp("created_at", { withTimezone: true }).defaultNow(),
@@ -973,9 +1000,12 @@ export const purchaseOrderItems = pgTable("purchase_order_items", {
   tenant_id: uuid("tenant_id").notNull(),
   po_id: uuid("po_id").notNull(),
   description: text("description").notNull(),
-  quantity: numeric("quantity", { precision: 12, scale: 2 }).notNull().default(1),
-  unit_price: numeric("unit_price", { precision: 12, scale: 2 }).notNull().default(0),
-  line_total: numeric("line_total", { precision: 12, scale: 2 }).notNull().default(0),
+  quantity: numeric("quantity", { precision: 12, scale: 2 }).notNull().default("1"),
+
+  unit_price: numeric("unit_price", { precision: 12, scale: 2 }).notNull().default("0"),
+
+  line_total: numeric("line_total", { precision: 12, scale: 2 }).notNull().default("0"),
+
   position: integer("position").notNull().default(0),
   created_at: timestamp("created_at", { withTimezone: true }).defaultNow(),
 })
@@ -990,7 +1020,8 @@ export const purchaseOrders = pgTable("purchase_orders", {
   order_date: date("order_date").notNull(),
   expected_date: date("expected_date"),
   currency: text("currency").notNull().default("CZK"),
-  total: numeric("total", { precision: 12, scale: 2 }).notNull().default(0),
+  total: numeric("total", { precision: 12, scale: 2 }).notNull().default("0"),
+
   note: text("note"),
   transaction_id: uuid("transaction_id"),
   created_by: uuid("created_by"),
@@ -1014,10 +1045,14 @@ export const quoteItems = pgTable("quote_items", {
   quote_id: uuid("quote_id").notNull(),
   catalog_item_id: uuid("catalog_item_id"),
   description: text("description").notNull(),
-  quantity: numeric("quantity", { precision: 12, scale: 2 }).notNull().default(1),
-  unit_price: numeric("unit_price", { precision: 12, scale: 2 }).notNull().default(0),
-  vat_rate: numeric("vat_rate", { precision: 5, scale: 2 }).notNull().default(0),
-  line_total: numeric("line_total", { precision: 12, scale: 2 }).notNull().default(0),
+  quantity: numeric("quantity", { precision: 12, scale: 2 }).notNull().default("1"),
+
+  unit_price: numeric("unit_price", { precision: 12, scale: 2 }).notNull().default("0"),
+
+  vat_rate: numeric("vat_rate", { precision: 5, scale: 2 }).notNull().default("0"),
+
+  line_total: numeric("line_total", { precision: 12, scale: 2 }).notNull().default("0"),
+
   position: integer("position").notNull().default(0),
   created_at: timestamp("created_at", { withTimezone: true }).defaultNow(),
 })
@@ -1033,9 +1068,12 @@ export const quotes = pgTable("quotes", {
   valid_until: date("valid_until"),
   currency: text("currency").notNull().default("CZK"),
   note: text("note"),
-  subtotal: numeric("subtotal", { precision: 12, scale: 2 }).notNull().default(0),
-  vat_total: numeric("vat_total", { precision: 12, scale: 2 }).notNull().default(0),
-  total: numeric("total", { precision: 12, scale: 2 }).notNull().default(0),
+  subtotal: numeric("subtotal", { precision: 12, scale: 2 }).notNull().default("0"),
+
+  vat_total: numeric("vat_total", { precision: 12, scale: 2 }).notNull().default("0"),
+
+  total: numeric("total", { precision: 12, scale: 2 }).notNull().default("0"),
+
   invoice_id: uuid("invoice_id"),
   created_by: uuid("created_by"),
   created_at: timestamp("created_at", { withTimezone: true }).defaultNow(),
