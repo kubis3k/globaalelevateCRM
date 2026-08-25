@@ -11,6 +11,11 @@ export function getAllowedModules({
   role: string | null | undefined
   customRoleModules: string[] | null | undefined
 }): ModuleId[] {
+  // Externí (klientský portál) NEMÁ přístup k žádnému internímu modulu. Portál
+  // běží na vlastních `(portal)` routách, které requireModuleAccess() nevolají,
+  // takže tohle je zámek pro interní dashboard: bez něj by `external` účet
+  // (má řádek v tenant_users) prošel requireModuleAccess('prospects'/'crm').
+  if (role === 'external') return []
   if (role === 'admin') return [...ALL_MODULE_IDS]
   if (!customRoleModules || customRoleModules.length === 0) return [...ALL_MODULE_IDS]
   // Keep only known module ids and preserve canonical order so nav/order stays stable.

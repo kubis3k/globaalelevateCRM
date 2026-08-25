@@ -9,6 +9,8 @@ export type Permission =
   | 'team.manage'         // členové organizace, role
   | 'portal.manage'       // klientský portál, pozvánky
   | 'settings.manage'     // firemní nastavení
+  | 'leads.manage'        // import leadů, bulk přiřazení, blocklist, ČTÚ export
+  | 'leads.viewAll'       // vidět leady všech obchodníků (jinak jen vlastní)
 
 // admin-only akce: správa lidí, portálu, nastavení. Provozní domény smí i manager.
 const MANAGER_DENIED: ReadonlySet<Permission> = new Set(['team.manage', 'portal.manage', 'settings.manage'])

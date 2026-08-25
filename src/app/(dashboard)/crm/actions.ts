@@ -12,8 +12,11 @@ async function getCtx(): Promise<Ctx | { error: string }> {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: 'Nejste přihlášen.' }
   const admin = createAdminClient()
-  const { data: tu } = await admin.from('tenant_users').select('tenant_id').eq('user_id', user.id).maybeSingle()
+  const { data: tu } = await admin.from('tenant_users').select('tenant_id, role').eq('user_id', user.id).maybeSingle()
   if (!tu?.tenant_id) return { error: 'Organizace nenalezena.' }
+  // Externí (klientský portál) nesmí na interní CRM/Obchod data. Server Action
+  // je přímo volatelný POST endpoint — skrytí v navigaci není ochrana.
+  if ((tu.role as string) === 'external') return { error: 'Nemáte oprávnění.' }
   return { admin, userId: user.id, tenantId: tu.tenant_id }
 }
 

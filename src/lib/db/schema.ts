@@ -1,6 +1,6 @@
 // AUTO-GENERATED from the live Neon schema. Do not hand-edit column definitions;
 // regenerate via scripts/gen-drizzle-schema if the DB schema changes.
-import { pgTable, pgEnum, uuid, text, boolean, integer, bigint, numeric, timestamp, date, time, jsonb, doublePrecision, real, varchar } from 'drizzle-orm/pg-core'
+import { pgTable, pgEnum, uuid, text, boolean, integer, bigint, numeric, timestamp, date, time, jsonb, doublePrecision, real, varchar, char } from 'drizzle-orm/pg-core'
 import { sql, relations } from 'drizzle-orm'
 
 export const appRoleEnum = pgEnum("app_role", ["admin", "manager", "employee", "external"])
@@ -227,6 +227,10 @@ export const crmProspectTouches = pgTable("crm_prospect_touches", {
   channel: text("channel").notNull().default("jine"),
   note: text("note"),
   outcome: text("outcome").notNull().default("no_reply"),
+  status_before: text("status_before"),
+  status_after: text("status_after"),
+  duration_s: integer("duration_s"),
+  next_touch_set_at: date("next_touch_set_at"),
   created_by: uuid("created_by"),
   created_at: timestamp("created_at", { withTimezone: true }).defaultNow(),
 })
@@ -252,8 +256,60 @@ export const crmProspects = pgTable("crm_prospects", {
   converted_client_id: uuid("converted_client_id"),
   note: text("note"),
   digest_notified_at: date("digest_notified_at"),
+  industry: text("industry"),
+  city: text("city"),
+  web_status: text("web_status"),
+  rating: numeric("rating", { precision: 2, scale: 1 }),
+  review_count: integer("review_count"),
+  last_touch_at: timestamp("last_touch_at", { withTimezone: true }),
+  priority: char("priority", { length: 1 }),
   created_at: timestamp("created_at", { withTimezone: true }).defaultNow(),
   updated_at: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+})
+
+// ── LEADY (PR2a migrace) — nové tabulky ────────────────────────────────
+export const czRegions = pgTable("cz_regions", {
+  code: text("code").primaryKey(),
+  label: text("label").notNull(),
+  sort: integer("sort").notNull(),
+})
+
+export const crmIndustries = pgTable("crm_industries", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenant_id: uuid("tenant_id").notNull(),
+  code: text("code").notNull(),
+  label: text("label").notNull(),
+  sort: integer("sort").notNull().default(0),
+  active: boolean("active").notNull().default(true),
+})
+
+export const crmProspectOrigin = pgTable("crm_prospect_origin", {
+  prospect_id: uuid("prospect_id").primaryKey(),
+  tenant_id: uuid("tenant_id").notNull(),
+  source_url: text("source_url").notNull(),
+  acquired_at: timestamp("acquired_at", { withTimezone: true }).notNull().defaultNow(),
+  acquired_by: uuid("acquired_by").notNull(),
+  legal_basis: text("legal_basis").notNull(),
+  is_legal_entity: boolean("is_legal_entity").notNull(),
+  evidence: jsonb("evidence").notNull().default({}),
+})
+
+export const crmDoNotCall = pgTable("crm_do_not_call", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenant_id: uuid("tenant_id").notNull(),
+  phone_e164: text("phone_e164").notNull(),
+  reason: text("reason"),
+  requested_via: text("requested_via"),
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  created_by: uuid("created_by"),
+})
+
+export const crmScoringConfig = pgTable("crm_scoring_config", {
+  tenant_id: uuid("tenant_id").primaryKey(),
+  weights: jsonb("weights").notNull(),
+  thresholds: jsonb("thresholds").notNull(),
+  cadence: integer("cadence").array().notNull().default([0, 2, 5, 9, 14]),
+  updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 })
 
 export const customRoles = pgTable("custom_roles", {
