@@ -4,7 +4,8 @@
   origin/legal evidence pro ČTÚ, do-not-call blocklist, append-only touches, skóring z configu,
   fronta hovorů (klávesnice), import XLSX, export ČTÚ. Zadání: `/Users/luigi/Downloads/PROMPT_leady_globaalelevateCRM.md`
 - tier: T4 (migrace + bezpečnost + právní jádro) — architekt schvaluje plán před kódem
-- status: FÁZE 0 HOTOVA, čeká se na schválení uživatelem + rozhodnutí o 5 blokerech (viz Otevřené otázky)
+- status: PR2a (migrace) + PR2b (schema.ts + bezpečnost) HOTOVO a pushnuto. Čeká ověření Vercel buildu.
+  Další: PR3 (vitest + čisté funkce leads/*). VisionBoost XLSX uživatel doošle (pro PR6).
 
 ## PŘEDCHOZÍ ÚKOL (uzavřený, detail v git historii)
 - Supabase→Neon+Drizzle+Better-Auth cutover: DONE (login opraven — 3 bugy: account_id,
@@ -149,6 +150,15 @@
   do_not_call enforcement trigger na crm_prospects. Down migrace přemapovávají porušující řádky před
   zúžením CHECKů (jinak rollback padá na existujících datech). Vše ověřeno na odhozené Neon branchi.
   Region FK a origin-enforce odloženy do PR2b (rozbily by dnešní zápisovou cestu).
+
+- [2026-08-21] LEADY PR2b HOTOVO (commit 5d5257e). schema.ts rozšířen o 5 nových tabulek + sloupce,
+  ověřeno introspekcí proti Neon main (priority=char(1), cadence=integer[]). Bezpečnost: getAllowedModules
+  external→[], leads.manage/leads.viewAll permissions, src/lib/leads/guard.ts (resolveLeadsCtx blokuje
+  external roli + klient./jobs. host, scope all|own, canTouchLead), external odmítnut v crm+prospects getCtx.
+  ROZHODNUTÍ (odchylka od slibu uživateli): globální middleware host guard NEudělán — riziko rozbití
+  portálu naslepo bez lokálního buildu > přínos; host se kontroluje v leads guardu (kde to test měří).
+  Row-level ownership seznamu odloženo do PR4 (potřebuje přepis prospects page/UI na server-side scope);
+  v PR2b jen zavřena díra external přístupu. Uživatel odsouhlasil viditelnou změnu (external ztratí dashboard).
 
 ## Otevřené otázky / blokery
 ### LEADY — zbývající otevřené body (2026-08-21)
