@@ -1,65 +1,100 @@
 # FLOW STATE
 ## Aktuální úkol
-- cíl: úplný přechod ze Supabase (Postgres+Auth+Storage+RLS) na Neon (Postgres) + Drizzle ORM + Better-Auth,
-  jeden ucelený cutover (auth+tenant lookup je sdílená infrastruktura, nejde migrovat po jednom modulu bez
-  rozjetých dat) — 675 `.from()` volání ve 114 souborech, middleware.ts, src/lib/auth/*, src/lib/supabase/*,
-  storage (8 souborů) na Vercel Blob
-- tier: T4 (jádro/bezpečnost/migrace) — architekt schválil plán (PostgREST-shim strategie)
-- status: DONE (build zelený na produkci, uživatel potvrdil "funguje to" — přihlášení přes Better-Auth funkční,
-  seed-passwords proběhl). Zbývají jen navazující, NEBLOKUJÍCÍ úklidové kroky (viz níže).
+- cíl: LEADY v modulu Obchod → Akvizice (rozšíření existujícího `/prospects`, NE nová tabulka):
+  origin/legal evidence pro ČTÚ, do-not-call blocklist, append-only touches, skóring z configu,
+  fronta hovorů (klávesnice), import XLSX, export ČTÚ. Zadání: `/Users/luigi/Downloads/PROMPT_leady_globaalelevateCRM.md`
+- tier: T4 (migrace + bezpečnost + právní jádro) — architekt schvaluje plán před kódem
+- status: FÁZE 0 HOTOVA, čeká se na schválení uživatelem + rozhodnutí o 5 blokerech (viz Otevřené otázky)
+
+## PŘEDCHOZÍ ÚKOL (uzavřený, detail v git historii)
+- Supabase→Neon+Drizzle+Better-Auth cutover: DONE (login opraven — 3 bugy: account_id,
+  Drizzle relations, better-auth issuer; pinnuto na 1.7.1). trustedOrigins pro 3 domény.
+  Akce/events bug: pg-shim order() nesmělo volat .nullsFirst()/.nullsLast() (nestabilní
+  napříč drizzle verzemi) → přepsáno na raw sql. Storage→Blob: kód hotový, NEcommitnutý
+  (business-contracts/documents/hr actions + api/blob + api/*/download + lib/storage/blob.ts),
+  čeká na připojení Blob store ve Vercelu. @supabase/* odstraněny z package.json.
+## LEADY — architektův plán (2026-08-21, čeká schválení kroku 2)
+- Migrace 7 souborů `supabase/migrations/2024064[5-9]/2024065[01]_*.sql`, rollback konvencí
+  `supabase/migrations/down/<stejné jméno>.sql`. Ověřeno: `apply-migration.mjs` posílá celý soubor
+  jedním `client.query(sql)` BEZ parametrů → simple query protocol → implicitní transakce, selhání
+  statementu = rollback celého souboru. Důsledek: v migracích NELZE `CREATE INDEX CONCURRENTLY`.
+- Číselníky: nové `cz_regions` (14 krajů, FK z region) + `crm_industries` (per-tenant, composite FK
+  `(tenant_id, industry)`) → rozšiřitelné bez migrace, splňuje „číselník, ne volný text".
+- Origin enforcement: `CREATE CONSTRAINT TRIGGER ... DEFERRABLE INITIALLY DEFERRED` na
+  `crm_prospects AFTER INSERT` + zrcadlový na `AFTER DELETE ON crm_prospect_origin` (naivní FK
+  prospects→origin je cyklický). Korektní pořadí INSERTů v jedné transakci projde, samotný INSERT spadne na COMMIT.
+- Skóring: `crm_scoring_config(tenant_id PK, weights jsonb, thresholds jsonb, cadence int[])` +
+  `BEFORE INSERT/UPDATE OF` trigger plnící `score_raw`/`score`/`priority` (generated column NELZE —
+  není IMMUTABLE, subquery na jinou tabulku). OSM problém: `score` se normalizuje na dosažitelné
+  maximum z DOSTUPNÝCH signálů, fronta řadí `priority, web_status_rank, score`.
+- Nový kód leadů jde na **nativní Drizzle** (`src/lib/leads/*`), NE přes pg-shim (ten neumí transakce);
+  koexistence bezpečná, oba přes tentýž Pool a schema. Existujících 15 call-sites zůstává na shimu.
+- Výkon: nové obrazovky = server-side filtry + stránkování (LIMIT 50, searchParams), ne fetch-all.
+- Bezpečnost PR2b: `permissions.ts` `if (role==='external') return []` (ověřeno: `/no-access` route
+  existuje v `(dashboard)`, sidebar snese prázdné pole), host allowlist v `middleware.ts` pro
+  klient./jobs., `Permission` += `leads.manage`/`leads.viewAll`, nový `src/lib/leads/guard.ts`
+  (`requireLeadsCtx`, `assertOwnership`, scope 'all'|'own', own = `owner=me OR owner IS NULL`).
+- PR mapa: PR1 report → PR2a migrace → PR2b bezpečnost+schema.ts → PR3 vitest+čisté funkce →
+  PR4 seznam/detail → PR5 fronta hovorů → PR6 import → PR7 ČTÚ export (HTML print, ne PDF lib).
 
 ## Kde jsme skončili (checkpoint)
-- poslední dokončený krok: cutover implementován jako PostgREST-kompatibilní shim (architektův návrh) —
-  `src/lib/db/{schema,index,pg-shim}.ts` (Drizzle nad Neon, `.from()` beze změny na 675 call-sites),
-  `src/lib/auth/{auth,client}.ts` + `src/app/api/auth/[...all]/route.ts` (Better-Auth, `public.users`
-  recyklováno přes modelName mapping + nové `session`/`account`/`verification` tabulky na Neonu),
-  `src/lib/supabase/server.ts` přepsáno na 100% shim (žádná Supabase závislost), `src/lib/supabase/admin.ts`
-  shim pro `.from()`/`.auth.admin.*` + STÁLE reálný Supabase service-role klient jen pro `.storage`
-  (Storage→Vercel Blob je vědomě odloženo na navazující krok — Supabase se zatím nemaže, takže žádné
-  soubory/mail_accounts secret nejsou ohroženy). `src/middleware.ts` → `getSessionCookie()` (edge-safe,
-  bez DB dotazu). `getAuthContext()`/`requireTenant()`/`login/actions.ts`/`signout/route.ts`/
-  `invite/actions.ts`/`team/actions.ts`/`portal-admin/actions.ts` NEPOTŘEBOVALY žádnou úpravu — shim
-  věrně replikuje stejné metody/tvary (`.auth.getUser()`, `.auth.admin.createUser/deleteUser`, `{data,error}`).
-  Upraveno jen: change-password-dialog.tsx (authClient), calendar-view.tsx (odstraněn mrtvý Supabase
-  Realtime `.channel()` — žádná náhrada na Neonu, kalendář bez live-push). Nové: `/force-password-change`
-  stránka + `must_change_password` flag na `users` (gate v dashboard i portal layoutu) + jednorázový
-  `/api/admin/seed-passwords` route (heslo `Globaal43!` všem 14 uživatelům, Bearer CRON_SECRET).
-  Smazáno: `src/types/database.{generated,types}.ts` (nepoužívané, nahrazeno `src/lib/db/schema.ts`).
-- rozpracovaný soubor + řádek: žádný — vše hotové, commit/push proveden, build i login ověřeny funkční
-- CRON_SECRET byl rotován (stará hodnota byla ve Vercelu uložená jako "Sensitive" → zpětně needitelná/needitovatelná v UI)
-  — nová hodnota nastavena ve Vercelu; hodnota samotná se nikam needituje/needukládá dál.
-- Build fix-iterace (6 kol, viz Rozhodnutí) — všechny problémy byly v `src/lib/db/{pg-shim,schema}.ts`
-  (peer-dep verze, `any` vs `any[]` typing, `nullsFirst`, union typ na `.returning()`, numeric() defaulty
-  jako string) — žádný z 675 existujících call-sites potřeboval úpravu, přesně jak architekt navrhoval.
-- další krok (volitelný navazující úklid, NEBLOKUJÍCÍ — appka je plně funkční i beze všeho níže):
-  1. Storage Supabase→Vercel Blob (8 souborů)
-  2. teprve poté smazat `@supabase/*` z package.json a SUPABASE_* env + nastavit `MAIL_ENCRYPTION_KEY`
-     (jinak se ztratí dešifrovatelnost mail_accounts.secret_enc — uživatel už odsouhlasil, že to nevadí)
-- POST-cutover (T2 úkoly, až po ověřeném zeleném buildu): postupný přepis 675 `.from()` volání na nativní
-  Drizzle po doménách (viz architektův plán P-a..P-e: hr, crm/finance, projects/events/time,
-  portal/social/ops/team, documents/mail/ai/misc) — shim zůstává funkční, dokud nejsou VŠECHNY hotové.
+- LEADY PR2a HOTOVO A APLIKOVÁNO na produkci (main branch): 7 migrací 20240645–20240651
+  aplikováno přes psycopg2 (mimika apply-migration.mjs). Ověřeno 47+8 testů na odhozené Neon
+  branchi `test-leady-pr2a` (smazána): aplikace, idempotence 2×, skóring (absolutní 0–100,
+  per-source prahy), garbage-config degradace, přepočet po změně vah, append-only touches+dnc,
+  cascade z tenanta (mina vyřešena), seed nového tenanta, origin enforcement v transakci, VŠECHNY
+  down migrace reverzně. Post-check: cz_regions=14, crm_industries=7, crm_scoring_config=1,
+  crm_prospect_origin + crm_do_not_call existují.
+- ZÁMĚRNĚ NEAPLIKOVÁNO (čeká na PR2b): `20240652_prospect_origin_enforce.sql` (deferred trigger —
+  rozbil by dnešní zápis prospektů, dokud nepůjde přes db.transaction()) a
+  `20240653_prospect_region_fk.sql` (FK region→cz_regions — rozbil by dnešní volný text „Praha",
+  dokud se formulář+import nepřepnou na kódy krajů).
+- rozpracovaný soubor: žádný. Migrace commitnuty (jen supabase/migrations/* + flow-state; storage→Blob
+  změny v pracovním stromu ZÁMĚRNĚ mimo tento commit — jiný rozsah).
+- další krok: PR2b — schema.ts (crm_prospect_origin, crm_do_not_call, crm_scoring_config, cz_regions,
+  crm_industries + nové sloupce crm_prospects), bezpečnost (external zákaz, host guard, leads.* perms,
+  guard.ts), pak teprve 652+653. Před PR6 potřeba `VisionBoost_Sales_Leads.xlsx` (chybí).
 
 ## Mapa poznání (co víme o codebase)
-- src/lib/supabase/server.ts + admin.ts = teď 100%/částečně shim (viz checkpoint), client.ts NEZMĚNĚNO
-  (reálný Supabase browser klient, jen pro `uploadToSignedUrl` token-based upload, 3 soubory)
-- src/lib/auth/context.ts: `getAuthContext()`/`requirePermission()` + nově `mustChangePassword(userId)` —
-  JEDNOTNÝ auth+tenant+permission entry point, používaný v ~27 `actions.ts`, NEZMĚNĚNO (shim věrně
-  replikuje `.auth.getUser()`/`.from()` tvar)
 - src/middleware.ts: `getSessionCookie()` z `better-auth/cookies` (jen existence cookie, edge-safe);
   `/api/*`, `/jobs/*`, `/invite/*` mimo auth guard (cron Bearer token, veřejné trasy) — nezměněno
 - src/lib/db/pg-shim.ts: `resolveTable`/`col()` mapují snake_case table/column name → `schema.ts` property
   (1:1, žádný převod) — proto MUSÍ `schema.ts` mít snake_case klíče pro všechny tabulky KROMĚ
   users/session/account/verification (ty camelCase, better-auth konvence)
-- scripts/apply-migration.mjs: čistý `pg` klient, funguje na libovolný Postgres přes DATABASE_URL (i Neon)
-- Storage (8 souborů s `.storage.`) VŠECHNY jdou přes `createAdminClient()` (service-role) KROMĚ 3
-  browser-only `uploadToSignedUrl` volání (client.ts, token-based, nezávislé na session) — proto storage
-  zůstává bezpečně funkční na reálném Supabase i po ztrátě Supabase Auth session
 - node/npm/vercel CLI NEJSOU v tomto shellu dostupné (žádný Node.js vůbec) — build/tsc/dev nelze ověřit
   lokálně; uživatel vědomě zvolil push přímo na main bez preview-branch pojistky (přijal riziko)
 - Vercel projekt "globaalelevate" (team lapone277-3095s-projects, prj_B7GrHvDOAS4TJMlRM22IYe9C7mcg) =
   tento CRM (domény work/klient/jobs.globaalelevate.com), auto-deploy z `main`
 - .claude/agents/*.md: definice se za běhu NEMĚNÍ (prompt cache) — self-improvement jde přes
   `.claude/state/learnings/<agent>.md`, ne přes editaci agentů
+- LEADY/AKVIZICE (Fáze 0, 2026-08-21): sekce UŽ EXISTUJE a je funkční, ne placeholder —
+  `src/lib/modules.ts:22` (id `prospects`, href `/prospects`), skupina Obchod v
+  `src/components/collapsible-sidebar.tsx:63`. Vertikální slice: `src/app/(dashboard)/prospects/`
+  {page.tsx (server fetch všeho), prospects-client.tsx (435 ř., filtry client-side v useMemo,
+  detail dialog, změna status/owner), actions.ts (175 ř.)}. Dále `src/app/api/prospects/import/route.ts`
+  (čeká hotové `rows` v JSON, dedupe dle IČO), `api/cron/route.ts:185-220` (digest due-touches),
+  `reports/page.tsx:126-127`. Celkem 15 call-sites. Drizzle: `schema.ts:234` crmProspects, `:223` crmProspectTouches.
+- Migrace: `supabase/migrations/*.sql`, konvence `YYYYMMDDHHMMSS_nazev.sql` (42 souborů), ŽÁDNÝ ledger
+  ani npm script — ruční `node scripts/apply-migration.mjs <file>`. Idempotentní (`IF NOT EXISTS`), žádná
+  down-migrace v repu. Dva soubory mají kolidující timestamp `20240639000000`.
+- XLSX vzorec: jediné použití `events/[id]/event-budget.tsx:55-70` — `await import('xlsx')` CLIENT-SIDE,
+  `sheet_to_json` → parsed pole poslána server action. Server soubor nikdy nevidí.
+- `company_settings` (`schema.ts:146-164`, PK tenant_id) = per-tenant config, čte
+  `settings/page.tsx:10`, píše `settings/actions.ts:25`. Váhy skóringu sem (nový jsonb sloupec).
+- Identity: `users` (Better-Auth, `schema.ts:1194`) je zdroj pravdy; `profiles` (`:941`, jen id/username/
+  full_name) je 1:1 alias (ověřeno SQL: 14/14, 0 users bez profilu), vzniká best-effort upsertem v
+  `team/actions.ts:40` a `invite/[token]/actions.ts:34`. Kód plní ownery VŽDY `ctx.userId` = users.id.
+  DB FK ale nekonzistentní: `crm_prospects.owner`→`profiles(id)`, `crm_prospect_touches.created_by`→`users(id)`.
+- Aplikace se k Neonu připojuje jako `neondb_owner`, což je ZÁROVEŇ owner všech tabulek (ověřeno SQL)
+  → REVOKE práv aplikační roli je bezzubé (owner si je kdykoli re-grantuje). Žádná least-privilege role neexistuje.
+- Testy v repu NEEXISTUJÍ: 0 `*.test.ts`/`*.spec.ts`, žádný vitest/jest config, `package.json` nemá `test` script.
+- Autorizace není jednotná: `requirePermission()` použit jen ve 2 souborech; CRM má vlastní lokální
+  `getCtx()` (`crm/actions.ts:9-17`) kontrolující JEN příslušnost k tenantu, bez role. `permissions.ts`
+  zná role admin|manager|employee|external a 7 permissions — `crm.*`/`leads.*` mezi nimi NEJSOU.
+  `getAllowedModules()` bez custom role vrací VŠECHNY moduly (i pro roli `external`). Nikde v repu není
+  row-level ownership filtr (vše filtruje jen `tenant_id`).
+- `src/middleware.ts` (53 ř.): host se řeší JEN pro `jobs.` (rewrite na `/jobs/*`, ř. 14-19).
+  Pro `klient.` NEEXISTUJE žádná větev. `/api/*` je z guardu úplně vyňato (ř. 23-25).
 
 ## Rozhodnutí (append-only)
 - [2026-07-13] Flow triáž (T0–T4) se aktivuje automaticky na každý prompt v tomto repu, ne jen na explicitní `/flow` — uživatel to tak výslovně chtěl. T0/T1 zůstává v hlavní session (spawn by byl zbytečný náklad), T2+ jede plný postup.
@@ -79,7 +114,61 @@
   Ponaučení: nepinnuté `^` verze u auth/ORM knihoven na projektu bez lockfile disciplíny (žádný Node lokálně → lockfile se needituje) jsou rizikové — vyhledávat je pinnout na přesnou verzi hned při zavedení, ne až po incidentu.
   Ověřeno end-to-end (`mode=signin` → `{ok:true}` s reálným session tokenem), debug-auth route smazána, uživatel informován.
 
+- [2026-08-21] LEADY Fáze 0 (T4, 2 paralelní scouti + přímá SQL verifikace Neonu). Schéma v zadání je
+  přesné (ověřeno `pg_attribute`/`pg_constraint`): `crm_prospects` 20 sloupců, `crm_prospect_touches` 8,
+  oba prázdné (0 řádků), `crm_prospect_origin` ani `crm_do_not_call` neexistují. Blokující otázka zadání
+  (`profiles` vs `users`) rozhodnuta: vázat na **`users.id`** — je to identita z Better-Auth session,
+  kterou kód všude plní jako owner/created_by; `profiles` je best-effort 1:1 alias, který může chybět.
+  Rozpor v DB FK (`crm_prospects.owner`→profiles) je legacy, sjednocení by znamenalo zásah do
+  `crm_prospects` FK → navrhuji řešit až se souhlasem, nová `crm_prospect_origin.acquired_by`→`users(id)`.
+- [2026-08-21] LEADY: BEZPEČNOSTNÍ ZJIŠTĚNÍ (blokující, doloženo kódem) — portálový uživatel (`role='external'`,
+  má řádek v `tenant_users`, vzniká `invite/[token]/actions.ts:37`) se dnes DOSTANE na server actions modulu
+  Obchod: (a) `middleware.ts` nemá pro `klient.` žádnou větev a `/api/*` je z guardu vyňato, (b)
+  `getAllowedModules()` bez `custom_role_id` vrací všechny moduly včetně `crm`/`prospects`, (c)
+  `crm/actions.ts:9-17` ověřuje jen příslušnost k tenantu, ne roli. Server Action = POST endpoint,
+  skrytí v navigaci není ochrana. Pro modul s právní evidencí ČTÚ je to nutné opravit před spuštěním.
+
+- [2026-08-21] LEADY — uživatel rozhodl 3 blokery Fáze 0:
+  (1) Append-only touches = **trigger + REVOKE**, ne nová DB role. Vědomě přijata slabší záruka: chrání
+      proti chybě v aplikaci, NE proti komukoli s owner přístupem k DB. Akceptační kritérium
+      „UPDATE/DELETE selže i pro aplikační roli" tím zůstává splněno jen částečně — zdokumentovat v PR.
+  (2) Testy = **zavést vitest** (schválená nová závislost). Pozor: v tomto shellu není Node → testy
+      nelze lokálně spustit, ověření musí proběhnout u uživatele nebo v CI na Vercelu.
+  (3) Bezpečnostní izolace = ponecháno na doporučení agenta → **opravit hned před leady, chirurgicky**:
+      zákaz `external` v `getAllowedModules`, host guard pro `klient.`/`jobs.` na dashboard routes,
+      permission+ownership check v nových lead actions, a doplnění role checku do existujících CRM
+      actions (vědomě mimo deklarovaný rozsah leadů — stejná díra, nemá smysl ji nechat otevřenou).
+      Podmínka: nejdřív ověřit, že `(portal)` route group nezávisí na `requireModuleAccess()`.
+
+- [2026-08-21] LEADY PR2a APLIKOVÁNO na produkci. Coder padl na session limit po částečné práci,
+  dodělal jsem migrace + fix-round (8 bodů criticu) sám v hlavní session. Skóring přepracován dle
+  rozhodnutí: absolutní body 0–100 (ne normalizace — ta odměňovala neznalost: lead jen s telefonem
+  by vyšel 100/A), prahy PER-SOURCE (default 70/50, osm 45/30, web_firmy 55/40). score_raw zrušen.
+  Přidán seed trigger na nové tenanty (industries+scoring config), composite FK industry DEFERRABLE
+  (jinak DELETE tenanta padal), defenzivní fn_jsonb_num (garbage config nesmí zablokovat zápis),
+  do_not_call enforcement trigger na crm_prospects. Down migrace přemapovávají porušující řádky před
+  zúžením CHECKů (jinak rollback padá na existujících datech). Vše ověřeno na odhozené Neon branchi.
+  Region FK a origin-enforce odloženy do PR2b (rozbily by dnešní zápisovou cestu).
+
 ## Otevřené otázky / blokery
+### LEADY — zbývající otevřené body (2026-08-21)
+- `VisionBoost_Sales_Leads.xlsx` stále chybí — akceptační kritérium importu nelze verifikovat.
+- Nerozhodnuto: seznam 1 000 leadů — zůstat u fetch-all + client filtr (vzorec repa), nebo zavést
+  server-side filtr/paginaci? Ponecháno na architektův návrh.
+### LEADY — původních 5 blokerů z Fáze 0 (3 rozhodnuty výše, viz Rozhodnutí)
+1. **REVOKE UPDATE/DELETE na `crm_prospect_touches` je nesplnitelné, jak je zadané.** App jede jako
+   `neondb_owner` = owner tabulek. Zadání explicitně odmítá trigger ("skutečné odebrání práv").
+   Varianty: (a) nová least-privilege DB role + změna DATABASE_URL ve Vercelu (infra změna),
+   (b) revoke + `ALTER TABLE ... OWNER TO` jiné roli, (c) přijmout trigger/rule jako slabší záruku.
+2. **Testy neexistují** — akceptačka žádá 3 testy (403 z klient. session, obchodník A/B izolace, dedupe).
+   Zavedení vitestu = nová závislost, zadání zakazuje nové závislosti bez souhlasu.
+3. **Doménová izolace je dnes reálně prolomitelná** (viz Rozhodnutí) — nutná oprava PŘED spuštěním leadů,
+   ale sahá do `middleware.ts` + `permissions.ts` + cizích CRM actions = mimo deklarovaný rozsah leadů.
+4. **`score` nemůže být generated column, když váhy leží v `company_settings`** — PG generated column musí
+   být IMMUTABLE a nesmí mít subquery na jinou tabulku. Buď trigger, nebo výpočet v app při zápisu.
+5. **`VisionBoost_Sales_Leads.xlsx` není přiložen** (nenalezen v Downloads ani Desktop) — akceptační
+   kritérium "import přiloženého XLSX projde" nelze verifikovat.
+
 - Storage (8 souborů) pořád na reálném Supabase service-role klientovi — funguje, ale závislost na Supabase projektu/klíčích trvá, dokud neproběhne Vercel Blob migrace.
 - `MAIL_ENCRYPTION_KEY` ještě nenastaven — dokud SUPABASE_SERVICE_ROLE_KEY existuje, mail/crypto.ts na něm dál běží beze změny; až se Supabase bude odpojovat, uživatel už odsouhlasil ztrátu starých mailových hesel.
 - Better-Auth API povrch (drizzleAdapter import cesta, nextCookies, ctx.password.hash, getSessionCookie) ověřen přes WebFetch/WebSearch dokumentaci a nakonec i živým Vercel buildem + reálným přihlášením — funguje.
