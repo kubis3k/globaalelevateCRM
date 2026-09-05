@@ -7,6 +7,12 @@ updated: 2026-09-05
 
 Append-only chronologie zásahů. Nejnovější nahoře. Detail vždy i v git historii.
 
+## 2026-09-05 — Fix loga v portálu (velký box přes navigaci)
+- `public/logo.png` byl **2000×2000 čtverec s bílým pozadím** (wordmark 5.3:1 utopený v bílém okraji), RGB bez alfy.
+- Bug: Tailwind preflight `img{height:auto}` přebil `height={36}` → při `width:120px` a čtvercovém zdroji výška vyskočila na 120px → velký čtverec přetékal do nav („Přehled"). Bílé pozadí + `.logo-smart` `mix-blend-mode:multiply` navíc dělalo barevný box.
+- Fix: `public/logo.png` ořezán na obsah + převeden na **RGBA průhledný** wordmark (1206×226, ink #111827). Záloha originálu `/private/tmp/logo-original-backup.png` (i v git historii).
+- `(portal)/layout.tsx`: logo `h-8 w-auto object-contain` (pevná výška 32px). Ostatní místa (login/invite/app-shell/sidebar) opravou assetu taky přestala dělat obří čtverec.
+
 ## 2026-09-05 — Demo data pro klientský portál
 - Vytvořena testovací data pro portál (účet `test@test.com`). Viz [[Demo data (portál)]].
 - Klient „Demo Klient s.r.o." (IČO 12345678) + napojení portálu + 3 dodávky, 2 smlouvy, 1 událost, 1 zpráva.

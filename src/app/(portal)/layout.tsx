@@ -16,7 +16,7 @@ export default async function PortalLayout({ children }: { children: React.React
       <header className="sticky top-0 z-20 border-b border-border bg-background/85 backdrop-blur-md">
         <div className="mx-auto flex h-16 max-w-5xl items-center justify-between px-4 lg:px-8">
           <div className="flex items-center gap-3">
-            <Image src="/logo.png" alt="Globaal Elevate" width={120} height={36} className="logo-smart object-contain" priority />
+            <Image src="/logo.png" alt="Globaal Elevate" width={171} height={32} className="logo-smart h-8 w-auto object-contain" priority />
             <div className="hidden border-l border-border pl-3 sm:block">
               <div className="text-sm font-semibold leading-tight">Klientský portál</div>
               <div className="text-[11px] text-muted-foreground">Globaal Elevate</div>
