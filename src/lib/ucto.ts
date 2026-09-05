@@ -152,6 +152,118 @@ export async function getUctoInvoicesForClient(client: { name: string; ico?: str
   }
 }
 
+// ── Detail jedné vydané faktury pro klienta portálu (pro generování PDF) ──────
+// Ownership: faktura musí patřit contactu, který odpovídá klientovi (přesné IČO
+// nebo case-insensitive název) — jinak vrací null (IDOR ochrana). null i když
+// účto není dostupné nebo doklad neexistuje/není faktura_vydana.
+export type UctoInvoiceDetail = {
+  id: number
+  number: string
+  variableSymbol: string | null
+  issueDate: string
+  taxableSupplyDate: string | null
+  dueDate: string | null
+  description: string
+  currency: string
+  isVatDocument: boolean
+  vatBase: number | null
+  vatRate: number | null
+  vatAmount: number | null
+  totalAmount: number
+  paid: boolean
+  seller: {
+    name: string; ico: string | null; dic: string | null
+    address: string | null; iban: string | null; bankAccount: string | null
+    email: string | null; phone: string | null; isVatPayer: boolean
+    logoDataUrl: string | null
+  }
+  buyer: { name: string; ico: string | null; dic: string | null; address: string | null; email: string | null }
+  lines: { lineNo: number; description: string; quantity: number; unitPrice: number; vatRate: number | null; lineAmount: number }[]
+}
+
+export async function getUctoInvoiceDetailForClient(
+  id: number,
+  client: { name: string; ico?: string | null },
+): Promise<UctoInvoiceDetail | null> {
+  const pool = getPool()
+  if (!pool || !Number.isFinite(id)) return null
+  try {
+    const { rows } = await pool.query(
+      `SELECT d.id, d.doc_number, d.variable_symbol, d.issue_date, d.taxable_supply_date, d.due_date,
+              d.description, d.currency, d.is_vat_document, d.vat_base_amount, d.vat_rate, d.vat_amount,
+              d.total_amount,
+              (EXISTS (SELECT 1 FROM bank_statement_line b WHERE b.matched_document_id = d.id)
+               OR EXISTS (SELECT 1 FROM invoice_payment p WHERE p.document_id = d.id AND p.status = 'paid')) AS paid,
+              c.name AS buyer_name, c.ico AS buyer_ico, c.dic AS buyer_dic, c.address AS buyer_address, c.email AS buyer_email,
+              u.name AS seller_name, u.ico AS seller_ico, u.dic AS seller_dic, u.address AS seller_address,
+              u.iban AS seller_iban, u.bank_account AS seller_bank, u.email AS seller_email, u.phone AS seller_phone,
+              u.is_vat_payer AS seller_vat_payer, u.logo_data_url AS seller_logo
+       FROM document d
+       JOIN contact c ON c.id = d.contact_id
+       LEFT JOIN accounting_unit u ON u.id = d.accounting_unit_id
+       WHERE d.id = $1 AND d.doc_type = 'faktura_vydana' AND d.status <> 'stornovany'
+         AND ((c.ico IS NOT NULL AND c.ico = $2) OR lower(c.name) = lower($3))
+       LIMIT 1`,
+      [id, client.ico || null, client.name],
+    )
+    const r = rows[0]
+    if (!r) return null
+
+    const { rows: lineRows } = await pool.query(
+      `SELECT line_no, description, quantity, unit_price, vat_rate, line_amount
+       FROM document_line WHERE document_id = $1 ORDER BY line_no ASC, id ASC`,
+      [id],
+    )
+
+    return {
+      id: Number(r.id),
+      number: r.doc_number,
+      variableSymbol: r.variable_symbol || null,
+      issueDate: r.issue_date,
+      taxableSupplyDate: r.taxable_supply_date || null,
+      dueDate: r.due_date || null,
+      description: r.description || '',
+      currency: r.currency || 'CZK',
+      isVatDocument: Number(r.is_vat_document || 0) === 1,
+      vatBase: r.vat_base_amount != null ? Number(r.vat_base_amount) : null,
+      vatRate: r.vat_rate != null ? Number(r.vat_rate) : null,
+      vatAmount: r.vat_amount != null ? Number(r.vat_amount) : null,
+      totalAmount: Number(r.total_amount || 0),
+      paid: !!r.paid,
+      seller: {
+        name: r.seller_name || 'Globaal Elevate',
+        ico: r.seller_ico || null,
+        dic: r.seller_dic || null,
+        address: r.seller_address || null,
+        iban: r.seller_iban || null,
+        bankAccount: r.seller_bank || null,
+        email: r.seller_email || null,
+        phone: r.seller_phone || null,
+        isVatPayer: Number(r.seller_vat_payer || 0) === 1,
+        logoDataUrl: r.seller_logo || null,
+      },
+      buyer: {
+        name: r.buyer_name || client.name,
+        ico: r.buyer_ico || null,
+        dic: r.buyer_dic || null,
+        address: r.buyer_address || null,
+        email: r.buyer_email || null,
+      },
+      lines: lineRows.map((l: any) => ({
+        lineNo: Number(l.line_no || 0),
+        description: l.description || '',
+        quantity: Number(l.quantity || 0),
+        unitPrice: Number(l.unit_price || 0),
+        vatRate: l.vat_rate != null ? Number(l.vat_rate) : null,
+        lineAmount: Number(l.line_amount || 0),
+      })),
+    }
+  } catch (e: any) {
+    console.error('[ucto] invoice detail failed', e?.message || e)
+    return null
+  }
+}
+
 export async function getUctoSummary(): Promise<UctoResult> {
   if (cache && Date.now() - cache.at < CACHE_MS && cache.data.connected) return cache.data
 

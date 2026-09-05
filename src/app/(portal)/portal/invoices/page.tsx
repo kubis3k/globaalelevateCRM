@@ -6,6 +6,7 @@ import { EmptyState } from '@/components/ui/empty-state'
 import { FileText, ArrowUpRight, ArrowDownLeft, Wallet, Unplug } from 'lucide-react'
 import { getPortalScope } from '../scope'
 import { getUctoInvoicesForClient } from '@/lib/ucto'
+import { InvoiceDownload } from './invoice-download'
 
 const czk = (n: number, c = 'CZK') => new Intl.NumberFormat('cs-CZ', { style: 'currency', currency: c, maximumFractionDigits: 0 }).format(n)
 
@@ -60,6 +61,7 @@ export default async function PortalInvoicesPage() {
                     <TableHead>Splatnost</TableHead>
                     <TableHead>Stav</TableHead>
                     <TableHead className="text-right">Částka</TableHead>
+                    <TableHead className="text-right">Doklad</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -78,6 +80,7 @@ export default async function PortalInvoicesPage() {
                               : <Badge variant="info">Čeká</Badge>}
                         </TableCell>
                         <TableCell className="text-right font-semibold tabular-nums text-foreground">{czk(i.amount, i.currency)}</TableCell>
+                        <TableCell className="text-right"><InvoiceDownload id={i.id} /></TableCell>
                       </TableRow>
                     )
                   })}
