@@ -2,9 +2,12 @@
 
 import { useMemo, useState, useTransition } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import {
   ArrowLeft, Plus, Trash2, Phone, Mail, Globe, MapPin, Star, FileText,
   StickyNote, PhoneCall, Users, CheckSquare, Square, Building2, DoorOpen,
+  Pencil, ExternalLink, BarChart3, CalendarDays, FileSignature, PackageCheck,
+  ReceiptText, Handshake, FolderOpen, Wallet, ArrowUpRight, ArrowDownLeft,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -16,9 +19,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { toast } from '@/components/ui/toast'
 import { confirmDialog } from '@/components/ui/confirm-dialog'
 import { cn } from '@/lib/utils'
-import { createContact, deleteContact, createActivity, toggleActivity, deleteActivity } from '../../actions'
+import { createContact, deleteContact, createActivity, toggleActivity, deleteActivity, updateCrmClient } from '../../actions'
 
-const selectClass = 'h-8 w-full rounded-lg border border-input bg-background px-2 text-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50'
+const selectClass = 'h-9 w-full rounded-lg border border-input bg-background px-2 text-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50'
 const czk = (n: number, c = 'CZK') => new Intl.NumberFormat('cs-CZ', { style: 'currency', currency: c, maximumFractionDigits: 0 }).format(n)
 const STATUS: Record<string, { variant: 'success' | 'secondary' | 'info'; label: string }> = {
   active: { variant: 'success', label: 'Aktivní' }, inactive: { variant: 'secondary', label: 'Neaktivní' }, lead: { variant: 'info', label: 'Lead' },
@@ -27,21 +30,33 @@ const ACT_TYPES: Record<string, { label: string; icon: any }> = {
   note: { label: 'Poznámka', icon: StickyNote }, call: { label: 'Hovor', icon: PhoneCall },
   meeting: { label: 'Schůzka', icon: Users }, email: { label: 'E-mail', icon: Mail }, task: { label: 'Úkol', icon: CheckSquare },
 }
-const INV_STATUS: Record<string, { variant: 'secondary' | 'info' | 'success' | 'destructive' | 'warning'; label: string }> = {
-  draft: { variant: 'secondary', label: 'Koncept' }, pending: { variant: 'info', label: 'Čeká' }, paid: { variant: 'success', label: 'Uhrazeno' }, overdue: { variant: 'destructive', label: 'Po splatnosti' }, cancelled: { variant: 'warning', label: 'Storno' },
+
+type UctoInvoice = { id: number; number: string; amount: number; currency: string; issueDate: string; dueDate: string | null; paid: boolean }
+type Related = {
+  deals: any[]; quotes: any[]; reports: any[]; deliverables: any[]; contracts: any[]; events: any[]; documentsCount: number
 }
 
-export function ClientDetail({ client, contacts, activities, portalMessages, invoices }: { client: any; contacts: any[]; activities: any[]; portalMessages: any[]; invoices: any[] }) {
+export function ClientDetail({
+  client, contacts, activities, portalMessages, uctoInvoices, portalConnected, profiles, related,
+}: {
+  client: any; contacts: any[]; activities: any[]; portalMessages: any[]
+  uctoInvoices: UctoInvoice[] | null; portalConnected: boolean; profiles: { id: string; name: string }[]; related: Related
+}) {
   const [showContact, setShowContact] = useState(false)
   const [showActivity, setShowActivity] = useState(false)
+  const [showEdit, setShowEdit] = useState(false)
   const [isPending, startTransition] = useTransition()
   const st = STATUS[client.status] ?? STATUS.active
 
-  const billed = invoices.reduce((a, i) => a + Number(i.amount || 0), 0)
-  const paid = invoices.filter((i) => i.status === 'paid').reduce((a, i) => a + Number(i.amount || 0), 0)
+  const inv = uctoInvoices ?? []
+  const billed = inv.reduce((a, i) => a + Number(i.amount || 0), 0)
+  const paid = inv.filter((i) => i.paid).reduce((a, i) => a + Number(i.amount || 0), 0)
+  const unpaid = billed - paid
+  const today = new Date().toISOString().slice(0, 10)
 
-  // Sloučený feed: interní CRM aktivity + zprávy z klientského portálu — jedno
-  // místo pro celou komunikaci s klientem.
+  const dealValue = related.deals.reduce((a, d) => a + Number(d.value || 0), 0)
+  const contractValue = related.contracts.reduce((a, d) => a + Number(d.value || 0), 0)
+
   const feed = useMemo(() => {
     const a = activities.map((x) => ({ kind: 'activity' as const, at: x.created_at, data: x }))
     const m = portalMessages.map((x) => ({ kind: 'message' as const, at: x.created_at, data: x }))
@@ -66,17 +81,20 @@ export function ClientDetail({ client, contacts, activities, portalMessages, inv
     <div className="space-y-6">
       <Link href="/crm/clients" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"><ArrowLeft className="size-4" />Zpět na klienty</Link>
 
-      {/* Header */}
-      <div className="flex items-start gap-4 rounded-xl border border-border bg-card p-5 shadow-xs">
+      {/* Header + rychlé akce */}
+      <div className="flex flex-col gap-4 rounded-xl border border-border bg-card p-5 shadow-xs sm:flex-row sm:items-start">
         <span className="flex size-12 shrink-0 items-center justify-center rounded-xl text-white" style={{ background: '#06b6d4' }}><Building2 className="size-6" /></span>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <h2 className="text-lg font-semibold text-foreground">{client.name}</h2>
             <Badge variant={st.variant}>{st.label}</Badge>
+            {portalConnected
+              ? <Badge variant="info" className="gap-1"><DoorOpen className="size-3" />Portál napojen</Badge>
+              : <Badge variant="secondary" className="gap-1"><DoorOpen className="size-3" />Bez portálu</Badge>}
           </div>
           <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
-            {client.email && <span className="inline-flex items-center gap-1"><Mail className="size-3.5" />{client.email}</span>}
-            {client.phone && <span className="inline-flex items-center gap-1"><Phone className="size-3.5" />{client.phone}</span>}
+            {client.email && <a href={`mailto:${client.email}`} className="inline-flex items-center gap-1 hover:text-foreground"><Mail className="size-3.5" />{client.email}</a>}
+            {client.phone && <a href={`tel:${client.phone}`} className="inline-flex items-center gap-1 hover:text-foreground"><Phone className="size-3.5" />{client.phone}</a>}
             {client.website && <a href={client.website} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 hover:text-foreground"><Globe className="size-3.5" />Web</a>}
             {client.address && <span className="inline-flex items-center gap-1"><MapPin className="size-3.5" />{client.address}</span>}
           </div>
@@ -87,10 +105,33 @@ export function ClientDetail({ client, contacts, activities, portalMessages, inv
           </div>
           {client.note && <p className="mt-2 text-sm text-muted-foreground">{client.note}</p>}
         </div>
+        <div className="flex flex-wrap gap-2 sm:flex-col">
+          <Button variant="outline" size="sm" onClick={() => setShowEdit(true)}><Pencil className="size-3.5" />Upravit</Button>
+          <Link href="/reports/klienti" className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border border-border px-3 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"><BarChart3 className="size-3.5" />Nový report</Link>
+          <Link href="/portal-admin" className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border border-border px-3 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"><DoorOpen className="size-3.5" />Portál</Link>
+        </div>
+      </div>
+
+      {/* KPI z účta */}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <Kpi icon={<Wallet className="size-4" />} label="Fakturováno (účto)" value={czk(billed)} hint={`${inv.length} dokladů`} />
+        <Kpi icon={<ArrowUpRight className="size-4" />} label="Uhrazeno" value={czk(paid)} tone="pos" />
+        <Kpi icon={<ArrowDownLeft className="size-4" />} label="Neuhrazeno" value={czk(unpaid)} tone={unpaid > 0 ? 'neg' : undefined} />
+        <Kpi icon={<Handshake className="size-4" />} label="Obchod (deals)" value={czk(dealValue)} hint={`${related.deals.length} příležitostí`} />
+      </div>
+
+      {/* Přehled napojení */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+        <OverviewCard icon={<BarChart3 className="size-4" />} label="Reporty" count={related.reports.length} href="/reports/klienti" hint={`${related.reports.filter((r) => r.status === 'sent').length} odesláno`} />
+        <OverviewCard icon={<CalendarDays className="size-4" />} label="Události" count={related.events.length} href="/events" />
+        <OverviewCard icon={<FileSignature className="size-4" />} label="Smlouvy" count={related.contracts.length} href="/business-contracts" hint={contractValue ? czk(contractValue) : undefined} />
+        <OverviewCard icon={<ReceiptText className="size-4" />} label="Nabídky" count={related.quotes.length} href="/quotes" />
+        <OverviewCard icon={<PackageCheck className="size-4" />} label="Dodávky" count={related.deliverables.length} />
+        <OverviewCard icon={<FolderOpen className="size-4" />} label="Dokumenty" count={related.documentsCount} href="/documents" />
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
-        {/* Contacts */}
+        {/* Kontakty */}
         <section className="space-y-2">
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-semibold text-foreground">Kontaktní osoby</h3>
@@ -113,22 +154,30 @@ export function ClientDetail({ client, contacts, activities, portalMessages, inv
           </div>
         </section>
 
-        {/* Linked invoices */}
+        {/* Faktury z účta */}
         <section className="space-y-2">
-          <h3 className="text-sm font-semibold text-foreground">Faktury</h3>
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-foreground">Faktury <span className="text-xs font-normal text-muted-foreground">(z účetnictví)</span></h3>
+            <a href="https://ucto.globaalelevate.com" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-primary hover:underline">Účto <ExternalLink className="size-3" /></a>
+          </div>
           <div className="overflow-hidden rounded-xl border border-border bg-card shadow-xs">
-            {invoices.length === 0 ? <EmptyState icon={FileText} title="Žádné faktury" description="Vytvořte fakturu a přiřaďte ji klientovi." /> : (
+            {uctoInvoices === null ? (
+              <div className="p-4 text-sm text-muted-foreground">Účetnictví je momentálně nedostupné.</div>
+            ) : inv.length === 0 ? (
+              <EmptyState icon={FileText} title="Žádné faktury" description="Pro tohoto klienta zatím v účtu nejsou vydané faktury." />
+            ) : (
               <>
                 <Table>
-                  <TableHeader><TableRow><TableHead>Číslo</TableHead><TableHead className="text-right">Částka</TableHead><TableHead>Stav</TableHead></TableRow></TableHeader>
+                  <TableHeader><TableRow><TableHead>Číslo</TableHead><TableHead>Splatnost</TableHead><TableHead>Stav</TableHead><TableHead className="text-right">Částka</TableHead></TableRow></TableHeader>
                   <TableBody>
-                    {invoices.map((i) => {
-                      const s = INV_STATUS[i.status] ?? INV_STATUS.draft
+                    {inv.slice(0, 8).map((i) => {
+                      const overdue = !i.paid && i.dueDate && i.dueDate < today
                       return (
                         <TableRow key={i.id}>
-                          <TableCell className="font-medium text-foreground">{i.invoice_number}</TableCell>
+                          <TableCell className="font-medium text-foreground">{i.number}</TableCell>
+                          <TableCell className="whitespace-nowrap tabular-nums text-muted-foreground">{i.dueDate ? new Date(i.dueDate).toLocaleDateString('cs-CZ') : '—'}</TableCell>
+                          <TableCell>{i.paid ? <Badge variant="success">Uhrazeno</Badge> : overdue ? <Badge variant="destructive">Po splatnosti</Badge> : <Badge variant="info">Čeká</Badge>}</TableCell>
                           <TableCell className="text-right tabular-nums">{czk(Number(i.amount), i.currency)}</TableCell>
-                          <TableCell><Badge variant={s.variant}>{s.label}</Badge></TableCell>
                         </TableRow>
                       )
                     })}
@@ -136,7 +185,7 @@ export function ClientDetail({ client, contacts, activities, portalMessages, inv
                 </Table>
                 <div className="flex justify-between border-t border-border px-3 py-2 text-xs text-muted-foreground">
                   <span>Fakturováno: <span className="font-semibold tabular-nums text-foreground">{czk(billed)}</span></span>
-                  <span>Uhrazeno: <span className="font-semibold tabular-nums text-success">{czk(paid)}</span></span>
+                  <span>Neuhrazeno: <span className={cn('font-semibold tabular-nums', unpaid > 0 ? 'text-destructive' : 'text-success')}>{czk(unpaid)}</span></span>
                 </div>
               </>
             )}
@@ -144,14 +193,14 @@ export function ClientDetail({ client, contacts, activities, portalMessages, inv
         </section>
       </div>
 
-      {/* Activities + komunikace z portálu (jeden feed) */}
+      {/* Aktivity + komunikace z portálu */}
       <section className="space-y-2">
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-semibold text-foreground">Aktivity a komunikace</h3>
           <Button variant="outline" size="sm" onClick={() => setShowActivity(true)}><Plus className="size-3.5" />Aktivita</Button>
         </div>
         <div className="overflow-hidden rounded-xl border border-border bg-card shadow-xs">
-          {feed.length === 0 ? <EmptyState icon={StickyNote} title="Žádné aktivity" description="Zaznamenejte hovor, schůzku nebo poznámku — případně zprávy z portálu se objeví zde automaticky." /> : (
+          {feed.length === 0 ? <EmptyState icon={StickyNote} title="Žádné aktivity" description="Zaznamenejte hovor, schůzku nebo poznámku — zprávy z portálu se objeví zde automaticky." /> : (
             <div className="divide-y divide-border">
               {feed.map((f) => {
                 if (f.kind === 'message') {
@@ -204,8 +253,30 @@ export function ClientDetail({ client, contacts, activities, portalMessages, inv
 
       {showContact && <ContactDialog clientId={client.id} onClose={() => setShowContact(false)} />}
       {showActivity && <ActivityDialog clientId={client.id} onClose={() => setShowActivity(false)} />}
+      {showEdit && <EditClientDialog client={client} profiles={profiles} onClose={() => setShowEdit(false)} />}
     </div>
   )
+}
+
+function Kpi({ icon, label, value, hint, tone }: { icon: React.ReactNode; label: string; value: string; hint?: string; tone?: 'pos' | 'neg' }) {
+  return (
+    <div className="rounded-xl border border-border bg-card p-4 shadow-xs">
+      <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">{icon}{label}</div>
+      <div className={cn('mt-1 text-xl font-semibold tabular-nums', tone === 'pos' ? 'text-success' : tone === 'neg' ? 'text-destructive' : 'text-foreground')}>{value}</div>
+      {hint && <div className="text-[11px] text-muted-foreground">{hint}</div>}
+    </div>
+  )
+}
+
+function OverviewCard({ icon, label, count, href, hint }: { icon: React.ReactNode; label: string; count: number; href?: string; hint?: string }) {
+  const body = (
+    <div className={cn('rounded-xl border border-border bg-card p-3 shadow-xs transition-colors', href && 'hover:border-ring/40 hover:bg-muted/40')}>
+      <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">{icon}{label}</div>
+      <div className="mt-1 text-lg font-semibold tabular-nums text-foreground">{count}</div>
+      {hint && <div className="truncate text-[11px] text-muted-foreground">{hint}</div>}
+    </div>
+  )
+  return href ? <Link href={href}>{body}</Link> : body
 }
 
 function ContactDialog({ clientId, onClose }: { clientId: string; onClose: () => void }) {
@@ -267,6 +338,52 @@ function ActivityDialog({ clientId, onClose }: { clientId: string; onClose: () =
           <div className="flex justify-end gap-2 pt-1">
             <Button type="button" variant="outline" size="lg" onClick={onClose}>Zrušit</Button>
             <Button type="submit" size="lg" disabled={pending}>{pending ? 'Ukládám…' : 'Přidat'}</Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+function EditClientDialog({ client, profiles, onClose }: { client: any; profiles: { id: string; name: string }[]; onClose: () => void }) {
+  const router = useRouter()
+  const [pending, startTransition] = useTransition()
+  function onSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+    const fd = new FormData(e.currentTarget)
+    startTransition(async () => { const res = await updateCrmClient(client.id, fd); if (res?.error) { toast.error('Chyba', res.error); return } toast.success('Klient upraven'); router.refresh(); onClose() })
+  }
+  return (
+    <Dialog open onOpenChange={(o) => { if (!o) onClose() }}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader><DialogTitle>Upravit klienta</DialogTitle></DialogHeader>
+        <form onSubmit={onSubmit} className="space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="col-span-2 space-y-1.5"><Label className="text-xs text-muted-foreground">Název</Label><Input name="name" required defaultValue={client.name} /></div>
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">Stav</Label>
+              <select name="status" defaultValue={client.status || 'active'} className={selectClass}>
+                <option value="active">Aktivní</option><option value="inactive">Neaktivní</option><option value="lead">Lead</option>
+              </select>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">Vlastník</Label>
+              <select name="ownerId" defaultValue={client.owner_id || ''} className={selectClass}>
+                <option value="">— nepřiřazeno —</option>
+                {profiles.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+              </select>
+            </div>
+            <div className="space-y-1.5"><Label className="text-xs text-muted-foreground">IČO</Label><Input name="ico" defaultValue={client.ico || ''} /></div>
+            <div className="space-y-1.5"><Label className="text-xs text-muted-foreground">DIČ</Label><Input name="dic" defaultValue={client.dic || ''} /></div>
+            <div className="space-y-1.5"><Label className="text-xs text-muted-foreground">E-mail</Label><Input type="email" name="email" defaultValue={client.email || ''} /></div>
+            <div className="space-y-1.5"><Label className="text-xs text-muted-foreground">Telefon</Label><Input name="phone" defaultValue={client.phone || ''} /></div>
+            <div className="space-y-1.5"><Label className="text-xs text-muted-foreground">Web</Label><Input name="website" defaultValue={client.website || ''} /></div>
+            <div className="space-y-1.5"><Label className="text-xs text-muted-foreground">Adresa</Label><Input name="address" defaultValue={client.address || ''} /></div>
+          </div>
+          <div className="space-y-1.5"><Label className="text-xs text-muted-foreground">Poznámka</Label><Input name="note" defaultValue={client.note || ''} /></div>
+          <div className="flex justify-end gap-2 pt-1">
+            <Button type="button" variant="outline" size="lg" onClick={onClose}>Zrušit</Button>
+            <Button type="submit" size="lg" disabled={pending}>{pending ? 'Ukládám…' : 'Uložit'}</Button>
           </div>
         </form>
       </DialogContent>

@@ -7,6 +7,12 @@ updated: 2026-09-05
 
 Append-only chronologie zásahů. Nejnovější nahoře. Detail vždy i v git historii.
 
+## 2026-09-05 — CRM detail klienta: 360° přehled
+- Rozšířen `crm/clients/[id]` na plný přehled. Viz [[CRM klienti]].
+- Reálné **faktury z účta** (nahradily prázdnou legacy tabulku) + KPI (fakturováno/uhrazeno/neuhrazeno/deals).
+- Dlaždice s počty a odkazy: reporty, události, smlouvy, nabídky, dodávky, dokumenty. Badge portál napojen.
+- **Editace klienta** (dialog, `updateCrmClient` — vlastník ze select profiles). Rychlé akce v headeru.
+
 ## 2026-09-05 — Klientské reporty (posílání + PDF do portálu)
 - Nová feature: interní tým vytvoří report (název/období/shrnutí + metriky + sekce), odešle klientovi, klient si ho v [[Klientský portál|portálu]] stáhne jako PDF. Viz [[Reporty]].
 - Migrace `20240654_client_reports.sql` (4 tabulky) aplikována na Neon main + Drizzle schema.

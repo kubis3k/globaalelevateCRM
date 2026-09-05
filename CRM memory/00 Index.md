@@ -27,6 +27,7 @@ Píše se sem vše podstatné o projektu — architektura, integrace, rozhodnut�
 - [[Mail a šifrování]] — odesílání e-mailů, MAIL_ENCRYPTION_KEY
 
 ### Domény aplikace
+- [[CRM klienti]] — interní správa klientů (360° detail)
 - [[Klientský portál]] — `klient.` doména, role external
 - [[Faktury]] — modul Faktury + PDF do portálu
 - [[Reporty]] — klientské reporty posílané do portálu (PDF)
