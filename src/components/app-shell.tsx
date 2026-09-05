@@ -4,7 +4,7 @@ import { useRef, useState } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { usePathname } from 'next/navigation'
-import { Menu, X, LogOut, Bell, ChevronRight, KeyRound } from 'lucide-react'
+import { Menu, X, LogOut, Bell, ChevronRight, KeyRound, Settings } from 'lucide-react'
 import { MODULES } from '@/lib/modules'
 import { cn } from '@/lib/utils'
 import { MODULE_ICONS, NAV } from './collapsible-sidebar'
@@ -147,6 +147,25 @@ export function AppShell({
 
           <div className="ml-auto flex shrink-0 items-center gap-1.5">
             <ThemeToggle />
+            <button
+              type="button"
+              onClick={() => setShowPush(true)}
+              aria-label="Oznámení"
+              title="Oznámení"
+              className="rounded-lg p-2 text-muted-foreground outline-none transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <Bell className="size-5" />
+            </button>
+            {allowedModules.includes('settings') && (
+              <Link
+                href="/settings"
+                aria-label="Nastavení"
+                title="Nastavení"
+                className="rounded-lg p-2 text-muted-foreground outline-none transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <Settings className="size-5" />
+              </Link>
+            )}
             <DropdownMenu>
               <DropdownMenuTrigger className="flex items-center gap-2 rounded-lg p-1 outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring sm:pr-2">
                 <Avatar name={username} />
@@ -161,10 +180,6 @@ export function AppShell({
                   <div className="text-xs font-normal text-muted-foreground">{roleLabel}</div>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => setShowPush(true)}>
-                  <Bell />
-                  Notifikace
-                </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => setShowPassword(true)}>
                   <KeyRound />
                   Změnit heslo
