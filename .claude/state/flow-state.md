@@ -161,6 +161,23 @@
   v PR2b jen zavřena díra external přístupu. Uživatel odsouhlasil viditelnou změnu (external ztratí dashboard).
 
 ## Otevřené otázky / blokery
+
+### PORTÁL + STORAGE MIGRACE (2026-09-04) — AKTIVNÍ
+- Host guard pro klient. doménu + smazání seed-passwords NASAZENO (commit bfb2200, security-guardian APPROVE).
+- OBJEVENO: celá storage migrace Supabase Storage→Vercel Blob z dřívějška NIKDY necommitnuta —
+  visí v pracovním stromě (21 souborů: api/blob, api/documents, api/hr, api/portal routes, lib/storage/,
+  přepsané uploady, smazaný supabase/client.ts, package.json @vercel/blob). Produkce běží dál na
+  STARÉM committed Supabase storage (funguje). git stash NEDĚLAT — je to hotová práce k dokončení.
+- Bezpečnostní fix /api/documents/[id]/download + /api/blob/documents (external→403) je PŘIPRAVENÝ
+  v pracovním stromě, ale VÁZANÝ na storage migraci (ty routy nejsou v produkci). NENÍ akutní díra
+  (route není nasazená). Nasadí se SPOLU se storage migrací.
+- BLOKER: dokončení storage migrace čeká na (1) uživatel připojí Vercel Blob store (env
+  BLOB_READ_WRITE_TOKEN — MCP to nevidí, jen uživatel v dashboardu), (2) data copy 20 souborů
+  (19 documents + 1 hr_document, ověřeno SQL) Supabase→Blob — plán: jednorázový Bearer endpoint
+  (server má oba env tokeny: SUPABASE_SERVICE_ROLE_KEY ještě žije + nový BLOB token), stáhne+nahraje,
+  smaže. Pak deploy migrace+bezpečnost, ověření curl.
+- Uživatel zvolil "Dokončit celou storage migraci + bezpečnost", Blob store "nevím" → čeká se na připojení.
+
 ### LEADY — zbývající otevřené body (2026-08-21)
 - `VisionBoost_Sales_Leads.xlsx` stále chybí — akceptační kritérium importu nelze verifikovat.
 - Nerozhodnuto: seznam 1 000 leadů — zůstat u fetch-all + client filtr (vzorec repa), nebo zavést
