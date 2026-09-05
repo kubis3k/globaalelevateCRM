@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import Image from 'next/image'
 import { getPortalScope } from './portal/scope'
 import { PortalNav } from './portal/portal-nav'
+import { PortalHeaderActions } from './portal/portal-header-actions'
 import { mustChangePassword } from '@/lib/auth/context'
 
 export default async function PortalLayout({ children }: { children: React.ReactNode }) {
@@ -22,8 +23,9 @@ export default async function PortalLayout({ children }: { children: React.React
               <div className="text-[11px] text-muted-foreground">Globaal Elevate</div>
             </div>
           </div>
-          <div className="flex items-center gap-3">
-            <div className="hidden text-right sm:block">
+          <div className="flex items-center gap-1.5">
+            <PortalHeaderActions />
+            <div className="ml-1.5 hidden text-right sm:block">
               <div className="text-sm font-medium leading-tight text-foreground">{name}</div>
               {role === 'admin' && <div className="text-[10px] font-medium text-warning-foreground">náhled (admin)</div>}
             </div>
