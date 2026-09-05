@@ -64,7 +64,7 @@ export async function updateProspect(id: string, formData: FormData): Promise<{ 
   const c = await getCtx(); if ('error' in c) return c
   const row = prospectRow(formData); if (!row.name) return { error: 'Zadejte název subjektu.' }
   const { error } = await c.admin.from('crm_prospects')
-    .update({ ...row, updated_at: new Date().toISOString() }).eq('id', id).eq('tenant_id', c.tenantId)
+    .update({ ...row, updated_at: new Date() }).eq('id', id).eq('tenant_id', c.tenantId)
   if (error) return { error: error.message.includes('uq_prospects_ico') ? 'Prospekt s tímto IČO už existuje.' : error.message }
   revalidatePath('/prospects'); return {}
 }
@@ -80,7 +80,7 @@ export async function setProspectStatus(id: string, status: string): Promise<{ e
   const c = await getCtx(); if ('error' in c) return c
   if (!STATUSES.includes(status)) return { error: 'Neplatný stav.' }
   const { error } = await c.admin.from('crm_prospects')
-    .update({ status, updated_at: new Date().toISOString() }).eq('id', id).eq('tenant_id', c.tenantId)
+    .update({ status, updated_at: new Date() }).eq('id', id).eq('tenant_id', c.tenantId)
   if (error) return { error: error.message }
   revalidatePath('/prospects'); return {}
 }
@@ -88,7 +88,7 @@ export async function setProspectStatus(id: string, status: string): Promise<{ e
 export async function assignProspectOwner(id: string, owner: string | null): Promise<{ error?: string }> {
   const c = await getCtx(); if ('error' in c) return c
   const { error } = await c.admin.from('crm_prospects')
-    .update({ owner: owner || null, updated_at: new Date().toISOString() }).eq('id', id).eq('tenant_id', c.tenantId)
+    .update({ owner: owner || null, updated_at: new Date() }).eq('id', id).eq('tenant_id', c.tenantId)
   if (error) return { error: error.message }
   revalidatePath('/prospects'); return {}
 }
@@ -131,7 +131,7 @@ export async function logTouch(
   }
 
   const { error } = await c.admin.from('crm_prospects').update({
-    touch_count: n, status, next_touch_at: nextTouch, updated_at: new Date().toISOString(),
+    touch_count: n, status, next_touch_at: nextTouch, updated_at: new Date(),
   }).eq('id', prospectId).eq('tenant_id', c.tenantId)
   if (error) return { error: error.message }
   revalidatePath('/prospects'); return {}
@@ -170,7 +170,7 @@ export async function convertProspectToClient(prospectId: string): Promise<{ err
   // 4) Prospekt označit jako konvertovaný
   await c.admin.from('crm_prospects').update({
     status: 'converted', converted_client_id: client.id, next_touch_at: null,
-    updated_at: new Date().toISOString(),
+    updated_at: new Date(),
   }).eq('id', prospectId).eq('tenant_id', c.tenantId)
 
   revalidatePath('/prospects'); revalidatePath('/crm'); revalidatePath('/crm/clients')

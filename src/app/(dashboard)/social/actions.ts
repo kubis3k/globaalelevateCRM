@@ -36,7 +36,7 @@ export async function saveAccount(formData: FormData): Promise<{ error?: string 
     profile_url: str(formData, 'profile_url'), followers, following, posts_count: posts,
   }
   if (id) {
-    const { error } = await c.admin.from('social_accounts').update({ ...row, updated_at: new Date().toISOString() }).eq('id', id).eq('tenant_id', c.tenantId)
+    const { error } = await c.admin.from('social_accounts').update({ ...row, updated_at: new Date() }).eq('id', id).eq('tenant_id', c.tenantId)
     if (error) return { error: error.message }
     await c.admin.from('social_metrics').insert({ tenant_id: c.tenantId, account_id: id, followers, following, posts_count: posts })
   } else {
@@ -55,7 +55,7 @@ export async function recordCounts(id: string, followers: number, following: num
   const g = Math.max(0, Math.round(Number(following) || 0))
   const p = Math.max(0, Math.round(Number(posts) || 0))
   const { error } = await c.admin.from('social_accounts')
-    .update({ followers: f, following: g, posts_count: p, last_synced_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+    .update({ followers: f, following: g, posts_count: p, last_synced_at: new Date(), updated_at: new Date() })
     .eq('id', id).eq('tenant_id', c.tenantId)
   if (error) return { error: error.message }
   await c.admin.from('social_metrics').insert({ tenant_id: c.tenantId, account_id: id, followers: f, following: g, posts_count: p })
@@ -89,7 +89,7 @@ export async function savePost(formData: FormData): Promise<{ error?: string }> 
   }
   if (id) {
     // Re-arm the cron reminder when rescheduling/editing.
-    const { error } = await c.admin.from('social_posts').update({ ...row, notified_at: null, updated_at: new Date().toISOString() }).eq('id', id).eq('tenant_id', c.tenantId)
+    const { error } = await c.admin.from('social_posts').update({ ...row, notified_at: null, updated_at: new Date() }).eq('id', id).eq('tenant_id', c.tenantId)
     if (error) return { error: error.message }
   } else {
     const { error } = await c.admin.from('social_posts').insert({ ...row, tenant_id: c.tenantId, created_by: c.userId })
@@ -102,8 +102,8 @@ export async function setPostStatus(id: string, status: string): Promise<{ error
   const c = await getCtx(); if ('error' in c) return c
   if (!canManageSocial(c.role)) return { error: 'Nemáte oprávnění.' }
   if (!STATUSES.includes(status)) return { error: 'Neplatný stav.' }
-  const patch: any = { status, updated_at: new Date().toISOString() }
-  if (status === 'published') patch.published_at = new Date().toISOString()
+  const patch: any = { status, updated_at: new Date() }
+  if (status === 'published') patch.published_at = new Date()
   if (status === 'draft') { patch.scheduled_at = null; patch.notified_at = null }
   const { error } = await c.admin.from('social_posts').update(patch).eq('id', id).eq('tenant_id', c.tenantId)
   if (error) return { error: error.message }

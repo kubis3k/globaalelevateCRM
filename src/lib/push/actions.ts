@@ -69,7 +69,7 @@ export async function saveNotificationPrefs(prefs: Prefs): Promise<{ error?: str
     hr: !!prefs.hr,
     projects: !!prefs.projects,
     social: !!prefs.social,
-    updated_at: new Date().toISOString(),
+    updated_at: new Date(),
   }, { onConflict: 'user_id' })
   if (error) return { error: error.message }
   return {}

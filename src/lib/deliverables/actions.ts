@@ -82,7 +82,7 @@ export async function decideDeliverable(id: string, decision: 'approved' | 'chan
   if (d.status !== 'submitted') return { error: 'O této dodávce už bylo rozhodnuto.' }
 
   const { error } = await c.admin.from('deliverables').update({
-    status: decision, client_comment: comment?.trim() || null, decided_by: c.userId, decided_at: new Date().toISOString(),
+    status: decision, client_comment: comment?.trim() || null, decided_by: c.userId, decided_at: new Date(),
   }).eq('id', id).eq('tenant_id', c.tenantId)
   if (error) return { error: error.message }
 

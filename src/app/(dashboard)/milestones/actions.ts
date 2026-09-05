@@ -28,7 +28,7 @@ export async function saveMilestone(formData: FormData): Promise<{ error?: strin
   const id = str(formData, 'id')
   const row = { title, description: str(formData, 'description'), timeframe: tf(formData), target_date: str(formData, 'targetDate'), progress: clamp(formData.get('progress')) }
   if (id) {
-    const { error } = await c.admin.from('milestones').update({ ...row, updated_at: new Date().toISOString() }).eq('id', id).eq('tenant_id', c.tenantId)
+    const { error } = await c.admin.from('milestones').update({ ...row, updated_at: new Date() }).eq('id', id).eq('tenant_id', c.tenantId)
     if (error) return { error: error.message }
   } else {
     const { error } = await c.admin.from('milestones').insert({ ...row, tenant_id: c.tenantId, created_by: c.userId })
@@ -40,7 +40,7 @@ export async function saveMilestone(formData: FormData): Promise<{ error?: strin
 export async function setMilestoneProgress(id: string, progress: number): Promise<{ error?: string }> {
   const c = await getCtx(); if ('error' in c) return c
   if (!canManageMilestones(c.role)) return { error: 'Nemáte oprávnění.' }
-  const { error } = await c.admin.from('milestones').update({ progress: clamp(progress), updated_at: new Date().toISOString() }).eq('id', id).eq('tenant_id', c.tenantId)
+  const { error } = await c.admin.from('milestones').update({ progress: clamp(progress), updated_at: new Date() }).eq('id', id).eq('tenant_id', c.tenantId)
   if (error) return { error: error.message }
   revalidatePath('/milestones'); return {}
 }
@@ -48,7 +48,7 @@ export async function setMilestoneProgress(id: string, progress: number): Promis
 export async function setMilestoneArchived(id: string, archived: boolean): Promise<{ error?: string }> {
   const c = await getCtx(); if ('error' in c) return c
   if (!canManageMilestones(c.role)) return { error: 'Nemáte oprávnění.' }
-  const { error } = await c.admin.from('milestones').update({ archived, updated_at: new Date().toISOString() }).eq('id', id).eq('tenant_id', c.tenantId)
+  const { error } = await c.admin.from('milestones').update({ archived, updated_at: new Date() }).eq('id', id).eq('tenant_id', c.tenantId)
   if (error) return { error: error.message }
   revalidatePath('/milestones'); revalidatePath('/dashboard'); return {}
 }

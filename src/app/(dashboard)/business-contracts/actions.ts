@@ -59,7 +59,7 @@ export async function deleteBusinessContract(id: string): Promise<{ error?: stri
 export async function toggleAcknowledged(id: string, ack: boolean): Promise<{ error?: string }> {
   const c = await getCtx(); if ('error' in c) return c
   const { error } = await c.admin.from('business_contracts').update({
-    acknowledged_at: ack ? new Date().toISOString() : null,
+    acknowledged_at: ack ? new Date() : null,
     acknowledged_by: ack ? c.userId : null,
   }).eq('id', id).eq('tenant_id', c.tenantId)
   if (error) return { error: error.message }

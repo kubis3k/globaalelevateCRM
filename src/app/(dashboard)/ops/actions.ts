@@ -36,7 +36,7 @@ export async function updateArticle(id: string, formData: FormData): Promise<{ e
   const title = str(formData, 'title'); if (!title) return { error: 'Zadejte název.' }
   const { error } = await c.admin.from('sop_articles').update({
     title, category: str(formData, 'category') || 'other', body: str(formData, 'body'),
-    updated_by: c.userId, updated_at: new Date().toISOString(),
+    updated_by: c.userId, updated_at: new Date(),
   }).eq('id', id).eq('tenant_id', c.tenantId)
   if (error) return { error: error.message }
   revalidatePath('/ops'); return {}
@@ -99,7 +99,7 @@ export async function startRun(checklistId: string): Promise<{ error?: string }>
 export async function toggleRunItem(itemId: string, done: boolean): Promise<{ error?: string }> {
   const c = await getCtx(); if ('error' in c) return c
   const { error } = await c.admin.from('ops_checklist_run_items').update({
-    done, done_at: done ? new Date().toISOString() : null, done_by: done ? c.userId : null,
+    done, done_at: done ? new Date() : null, done_by: done ? c.userId : null,
   }).eq('id', itemId).eq('tenant_id', c.tenantId)
   if (error) return { error: error.message }
   revalidatePath('/ops/checklists'); return {}

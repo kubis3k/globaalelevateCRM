@@ -42,6 +42,6 @@ export async function acceptInvite(token: string, password: string): Promise<{ e
   })
   if (paErr) { await admin.auth.admin.deleteUser(uid); return { error: paErr.message } }
 
-  await admin.from('portal_invites').update({ used_at: new Date().toISOString() }).eq('id', invite.id)
+  await admin.from('portal_invites').update({ used_at: new Date() }).eq('id', invite.id)
   return {}
 }

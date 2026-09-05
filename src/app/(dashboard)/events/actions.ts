@@ -46,7 +46,7 @@ export async function saveEvent(formData: FormData): Promise<{ error?: string; i
   const name = str(formData, 'name'); if (!name) return { error: 'Zadej název akce.' }
   const id = opt(formData, 'id')
   if (id) {
-    const { error } = await c.admin.from('events').update({ ...eventRow(formData), updated_at: new Date().toISOString() }).eq('id', id).eq('tenant_id', c.tenantId)
+    const { error } = await c.admin.from('events').update({ ...eventRow(formData), updated_at: new Date() }).eq('id', id).eq('tenant_id', c.tenantId)
     if (error) return { error: error.message }
     revalidatePath('/events'); revalidatePath(`/events/${id}`); return { id }
   }
@@ -142,7 +142,7 @@ export async function setReservationStatus(id: string, status: string): Promise<
   const c = await getCtx(); if ('error' in c) return c
   if (!canManageEvents(c.role)) return { error: 'Nemáte oprávnění.' }
   const patch: any = { status }
-  if (status === 'seated') patch.arrived_at = new Date().toISOString()
+  if (status === 'seated') patch.arrived_at = new Date()
   const { data, error } = await c.admin.from('vip_reservations').update(patch).eq('id', id).eq('tenant_id', c.tenantId).select('event_id').single()
   if (error) return { error: error.message }
   if (data?.event_id) revalidatePath(`/events/${data.event_id}`)
@@ -234,7 +234,7 @@ export async function saveGuest(formData: FormData): Promise<{ error?: string }>
 export async function setGuestArrived(id: string, arrived: boolean): Promise<{ error?: string }> {
   const c = await getCtx(); if ('error' in c) return c
   if (!canManageEvents(c.role)) return { error: 'Nemáte oprávnění.' }
-  const { data, error } = await c.admin.from('guest_list').update({ arrived, arrived_at: arrived ? new Date().toISOString() : null }).eq('id', id).eq('tenant_id', c.tenantId).select('event_id').single()
+  const { data, error } = await c.admin.from('guest_list').update({ arrived, arrived_at: arrived ? new Date() : null }).eq('id', id).eq('tenant_id', c.tenantId).select('event_id').single()
   if (error) return { error: error.message }
   if (data?.event_id) revalidatePath(`/events/${data.event_id}`)
   return {}

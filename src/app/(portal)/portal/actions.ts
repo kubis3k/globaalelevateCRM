@@ -30,7 +30,7 @@ export async function acceptContract(contractId: string): Promise<{ error?: stri
   try { ip = (await headers()).get('x-forwarded-for')?.split(',')[0]?.trim() || (await headers()).get('x-real-ip') || null } catch { /* ignore */ }
 
   const { error } = await supabase.from('business_contracts').update({
-    acknowledged_at: new Date().toISOString(), acknowledged_by: user.id, acknowledged_ip: ip,
+    acknowledged_at: new Date(), acknowledged_by: user.id, acknowledged_ip: ip,
   }).eq('id', contractId).eq('tenant_id', tenantId)
   if (error) return { error: error.message }
   revalidatePath('/portal/contracts'); return {}

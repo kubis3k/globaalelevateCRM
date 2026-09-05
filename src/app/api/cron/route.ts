@@ -19,7 +19,7 @@ function authorized(req: NextRequest): boolean {
 
 async function upsertState(admin: any, accountId: string, lastUid: number | null) {
   await admin.from('mail_poll_state').upsert(
-    { account_id: accountId, last_uid: lastUid, last_checked_at: new Date().toISOString() },
+    { account_id: accountId, last_uid: lastUid, last_checked_at: new Date() },
     { onConflict: 'account_id' },
   )
 }
@@ -119,7 +119,7 @@ async function socialDuePosts(admin: any) {
         tag: `social-${p.id}`,
       })
     }
-    await admin.from('social_posts').update({ notified_at: nowIso }).eq('id', p.id)
+    await admin.from('social_posts').update({ notified_at: new Date() }).eq('id', p.id)
   }
   return { notified }
 }

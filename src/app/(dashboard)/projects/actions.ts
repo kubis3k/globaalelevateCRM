@@ -99,7 +99,7 @@ export async function createTask(projectId: string, formData: FormData): Promise
 export async function setTaskStatus(id: string, projectId: string, status: string): Promise<{ error?: string }> {
   const c = await getCtx(); if ('error' in c) return c
   const { error } = await c.admin.from('project_tasks')
-    .update({ status, completed_at: status === 'done' ? new Date().toISOString() : null })
+    .update({ status, completed_at: status === 'done' ? new Date() : null })
     .eq('id', id).eq('tenant_id', c.tenantId)
   if (error) return { error: error.message }
   revalidatePath(`/projects/${projectId}`); revalidatePath('/projects/board'); revalidatePath('/projects'); return {}

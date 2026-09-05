@@ -113,7 +113,7 @@ export async function createDepartmentTask(departmentId: string, formData: FormD
 export async function toggleDepartmentTask(id: string, done: boolean): Promise<{ error?: string }> {
   const c = await getCtx(); if ('error' in c) return c
   const { error } = await c.admin.from('department_tasks').update({
-    done, done_at: done ? new Date().toISOString() : null, done_by: done ? c.userId : null,
+    done, done_at: done ? new Date() : null, done_by: done ? c.userId : null,
   }).eq('id', id).eq('tenant_id', c.tenantId)
   if (error) return { error: error.message }
   revalidatePath('/departments'); return {}

@@ -144,7 +144,7 @@ export async function saveContract(formData: FormData): Promise<{ error?: string
     row.storage_path = up.path
   }
   if (id) {
-    row.updated_at = new Date().toISOString()
+    row.updated_at = new Date()
     row.expiry_reminded_at = null // re-arm expiry reminders after an edit
     const { error } = await c.admin.from('hr_contracts').update(row).eq('id', id).eq('tenant_id', c.tenantId)
     if (error) return { error: error.message }
@@ -172,7 +172,7 @@ export async function acknowledgeContract(id: string): Promise<{ error?: string 
   const { data: ct } = await c.admin.from('hr_contracts').select('user_id').eq('id', id).eq('tenant_id', c.tenantId).maybeSingle()
   if (!ct) return { error: 'Smlouva nenalezena.' }
   if (ct.user_id !== c.userId && !canManageHr(c.role)) return { error: 'Nemáte oprávnění.' }
-  const { error } = await c.admin.from('hr_contracts').update({ acknowledged_at: new Date().toISOString(), acknowledged_by: c.userId }).eq('id', id).eq('tenant_id', c.tenantId)
+  const { error } = await c.admin.from('hr_contracts').update({ acknowledged_at: new Date(), acknowledged_by: c.userId }).eq('id', id).eq('tenant_id', c.tenantId)
   if (error) return { error: error.message }
   await c.admin.from('hr_audit').insert({ tenant_id: c.tenantId, actor_id: c.userId, entity: 'hr_contracts', entity_id: id, action: 'acknowledged' })
   revalidatePath('/hr/contracts'); return {}
@@ -225,7 +225,7 @@ export async function reviewLeave(id: string, decision: 'approved' | 'rejected')
   const { data: req } = await c.admin.from('hr_leave_requests').select('*').eq('id', id).eq('tenant_id', c.tenantId).maybeSingle()
   if (!req) return { error: 'Žádost nenalezena.' }
   const { error } = await c.admin.from('hr_leave_requests')
-    .update({ status: decision, reviewed_by: c.userId, reviewed_at: new Date().toISOString() })
+    .update({ status: decision, reviewed_by: c.userId, reviewed_at: new Date() })
     .eq('id', id).eq('tenant_id', c.tenantId)
   if (error) return { error: error.message }
   if (decision === 'approved') {
@@ -277,9 +277,9 @@ export async function clockIn(): Promise<{ error?: string }> {
   const { data: existing } = await c.admin.from('hr_attendance').select('id, clock_in').eq('tenant_id', c.tenantId).eq('user_id', c.userId).eq('work_date', today).maybeSingle()
   if (existing?.clock_in) return { error: 'Příchod už je dnes zaznamenán.' }
   if (existing) {
-    await c.admin.from('hr_attendance').update({ clock_in: new Date().toISOString() }).eq('id', existing.id)
+    await c.admin.from('hr_attendance').update({ clock_in: new Date() }).eq('id', existing.id)
   } else {
-    const { error } = await c.admin.from('hr_attendance').insert({ tenant_id: c.tenantId, user_id: c.userId, work_date: today, clock_in: new Date().toISOString() })
+    const { error } = await c.admin.from('hr_attendance').insert({ tenant_id: c.tenantId, user_id: c.userId, work_date: today, clock_in: new Date() })
     if (error) return { error: error.message }
   }
   revalidatePath('/hr/attendance'); return {}
@@ -291,7 +291,7 @@ export async function clockOut(): Promise<{ error?: string }> {
   const { data: existing } = await c.admin.from('hr_attendance').select('id, clock_in, clock_out').eq('tenant_id', c.tenantId).eq('user_id', c.userId).eq('work_date', today).maybeSingle()
   if (!existing?.clock_in) return { error: 'Nejdřív zaznamenejte příchod.' }
   if (existing.clock_out) return { error: 'Odchod už je zaznamenán.' }
-  const { error } = await c.admin.from('hr_attendance').update({ clock_out: new Date().toISOString() }).eq('id', existing.id)
+  const { error } = await c.admin.from('hr_attendance').update({ clock_out: new Date() }).eq('id', existing.id)
   if (error) return { error: error.message }
   revalidatePath('/hr/attendance'); return {}
 }
@@ -494,7 +494,7 @@ export async function toggleRunItem(id: string, done: boolean): Promise<{ error?
   const c = await getCtx(); if ('error' in c) return c
   if (!canManageHr(c.role)) return { error: 'Nemáte oprávnění.' }
   const { error } = await c.admin.from('hr_checklist_run_items')
-    .update({ done, done_at: done ? new Date().toISOString() : null, done_by: done ? c.userId : null })
+    .update({ done, done_at: done ? new Date() : null, done_by: done ? c.userId : null })
     .eq('id', id).eq('tenant_id', c.tenantId)
   if (error) return { error: error.message }
   revalidatePath('/hr/onboarding'); return {}
@@ -534,7 +534,7 @@ export async function savePayrollConfig(formData: FormData): Promise<{ error?: s
   const c = await getCtx(); if ('error' in c) return c
   if (!canManageHr(c.role)) return { error: 'Nemáte oprávnění.' }
   const year = Number(str(formData, 'year') || new Date().getFullYear())
-  const row: Record<string, unknown> = { tenant_id: c.tenantId, year, updated_at: new Date().toISOString() }
+  const row: Record<string, unknown> = { tenant_id: c.tenantId, year, updated_at: new Date() }
   for (const k of CONFIG_KEYS) { const v = str(formData, k); if (v != null) row[k] = Number(v) }
   const { error } = await c.admin.from('payroll_config').upsert(row, { onConflict: 'tenant_id,year' })
   if (error) return { error: error.message }
@@ -593,7 +593,7 @@ export async function savePayrollItem(id: string, formData: FormData): Promise<{
 export async function lockPayrollRun(id: string): Promise<{ error?: string }> {
   const c = await getCtx(); if ('error' in c) return c
   if (!canManageHr(c.role)) return { error: 'Nemáte oprávnění.' }
-  const { error } = await c.admin.from('payroll_runs').update({ status: 'locked', locked_at: new Date().toISOString(), locked_by: c.userId }).eq('id', id).eq('tenant_id', c.tenantId)
+  const { error } = await c.admin.from('payroll_runs').update({ status: 'locked', locked_at: new Date(), locked_by: c.userId }).eq('id', id).eq('tenant_id', c.tenantId)
   if (error) return { error: error.message }
   await c.admin.from('hr_audit').insert({ tenant_id: c.tenantId, actor_id: c.userId, entity: 'payroll_runs', entity_id: id, action: 'locked' })
   revalidatePath('/hr/payroll'); return {}
@@ -732,7 +732,7 @@ export async function reportWorked(id: string, note?: string): Promise<{ error?:
   if (!a) return { error: 'Přiřazení nenalezeno.' }
   if (a.user_id !== c.userId && !canManageHr(c.role)) return { error: 'Nemáte oprávnění.' }
   if (a.status !== 'confirmed') return { error: 'Odpracování lze potvrdit jen u potvrzené směny.' }
-  const { error } = await c.admin.from('hr_shift_assignments').update({ worked_status: 'reported', worked_reported_at: new Date().toISOString(), worked_note: (note || '').trim() || null }).eq('id', id).eq('tenant_id', c.tenantId)
+  const { error } = await c.admin.from('hr_shift_assignments').update({ worked_status: 'reported', worked_reported_at: new Date(), worked_note: (note || '').trim() || null }).eq('id', id).eq('tenant_id', c.tenantId)
   if (error) return { error: error.message }
   try {
     const { data: mgrs } = await c.admin.from('tenant_users').select('user_id').eq('tenant_id', c.tenantId).in('role', ['admin', 'manager'])
@@ -748,7 +748,7 @@ export async function verifyWorked(id: string, approve: boolean): Promise<{ erro
   if (!canManageHr(c.role)) return { error: 'Nemáte oprávnění.' }
   const { data: a } = await c.admin.from('hr_shift_assignments').select('user_id').eq('id', id).eq('tenant_id', c.tenantId).maybeSingle()
   if (!a) return { error: 'Přiřazení nenalezeno.' }
-  const patch = approve ? { worked_status: 'verified', worked_verified_at: new Date().toISOString(), worked_verified_by: c.userId } : { worked_status: 'none', worked_reported_at: null }
+  const patch = approve ? { worked_status: 'verified', worked_verified_at: new Date(), worked_verified_by: c.userId } : { worked_status: 'none', worked_reported_at: null }
   const { error } = await c.admin.from('hr_shift_assignments').update(patch).eq('id', id).eq('tenant_id', c.tenantId)
   if (error) return { error: error.message }
   try { if (a.user_id && a.user_id !== c.userId) await sendPushToUsers(c.admin, [a.user_id], 'hr', { title: approve ? 'Odpracovaná směna ověřena' : 'Odpracování neuznáno', body: approve ? 'Tvá směna byla ověřena.' : 'Ozvi se prosím manažerovi.', url: '/muj-portal' }) } catch { }

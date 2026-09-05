@@ -114,7 +114,7 @@ export async function updateQuoteStatus(id: string, status: string): Promise<{ e
   // Přechod na 'sent' orazítkuje sent_at (start hlídače nečinnosti) a re-armuje
   // připomínku (cron pak upozorní na nabídky bez reakce 7+ dní).
   const patch: Record<string, unknown> = { status }
-  if (status === 'sent') { patch.sent_at = new Date().toISOString(); patch.stale_reminded_at = null }
+  if (status === 'sent') { patch.sent_at = new Date(); patch.stale_reminded_at = null }
   const { error } = await c.admin.from('quotes').update(patch).eq('id', id).eq('tenant_id', c.tenantId)
   if (error) return { error: error.message }
   revalidatePath('/quotes'); return {}

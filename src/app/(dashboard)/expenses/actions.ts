@@ -61,14 +61,14 @@ export async function reviewExpense(id: string, approve: boolean): Promise<{ err
       created_by: c.userId,
     }).select('id').maybeSingle()
     const { error } = await c.admin.from('expense_claims').update({
-      status: 'approved', reviewed_by: c.userId, reviewed_at: new Date().toISOString(), transaction_id: tx?.id,
+      status: 'approved', reviewed_by: c.userId, reviewed_at: new Date(), transaction_id: tx?.id,
     }).eq('id', id).eq('tenant_id', c.tenantId)
     if (error) return { error: error.message }
     revalidatePath('/expenses'); revalidatePath('/finance'); revalidatePath('/dashboard'); return {}
   }
 
   const { error } = await c.admin.from('expense_claims').update({
-    status: 'rejected', reviewed_by: c.userId, reviewed_at: new Date().toISOString(),
+    status: 'rejected', reviewed_by: c.userId, reviewed_at: new Date(),
   }).eq('id', id).eq('tenant_id', c.tenantId)
   if (error) return { error: error.message }
   revalidatePath('/expenses'); return {}

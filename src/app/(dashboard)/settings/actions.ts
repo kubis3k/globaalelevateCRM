@@ -39,7 +39,7 @@ export async function saveCompanySettings(formData: FormData): Promise<{ error?:
     phone: str(formData, 'phone'),
     jobs_enabled: formData.get('jobsEnabled') === 'on',
     careers_intro: str(formData, 'careersIntro'),
-    updated_at: new Date().toISOString(),
+    updated_at: new Date(),
   }, { onConflict: 'tenant_id' })
   if (error) return { error: error.message }
   revalidatePath('/settings'); return {}

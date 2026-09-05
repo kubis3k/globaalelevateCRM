@@ -104,7 +104,7 @@ export async function POST(req: NextRequest) {
       } finally {
         try {
           await admin.from('ai_messages').insert({ conversation_id: conversationId, role: 'assistant', content: assistantText || '(prázdná odpověď)' })
-          await admin.from('ai_conversations').update({ updated_at: new Date().toISOString() }).eq('id', conversationId)
+          await admin.from('ai_conversations').update({ updated_at: new Date() }).eq('id', conversationId)
         } catch { /* ignore */ }
         controller.close()
       }
