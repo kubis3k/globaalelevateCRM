@@ -21,7 +21,9 @@ PostgREST-kompatibilní query builder, aby **~675 starých volání `supabase.fr
 > `order()` staví ORDER BY přes raw ``sql`${col} ASC/DESC` `` + volitelně `NULLS FIRST/LAST`, **NE** přes drizzle `asc()/desc().nullsFirst()`. Ten chaining API není stabilní napříč verzemi drizzle a **tiše házel za běhu** (projevilo se prázdnou stránkou Akce). Viz [[Deník změn]].
 
 > [!bug] Gotcha: timestamptz update → Date objekt, NE ISO string
-> Přes shim (drizzle) do `timestamp(...)` sloupce (mode 'date') **posílej `new Date()`**, ne `new Date().toISOString()`. String hodí runtime chybu **`"e.toISOString is not a function"`** a **celý update spadne** (shim vrátí `{error}`, ostatní sloupce v tom samém `.set()` se taky nezapíšou). Zjištěno na `client_reports.sent_at` (send reportu tiše nefungoval). ⚠️ Stejný vzor `updated_at: new Date().toISOString()` je na mnoha místech v repu (prospects/personal/settings/…) — je to latentní bug (ty updaty timestampů selhávají). Ověřeno debug endpointem 2026-09-05.
+> Přes shim (drizzle) do `timestamp(...)` sloupce (mode 'date') **posílej `new Date()`**, ne `new Date().toISOString()`. String hodí runtime chybu **`"e.toISOString is not a function"`** a **celý update spadne** (shim vrátí `{error}`, ostatní sloupce v tom samém `.set()` se taky nezapíšou). Zjištěno na `client_reports.sent_at` (send reportu tiše nefungoval). Ověřeno debug endpointem 2026-09-05.
+> ✅ **Latentní výskyty vymeteny 2026-09-05** — 48 write-sitů v 19 souborech přepnuto na `new Date()` (commit `a3da246`). Viz [[Deník změn]].
+> **NEMĚNIT** (a nezavádět zpátky): ISO string je OK ve dvou kontextech, které přes `.set()` neprochází — (1) `date` sloupce a display přes `new Date().toISOString().slice(0,10)` / `.split('T')[0]` (`work_date`, `issue_date`, `next_touch_at`, `stale_reminded_at`, …); (2) **filtry v WHERE** (`.gt/.gte/.lte('expires_at'|'scheduled_at'|'start_time', iso)`) — shim je bere jako raw string, `.toISOString()` na nich nevolá.
 
 ## Schéma — `src/lib/db/schema.ts`
 - **Auto-generované** z živého Neon schématu (hlavička varuje: needitovat ručně, regenerovat přes `scripts/gen-drizzle-schema`).

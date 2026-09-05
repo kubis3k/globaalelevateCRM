@@ -7,6 +7,11 @@ updated: 2026-09-05
 
 Append-only chronologie zásahů. Nejnovější nahoře. Detail vždy i v git historii.
 
+## 2026-09-05 — Vymetení latentního timestamptz bugu (celý repo)
+- Navazuje na fix `sent_at` níže. Prošel celý `src` na `new Date().toISOString()` předávané do `.update()/.insert()/.upsert()` přes shim do `timestamp(...)` sloupců → **48 sitů v 19 souborech** přepnuto na `new Date()`. Commit `a3da246`, push na `main`.
+- Zasažené: portal/invite/ai-chat/cron + dashboard (personal, settings, business-contracts, prospects, quotes, expenses, projects, departments, social, hr, milestones, ops, events) + lib (push, deliverables).
+- **Záměrně netknuto:** date-only `.slice(0,10)`/`.split('T')[0]` (date sloupce/display) a WHERE-filtry s ISO (`.gt/.gte/.lte` na `expires_at`/`scheduled_at`/`start_time` — shim je bere jako raw string). `cron/route.ts`: `nowIso` proměnná zůstala pro filtr, ale write `notified_at` přepsán na `new Date()`. Detail gotchy v [[Databáze a multi-tenant]].
+
 ## 2026-09-05 — Fix: odeslání reportu nefungovalo (timestamptz)
 - `sendClientReport` nastavoval `sent_at: new Date().toISOString()` (string) → drizzle timestamp hodil `"e.toISOString is not a function"` → celý update spadl, status zůstal `draft`. Save fungoval (jen textové sloupce).
 - Diagnostika: dočasný debug endpoint izoloval — `{status}` OK, `{sent_at: iso string}` chyba, `{sent_at: new Date()}` OK.
