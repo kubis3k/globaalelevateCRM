@@ -24,6 +24,23 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next()
   }
 
+  // Host-level izolace klientského portálu: na klient. doméně smí externí klient
+  // JEN na portál + auth cesty. Cokoli interního (/dashboard, moduly) → redirect
+  // na /portal. `/api` je průchozí (řešeno výše: download dokumentů + Better-Auth
+  // si autorizaci hlídají samy v handleru). Druhá vrstva k server-side redirectu
+  // v (dashboard)/layout.tsx — obrana do hloubky, ne jediná pojistka.
+  if (host.startsWith('klient.')) {
+    const p = request.nextUrl.pathname
+    const allowed =
+      p.startsWith('/portal') || p.startsWith('/login') || p.startsWith('/auth') ||
+      p.startsWith('/force-password-change') || p.startsWith('/invite')
+    if (!allowed) {
+      const url = request.nextUrl.clone()
+      url.pathname = '/portal'
+      return NextResponse.redirect(url)
+    }
+  }
+
   // Jen kontrola existence cookie (edge runtime, žádné DB dotazy) — autoritativní
   // ověření session dělá getAuthContext()/requireTenant() (Node runtime).
   const hasSession = !!getSessionCookie(request)
