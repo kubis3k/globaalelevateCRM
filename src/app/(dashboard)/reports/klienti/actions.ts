@@ -75,7 +75,9 @@ export async function saveClientReport(
 
 export async function sendClientReport(id: string): Promise<{ ok?: true; error?: string }> {
   const { supabase, tenantId } = await ctx()
-  const { error } = await supabase.from('client_reports').update({ status: 'sent', sent_at: new Date().toISOString() }).eq('id', id).eq('tenant_id', tenantId)
+  // POZOR: sent_at je timestamptz (drizzle mode 'date') → MUSÍ Date objekt, ne
+  // ISO string. String hodí "e.toISOString is not a function" a celý update spadne.
+  const { error } = await supabase.from('client_reports').update({ status: 'sent', sent_at: new Date() }).eq('id', id).eq('tenant_id', tenantId)
   if (error) return { error: error.message }
   revalidatePath('/reports/klienti')
   revalidatePath(`/reports/klienti/${id}`)

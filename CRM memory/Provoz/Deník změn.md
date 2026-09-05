@@ -7,6 +7,11 @@ updated: 2026-09-05
 
 Append-only chronologie zásahů. Nejnovější nahoře. Detail vždy i v git historii.
 
+## 2026-09-05 — Fix: odeslání reportu nefungovalo (timestamptz)
+- `sendClientReport` nastavoval `sent_at: new Date().toISOString()` (string) → drizzle timestamp hodil `"e.toISOString is not a function"` → celý update spadl, status zůstal `draft`. Save fungoval (jen textové sloupce).
+- Diagnostika: dočasný debug endpoint izoloval — `{status}` OK, `{sent_at: iso string}` chyba, `{sent_at: new Date()}` OK.
+- Fix: `sent_at: new Date()`. Viz gotcha v [[Databáze a multi-tenant]] (latentní bug i jinde v repu).
+
 ## 2026-09-05 — CRM detail klienta: 360° přehled
 - Rozšířen `crm/clients/[id]` na plný přehled. Viz [[CRM klienti]].
 - Reálné **faktury z účta** (nahradily prázdnou legacy tabulku) + KPI (fakturováno/uhrazeno/neuhrazeno/deals).

@@ -20,6 +20,9 @@ PostgREST-kompatibilní query builder, aby **~675 starých volání `supabase.fr
 > [!bug] nullsFirst bug (load-bearing)
 > `order()` staví ORDER BY přes raw ``sql`${col} ASC/DESC` `` + volitelně `NULLS FIRST/LAST`, **NE** přes drizzle `asc()/desc().nullsFirst()`. Ten chaining API není stabilní napříč verzemi drizzle a **tiše házel za běhu** (projevilo se prázdnou stránkou Akce). Viz [[Deník změn]].
 
+> [!bug] Gotcha: timestamptz update → Date objekt, NE ISO string
+> Přes shim (drizzle) do `timestamp(...)` sloupce (mode 'date') **posílej `new Date()`**, ne `new Date().toISOString()`. String hodí runtime chybu **`"e.toISOString is not a function"`** a **celý update spadne** (shim vrátí `{error}`, ostatní sloupce v tom samém `.set()` se taky nezapíšou). Zjištěno na `client_reports.sent_at` (send reportu tiše nefungoval). ⚠️ Stejný vzor `updated_at: new Date().toISOString()` je na mnoha místech v repu (prospects/personal/settings/…) — je to latentní bug (ty updaty timestampů selhávají). Ověřeno debug endpointem 2026-09-05.
+
 ## Schéma — `src/lib/db/schema.ts`
 - **Auto-generované** z živého Neon schématu (hlavička varuje: needitovat ručně, regenerovat přes `scripts/gen-drizzle-schema`).
 - **91 `pgTable`** + ~40 `pgEnum`. Skupiny: Better-Auth (`users/account/session/verification`), tenancy (`tenants/tenant_users/custom_roles/profiles`), CRM/leady, finance (`invoices/transactions/expense_claims`), quotes, suppliers/PO, HR, events, projects/time, documents/business_contracts/deliverables, portal (`portal_access/invites/messages/visibility_overrides`), mail, social, ops, personal, notifications/push, AI, `company_settings`, `milestones`, `audit_log`.
