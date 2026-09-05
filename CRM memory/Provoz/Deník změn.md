@@ -7,6 +7,12 @@ updated: 2026-09-05
 
 Append-only chronologie zásahů. Nejnovější nahoře. Detail vždy i v git historii.
 
+## 2026-09-05 — Demo data pro klientský portál
+- Vytvořena testovací data pro portál (účet `test@test.com`). Viz [[Demo data (portál)]].
+- Klient „Demo Klient s.r.o." (IČO 12345678) + napojení portálu + 3 dodávky, 2 smlouvy, 1 událost, 1 zpráva.
+- Účto: 2 vydané faktury DEMO-2026-001 (neuhrazená) / -002 (uhrazená) → test PDF faktur.
+- ⚠️ Označeno DEMO, úklidové SQL v [[Demo data (portál)]].
+
 ## 2026-09-05 — PDF vydané faktury do portálu (DONE)
 - Klient v portálu si stáhne plný daňový doklad jako `.pdf`. Viz [[Faktury]].
 - Účto neukládá PDF vydaných faktur → generujeme z účto dat (`document`+`document_line`+`accounting_unit`+`contact`) přes **pdf-lib** + fontkit (font Roboto base64). Ownership v SQL (IČO/název) → IDOR ochrana.
