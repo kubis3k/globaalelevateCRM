@@ -7,6 +7,12 @@ updated: 2026-09-05
 
 Append-only chronologie zásahů. Nejnovější nahoře. Detail vždy i v git historii.
 
+## 2026-09-05 — PDF vydané faktury do portálu (DONE)
+- Klient v portálu si stáhne plný daňový doklad jako `.pdf`. Viz [[Faktury]].
+- Účto neukládá PDF vydaných faktur → generujeme z účto dat (`document`+`document_line`+`accounting_unit`+`contact`) přes **pdf-lib** + fontkit (font Roboto base64). Ownership v SQL (IČO/název) → IDOR ochrana.
+- Route `/api/portal/invoices/[id]/pdf` (nodejs), tlačítko v tabulce. Commit `d9a4d2a` (build READY).
+- ⚠️ V účtu je teď **0 vydaných faktur** → portál nic nezobrazí, dokud nevzniknou. Zjištěno introspekcí účto DB (`purple-star-75414719`).
+
 ## 2026-09-05 — Storage migrace Supabase → Vercel Blob (DONE)
 - Dokončena celá migrace úložiště souborů. Viz [[Storage — Vercel Blob]].
 - **Příčina zdržení:** store připojen s prefixem `blob_` místo `BLOB_` → SDK nenašlo token. Fix `blobToken()` (commit `314b0b7`).

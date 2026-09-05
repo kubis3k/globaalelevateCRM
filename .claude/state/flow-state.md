@@ -14,6 +14,22 @@
   napříč drizzle verzemi) → přepsáno na raw sql. Storage→Blob: kód hotový, NEcommitnutý
   (business-contracts/documents/hr actions + api/blob + api/*/download + lib/storage/blob.ts),
   čeká na připojení Blob store ve Vercelu. @supabase/* odstraněny z package.json.
+## PDF FAKTURY do portálu — DONE (2026-09-05)
+- Klient portálu stáhne plný daňový doklad jako .pdf (commit d9a4d2a, build READY).
+- Účto NEUKLÁDÁ PDF vydaných faktur (introspekce purple-star-75414719: 0 faktura_vydana,
+  uložená PDF jen u faktura_prijata/interni_doklad). Generujeme na straně CRM z účto dat.
+- ucto.ts: getUctoInvoiceDetailForClient(id, client) — document + document_line +
+  accounting_unit (dodavatel vč. logo_data_url) + contact. Ownership v SQL: účto-contact
+  musí matchnout klienta přes IČO/název → IDOR ochrana (external nestáhne cizí fakturu).
+- lib/pdf/invoice.ts: pdf-lib 1.17.1 + @pdf-lib/fontkit (pure-JS, žádný chromium). Font
+  Roboto VLOŽENÝ base64 (src/lib/pdf/fonts/roboto-{regular,bold}.ts) — NE přes /fonts URL,
+  host guard na klient. by fetch přesměroval. @pdf-lib/fontkit nemá typy → src/types/pdf-lib-fontkit.d.ts.
+- Route /api/portal/invoices/[id]/pdf (runtime nodejs), tlačítko invoice-download.tsx.
+- POZNATEK: Vercel jede `npm install` (ne `npm ci`) — lockfile bývá out-of-sync (např.
+  @vercel/blob v něm vůbec není) a builduje se. Stačí přidat dep do package.json.
+- ⚠️ Portál teď ukáže prázdno (0 vydaných faktur v účtu) — feature funkční, až vzniknou.
+- Dokumentace: přidán Obsidian vault "CRM memory/" (commit 069e859) — kompletní znalostní báze.
+
 ## STORAGE→BLOB migrace — DONE (2026-09-05)
 - Celá migrace Supabase Storage → Vercel Blob (private) HOTOVÁ, commitnutá a nasazená.
   Store `globaal-documents` (FRA1/Frankfurt, private) připojen k projektu globaalelevate (Prod+Preview).
