@@ -11,7 +11,10 @@ export async function putObject(
   contentType?: string,
 ): Promise<{ path: string; error?: undefined } | { path?: undefined; error: string }> {
   try {
-    const blob = await put(path, body, { access: 'private', contentType, addRandomSuffix: false })
+    // @vercel/blob PutBody neobsahuje Uint8Array (jen Buffer/Blob/File/stream);
+    // Buffer je podtyp Uint8Array, tak vše Uint8Array-like sjednotíme na Buffer.
+    const putBody: Buffer | File | Blob = body instanceof Uint8Array ? Buffer.from(body) : body
+    const blob = await put(path, putBody, { access: 'private', contentType, addRandomSuffix: false })
     return { path: blob.pathname }
   } catch (e: any) {
     return { error: e?.message || 'Nahrání do úložiště selhalo.' }
