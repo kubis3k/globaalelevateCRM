@@ -57,6 +57,8 @@ def load_data():
             continue
 
     prompts, warnings = [], []
+    agent_costs = {}  # agent_type -> $ souhrnně napříč všemi prompty/sessions
+    have_agent_data = False
     for s in sessions:
         if s.get("warning"):
             warnings.append(s["warning"])
@@ -68,6 +70,10 @@ def load_data():
                     total[k] += u.get(k, 0)
                 cost += cost_usd(model, u)
             ctx_total = total["input"] + total["cache_read"] + total["cache_write"]
+            for agent_type, models in p.get("by_agent", {}).items():
+                have_agent_data = True
+                for model, u in models.items():
+                    agent_costs[agent_type] = agent_costs.get(agent_type, 0.0) + cost_usd(model, u)
             prompts.append({
                 "ts": p.get("ts"),
                 "session": s.get("session_id", "")[:8],
@@ -83,7 +89,16 @@ def load_data():
                     / max(1, sum(p.get("subagents", {}).values()) + sum(p.get("main", {}).values())), 1),
             })
     prompts.sort(key=lambda x: x.get("ts") or "")
-    return {"prompts": prompts, "warnings": sorted(set(warnings))}
+    agent_costs = {k: round(v, 4) for k, v in agent_costs.items()}
+    return {
+        "prompts": prompts,
+        "warnings": sorted(set(warnings)),
+        "agent_costs": agent_costs,
+        # False = žádný log ještě nemá by_agent data (starší Claude Code bez
+        # agent_transcript_path, nebo prostě zatím žádný flow běh s podtýmem) — dashboard
+        # na to musí umět ukázat vysvětlení místo prázdného grafu.
+        "have_agent_data": have_agent_data,
+    }
 
 
 HTML = """<!DOCTYPE html>
@@ -125,6 +140,11 @@ HTML = """<!DOCTYPE html>
   <div class="card"><h3>Náklady per prompt (USD)</h3><canvas id="chCost"></canvas></div>
   <div class="card"><h3>Tokeny podle modelu</h3><canvas id="chModels"></canvas></div>
 </div>
+<div class="row">
+  <div class="card"><h3>Náklady podle agenta ($, napříč prompty)</h3><canvas id="chAgents"></canvas>
+    <div id="agentNote" class="sub" style="margin-top:8px"></div>
+  </div>
+</div>
 <div class="card"><h3>Prompty (nejnovější nahoře)</h3>
 <table><thead><tr>
   <th>čas</th><th>prompt</th><th></th>
@@ -163,6 +183,21 @@ fetch('/data').then(r=>r.json()).then(d=>{
     datasets:[{data:Object.values(byModel),
       backgroundColor:['#e8833a','#3fb47f','#5b8dd9','#c75b9b','#d9c65b']}]},
     options:{plugins:{legend:{position:'bottom',labels:{color:'#dbe2ee',boxWidth:12}}}}});
+
+  const agentCosts = d.agent_costs || {};
+  const agentNote = document.getElementById('agentNote');
+  if (!d.have_agent_data || Object.keys(agentCosts).length === 0) {
+    agentNote.textContent = 'Zatím žádná data — buď žádný /flow běh ještě nespawnul subagenta, '
+      + 'nebo tvoje verze Claude Code neposílá agent_transcript_path (starší verze). '
+      + 'Main/subagents rozpad v tabulce dole funguje nezávisle na tomhle.';
+  } else {
+    agentNote.textContent = '';
+    new Chart(chAgents,{type:'bar',data:{labels:Object.keys(agentCosts),
+      datasets:[{label:'$ celkem',data:Object.values(agentCosts),
+        backgroundColor:'#5b8dd9'}]},
+      options:{indexAxis:'y',plugins:{legend:{display:false}},
+        scales:{x:{ticks:{color:'#7d8aa0'}},y:{ticks:{color:'#7d8aa0'}}}}});
+  }
 
   document.getElementById('rows').innerHTML=[...P].reverse().map(p=>`<tr>
     <td>${p.ts?p.ts.slice(5,16).replace('T',' '):'—'}</td>

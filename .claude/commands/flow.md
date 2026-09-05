@@ -20,11 +20,24 @@ Ohodnoť úkol na škále:
 |------|-----------|------|--------|
 | T0 – triviální | 1 soubor, <20 řádků, jasné zadání | ŽÁDNÝ subagent, udělej sám | (main) |
 | T1 – malý | 1–3 soubory, známá část kódu | jen `coder`, případně `critic` | haiku/sonnet |
-| T2 – střední | více souborů, potřeba průzkum | `scout` → `coder` → `critic` | haiku → sonnet → haiku |
+| T2 – střední | více souborů, potřeba průzkum | `scout` → `coder` → `critic` | haiku → sonnet → sonnet |
 | T3 – velký | nová feature, architektura, neznámý kód | `scout` → `architect` → `coder` → `critic` → `scribe` | haiku → opus → sonnet → sonnet → haiku |
 | T4 – kritický | refaktor jádra, bezpečnost, migrace | plný tým + architekt schvaluje plán před kódem | opus na plán i review |
 
 Napiš uživateli jednou větou zvolený tier a proč. Pak jednej.
+
+### Situační doplnění týmu (nezávisí na tieru výše)
+Bez ohledu na zvolený tier zkontroluj OBLAST diffu/úkolu a přidej navíc:
+- **`security-guardian`** — pokud se diff/úkol dotýká autentizace/rolí, multi-tenant izolace,
+  klientského portálu (izolace dat externích klientů), financí/faktur nebo osobních údajů
+  (GDPR, ČTÚ evidence leadů). Vždy min. T3, bez ohledu na počet souborů. Spouští se MÍSTO nebo
+  VEDLE `critic` podle uvážení — je to specializovaná bezpečnostní revize, ne úklid.
+- **`ux-reviewer`** — pokud se diff/úkol dotýká UI/frontend komponent (zvlášť klientský portál
+  a náborový web, které jedou na mobilu), na T2+. Vždy VEDLE `critic`, nikdy místo něj — pokrývá
+  jinou oblast (přístupnost, konzistence, chybové/prázdné stavy), ne bugy/bezpečnost.
+Zahrnuj je automaticky podle oblasti diffu — nečekej, až o to uživatel požádá, a nepřeskakuj je
+jen proto, že je tier nízký. `security-guardian` a `ux-reviewer` čtou flow-state a vrací blok
+k zápisu jako ostatní agenti; taky si vedou vlastní `.claude/state/learnings/<agent>.md` (viz 2d).
 
 ## 2. Pravidla orchestrace
 - Každému subagentovi předej: (a) JEDEN konkrétní cíl, (b) relevantní výřez

@@ -28,6 +28,13 @@ Jinak pracuj v hlavní session.
 Mozek smí tier přehodnotit za běhu (eskalace T1→T2 když se ukáže složitost),
 ale vždy to oznámí jednou větou.
 
+## Situační doplnění týmu (nezávisí na tieru)
+Dva agenti se spouštějí podle OBLASTI diffu/úkolu, ne podle tieru — mozek je zahrne navíc:
+- **`security-guardian`** (opus) — auth/role, multi-tenant izolace, klientský portál, finance,
+  osobní údaje (GDPR / ČTÚ evidence leadů). Min. T3, MÍSTO nebo VEDLE critica.
+- **`ux-reviewer`** (sonnet) — UI/frontend na T2+ (zvlášť portál a nábor na mobilu). Vždy VEDLE
+  critica, nikdy místo něj. Posuzuje jen to, co je ověřitelné z kódu, ne vizuální vzhled.
+
 ## Protokol sdílené paměti
 - Jediný zdroj pravdy: `.claude/state/flow-state.md` (šablona v /flow příkazu).
 - Každý agent na začátku ČTE stav, na konci vrací blok k zápisu; zápis dělá
