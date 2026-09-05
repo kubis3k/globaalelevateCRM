@@ -14,6 +14,25 @@
   napříč drizzle verzemi) → přepsáno na raw sql. Storage→Blob: kód hotový, NEcommitnutý
   (business-contracts/documents/hr actions + api/blob + api/*/download + lib/storage/blob.ts),
   čeká na připojení Blob store ve Vercelu. @supabase/* odstraněny z package.json.
+## STORAGE→BLOB migrace — DONE (2026-09-05)
+- Celá migrace Supabase Storage → Vercel Blob (private) HOTOVÁ, commitnutá a nasazená.
+  Store `globaal-documents` (FRA1/Frankfurt, private) připojen k projektu globaalelevate (Prod+Preview).
+- KLÍČOVÝ POZNATEK: store byl ve Vercelu připojen s prefixem env proměnných malými písmeny
+  (`blob_READ_WRITE_TOKEN`), ale `@vercel/blob` SDK čte jen `BLOB_READ_WRITE_TOKEN` (velkými) →
+  runtime hlásil "No blob credentials found". Řešení (commit 314b0b7): `blobToken()` v
+  `lib/storage/blob.ts` = `BLOB_READ_WRITE_TOKEN || blob_READ_WRITE_TOKEN`, předán explicitně do
+  put/del/get, do handleUpload() v /api/blob/documents a (dočasně) do migrate-storage. Odolné vůči
+  oběma prefixům — kdyby se prefix ve Vercelu později srovnal na `BLOB_`, kód pořád funguje.
+- Data: 20/20 souborů (19 documents + 1 hr_document) zkopírováno ze Supabase Storage do Blobu POD
+  STEJNOU cestou (bez přemapování DB — blobResponse čte podle uložené storage_path). Ověřeno ok:20,
+  failedCount:0. Supabase Storage zůstává jako záloha (nemazáno).
+- Dočasný `/api/admin/migrate-storage` (Bearer CRON_SECRET) po ověření SMAZÁN.
+- POZOR (nemazat): `SUPABASE_SERVICE_ROLE_KEY` musí zůstat ve Vercel env — mail/crypto.ts na něm
+  závisí, dokud nebude nastaven `MAIL_ENCRYPTION_KEY`. Supabase JS balík z package.json odstraněn,
+  ale service key se pořád používá pro createAdminClient (auth/tenant_users lookup) + mail crypto.
+- Bezpečnost (security-guardian APPROVE): /api/documents/[id]/download + /api/blob/documents
+  odmítají roli `external` (má vlastní client-scoped /api/portal/... route) — zavřen cross-client únik.
+
 ## LEADY — architektův plán (2026-08-21, čeká schválení kroku 2)
 - Migrace 7 souborů `supabase/migrations/2024064[5-9]/2024065[01]_*.sql`, rollback konvencí
   `supabase/migrations/down/<stejné jméno>.sql`. Ověřeno: `apply-migration.mjs` posílá celý soubor
