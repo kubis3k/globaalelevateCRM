@@ -1,0 +1,38 @@
+---
+tags: [databaze, architektura, bezpecnost]
+updated: 2026-09-05
+---
+
+# 🗄️ Databáze a multi-tenant
+
+**Neon Postgres** (projekt `restless-sound-29076324` „globaalelevate-crm", pg18, org jakub@lucanovi.com), **Drizzle ORM**. Migrováno ze Supabase (ADR 0002).
+
+## Připojení — `src/lib/db/index.ts`
+- `pg.Pool` (connectionString `DATABASE_URL`, `ssl.rejectUnauthorized:false`, `max:5`), cachovaný na `globalThis.__dbPool` (serverless singleton — nevyčerpat Neon limit spojení na HMR/cold startech).
+- Obalený Drizzlem (`drizzle-orm/node-postgres`). Exportuje `db` a `schema`.
+
+## pg-shim — `src/lib/db/pg-shim.ts` ⚠️
+PostgREST-kompatibilní query builder, aby **~675 starých volání `supabase.from(table)…` fungovalo beze změny** proti Neon/Drizzle.
+- `from(tableName)` → `Query` s `.select/.insert/.update/.upsert/.delete`, filtry (`eq/neq/gt/…/in/is/or`), `.order/.limit/.single/.maybeSingle`, vrací `{ data, error, count }` jako supabase-js.
+- Mapuje snake_case názvy tabulek na camelCase klíče schématu (`toCamel`).
+- **Nový kód (např. leady) jde na nativní Drizzle**, NE přes shim (ten neumí transakce).
+
+> [!bug] nullsFirst bug (load-bearing)
+> `order()` staví ORDER BY přes raw ``sql`${col} ASC/DESC` `` + volitelně `NULLS FIRST/LAST`, **NE** přes drizzle `asc()/desc().nullsFirst()`. Ten chaining API není stabilní napříč verzemi drizzle a **tiše házel za běhu** (projevilo se prázdnou stránkou Akce). Viz [[Deník změn]].
+
+## Schéma — `src/lib/db/schema.ts`
+- **Auto-generované** z živého Neon schématu (hlavička varuje: needitovat ručně, regenerovat přes `scripts/gen-drizzle-schema`).
+- **91 `pgTable`** + ~40 `pgEnum`. Skupiny: Better-Auth (`users/account/session/verification`), tenancy (`tenants/tenant_users/custom_roles/profiles`), CRM/leady, finance (`invoices/transactions/expense_claims`), quotes, suppliers/PO, HR, events, projects/time, documents/business_contracts/deliverables, portal (`portal_access/invites/messages/visibility_overrides`), mail, social, ops, personal, notifications/push, AI, `company_settings`, `milestones`, `audit_log`.
+
+## Multi-tenant izolace 🔐
+- Každá doménová tabulka má `tenant_id uuid NOT NULL`.
+- Tenant se resolvuje server-side z `tenant_users` (`src/lib/supabase/tenant.ts`, `src/lib/auth/context.ts`).
+- **RLS je za běhu obcházené** — `getAuthContext()`/`requireTenant()` vrací admin/service-role klienta **po ověření user+tenant v aplikačním kódu** (ADR 0002 „bezpečné výjimky"). Izolace tedy stojí na aplikačním kódu, ne na Postgres policies.
+- Aplikace se připojuje jako `neondb_owner` (vlastník tabulek) → REVOKE/append-only triggery chrání jen proti bugům appky, ne proti DB ownerovi.
+
+## Migrace
+- Raw SQL v `supabase/migrations/` (~55 forward `20240530…`–`20240653…` + `down/` reverze).
+- Aplikace přes `scripts/apply-migration.mjs` (samostatný `pg.Client`): `DATABASE_URL="…" node scripts/apply-migration.mjs supabase/migrations/<file>.sql`.
+- ⚠️ Simple query protocol → celý soubor = implicitní transakce → **NELZE `CREATE INDEX CONCURRENTLY`** v migraci.
+
+Souvisí: [[Architektura]] · [[Autentizace a role]] · [[Leady a Akvizice]]

@@ -1,0 +1,5 @@
+# Obsidian per-user app state (ne dokumentace)
+.obsidian/workspace.json
+.obsidian/workspace-mobile.json
+.obsidian/cache
+.trash/
