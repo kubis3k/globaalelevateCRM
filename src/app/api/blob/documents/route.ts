@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { handleUpload, type HandleUploadBody } from '@vercel/blob/client'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { blobToken } from '@/lib/storage/blob'
 
 // Token-generation endpoint for direct browser→Blob uploads into the Documents
 // library (business contracts, deliverables, generic large-file uploads).
@@ -16,6 +17,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     const jsonResponse = await handleUpload({
       body,
       request,
+      token: blobToken(),
       onBeforeGenerateToken: async (pathname) => {
         const supabase = await createClient()
         const { data: { user } } = await supabase.auth.getUser()

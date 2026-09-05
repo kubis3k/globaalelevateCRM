@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { put } from '@vercel/blob'
 import { isNotNull } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
+import { blobToken } from '@/lib/storage/blob'
 
 // JEDNORÁZOVÝ migrační endpoint: zkopíruje soubory ze staré Supabase Storage do
 // Vercel Blob POD STEJNOU CESTOU (blobResponse čte podle uložené storage_path,
@@ -28,7 +29,7 @@ async function copyOne(bucket: string, path: string) {
     if (!r.ok) return { path, ok: false, err: `supabase ${r.status}` }
     const buf = Buffer.from(await r.arrayBuffer())
     const ct = r.headers.get('content-type') || undefined
-    const blob = await put(path, buf, { access: 'private', contentType: ct, addRandomSuffix: false, allowOverwrite: true })
+    const blob = await put(path, buf, { access: 'private', contentType: ct, addRandomSuffix: false, allowOverwrite: true, token: blobToken() })
     return { path, ok: true, size: buf.length, blobPath: blob.pathname }
   } catch (e: any) {
     return { path, ok: false, err: e?.message ?? String(e) }
