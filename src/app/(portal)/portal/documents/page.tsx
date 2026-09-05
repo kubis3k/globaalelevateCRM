@@ -22,7 +22,11 @@ export default async function PortalDocumentsPage() {
     <div className="space-y-6">
       <PageHeader title="Dokumenty" description="Dokumenty sdílené s vámi." />
       {list.length === 0 ? (
+        clientId ? (
         <EmptyState icon={FolderOpen} title="Žádné dokumenty" description="Zatím s vámi nebyly sdíleny žádné dokumenty." />
+        ) : (
+          <EmptyState icon={FolderOpen} title="Účet zatím není propojen" description="Váš účet ještě nemáme napojený na firmu. Jakmile vás propojíme, uvidíte tu své dokumenty. Ozvěte se nám, pokud to má být hotové." />
+        )
       ) : (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {list.map((d: any) => (

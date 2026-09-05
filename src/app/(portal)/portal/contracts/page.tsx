@@ -24,7 +24,11 @@ export default async function PortalContractsPage() {
     <div className="space-y-6">
       <PageHeader title="Smlouvy" description="Smlouvy navázané na vaši firmu — přehled a odsouhlasení." />
       {list.length === 0 ? (
+        clientId ? (
         <EmptyState icon={FileSignature} title="Žádné smlouvy" description="Zatím s vámi nejsou spojené žádné smlouvy." />
+        ) : (
+          <EmptyState icon={FileSignature} title="Účet zatím není propojen" description="Váš účet ještě nemáme napojený na firmu. Jakmile vás propojíme, uvidíte tu své smlouvy. Ozvěte se nám, pokud to má být hotové." />
+        )
       ) : (
         <ContractsClient contracts={list} />
       )}

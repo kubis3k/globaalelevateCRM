@@ -24,7 +24,11 @@ export default async function PortalDeliverablesPage() {
     <div className="space-y-6">
       <PageHeader title="Dodávky" description="Práce odeslaná ke schválení — soubory a odkazy od nás." />
       {full.length === 0 ? (
+        clientId ? (
         <EmptyState icon={PackageCheck} title="Zatím žádné dodávky" description="Jakmile vám odešleme práci ke schválení, objeví se zde." />
+        ) : (
+          <EmptyState icon={PackageCheck} title="Účet zatím není propojen" description="Váš účet ještě nemáme napojený na firmu. Jakmile vás propojíme, uvidíte tu své dodávky. Ozvěte se nám, pokud to má být hotové." />
+        )
       ) : (
         <DeliverablesClient deliverables={full} />
       )}
