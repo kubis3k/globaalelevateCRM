@@ -3,13 +3,22 @@
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { ArrowLeft, Plus, Trash2, Save, Send, Undo2, Download } from 'lucide-react'
+import { ArrowLeft, Plus, Trash2, Save, Send, Undo2, Download, Paperclip, Upload } from 'lucide-react'
 import { toast } from '@/components/ui/toast'
 import { Badge } from '@/components/ui/badge'
-import { saveClientReport, sendClientReport, unsendClientReport, deleteClientReport } from '../actions'
+import { saveClientReport, sendClientReport, unsendClientReport, deleteClientReport, deleteReportAttachment } from '../actions'
+import { uploadReportAttachment } from './report-upload'
 
 type Metric = { label: string; value: string; note: string }
 type Section = { heading: string; body: string }
+type Attachment = { id: string; name: string; mimeType: string | null; fileSize: number | null }
+
+function fmtSize(n: number | null): string {
+  if (!n) return ''
+  if (n < 1024) return `${n} B`
+  if (n < 1024 * 1024) return `${Math.round(n / 1024)} kB`
+  return `${(n / 1024 / 1024).toFixed(1)} MB`
+}
 
 const field = 'w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring'
 
@@ -18,11 +27,13 @@ export function ReportEditor({
   clientName,
   initialMetrics,
   initialSections,
+  initialAttachments,
 }: {
   report: { id: string; title: string; period_label: string | null; summary: string | null; status: string; sent_at: string | null }
   clientName: string
   initialMetrics: Metric[]
   initialSections: Section[]
+  initialAttachments: Attachment[]
 }) {
   const router = useRouter()
   const [title, setTitle] = useState(report.title)
@@ -30,8 +41,31 @@ export function ReportEditor({
   const [summary, setSummary] = useState(report.summary ?? '')
   const [metrics, setMetrics] = useState<Metric[]>(initialMetrics)
   const [sections, setSections] = useState<Section[]>(initialSections.length ? initialSections : [{ heading: '', body: '' }])
+  const [attachments, setAttachments] = useState<Attachment[]>(initialAttachments)
+  const [uploading, setUploading] = useState(false)
   const [sent, setSent] = useState(report.status === 'sent')
   const [pending, start] = useTransition()
+
+  const onUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? [])
+    e.target.value = ''
+    if (!files.length) return
+    setUploading(true)
+    for (const file of files) {
+      const res = await uploadReportAttachment(report.id, file)
+      if (res?.error) { toast.error('Chyba', res.error); continue }
+      if (res.id) setAttachments((a) => [...a, { id: res.id!, name: file.name, mimeType: file.type || null, fileSize: file.size }])
+    }
+    setUploading(false)
+    toast.success('Příloha nahrána')
+    router.refresh()
+  }
+  const onRemoveAttachment = (att: Attachment) => start(async () => {
+    const res = await deleteReportAttachment(report.id, att.id)
+    if (res?.error) { toast.error('Chyba', res.error); return }
+    setAttachments((a) => a.filter((x) => x.id !== att.id))
+    router.refresh()
+  })
 
   const doSave = async () => {
     const res = await saveClientReport(report.id, { title, periodLabel: period, summary, metrics, sections })
@@ -134,6 +168,38 @@ export function ReportEditor({
             <textarea value={s.body} onChange={(e) => setSection(i, { body: e.target.value })} rows={4} placeholder="Text sekce…" className={field} />
           </div>
         ))}
+      </div>
+
+      {/* Přílohy */}
+      <div className="space-y-3 rounded-xl border border-border bg-card p-5">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-sm font-semibold text-foreground">Přílohy</h2>
+            <p className="text-xs text-muted-foreground">Soubory pro klienta (PDF, screenshoty…), max 25 MB. Klient si je stáhne v portálu.</p>
+          </div>
+          <label className={cn('inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground', uploading && 'pointer-events-none opacity-60')}>
+            <Upload className="size-3.5" /> {uploading ? 'Nahrávám…' : 'Nahrát soubor'}
+            <input type="file" multiple className="hidden" onChange={onUpload} disabled={uploading} />
+          </label>
+        </div>
+        {attachments.length === 0 ? (
+          <p className="text-sm text-muted-foreground">Zatím žádné přílohy.</p>
+        ) : (
+          <div className="divide-y divide-border rounded-lg border border-border">
+            {attachments.map((a) => (
+              <div key={a.id} className="flex items-center justify-between gap-2 p-2.5">
+                <div className="flex min-w-0 items-center gap-2">
+                  <Paperclip className="size-4 shrink-0 text-muted-foreground" />
+                  <span className="truncate text-sm text-foreground">{a.name}</span>
+                  {a.fileSize ? <span className="shrink-0 text-[11px] text-muted-foreground">{fmtSize(a.fileSize)}</span> : null}
+                </div>
+                <button type="button" onClick={() => onRemoveAttachment(a)} disabled={pending} aria-label="Odebrat přílohu" className="shrink-0 rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive disabled:opacity-60">
+                  <Trash2 className="size-4" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Akce */}

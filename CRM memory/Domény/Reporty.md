@@ -1,7 +1,7 @@
 ---
 tags: [domena, reporty, portal, pdf]
 updated: 2026-09-05
-status: v1 (generovaný PDF); přílohy TODO
+status: v1 — generovaný PDF + přílohy
 ---
 
 # 📊 Reporty (klientské)
@@ -15,7 +15,7 @@ Reporty, které interní tým **posílá klientům** (marketing / weby / akce). 
 - `client_reports` — hlavička: tenant_id, client_id, title, period_label, summary, **status** (`draft`|`sent`), created_by, created_at, sent_at.
 - `client_report_metrics` — dlaždice s čísly (label, value, note, position), FK cascade.
 - `client_report_sections` — textové bloky (heading, body, position), FK cascade.
-- `client_report_attachments` — přílohy ve Vercel Blob (name, storage_path, mime_type, file_size). **UI zatím TODO.**
+- `client_report_attachments` — přílohy ve Vercel Blob (name, storage_path, mime_type, file_size). Upload v editoru, stažení v portálu.
 - Drizzle: `clientReports`, `clientReportMetrics`, `clientReportSections`, `clientReportAttachments` v `schema.ts`. pg-shim je najde přes toCamel.
 
 ## Interní strana (tvorba)
@@ -34,8 +34,12 @@ Reporty, které interní tým **posílá klientům** (marketing / weby / akce). 
 - `src/lib/pdf/report.ts` `renderReportPdf()` — pdf-lib + Roboto (base64), A4: hlavička firmy, titul + období + „Pro: klient", shrnutí, dlaždice metrik, sekce (wrap textu + stránkování), patička s číslováním.
 - Routy: `/api/reports/[id]/pdf` (interní náhled, inline; odmítá external) · `/api/portal/reports/[id]/pdf` (portál, attachment; ownership `client_id==clientId` && `status='sent'`).
 
+## Přílohy (hotovo 2026-09-05)
+- Editor: sekce „Přílohy" → `uploadReportAttachment` (client `upload()` přes `/api/blob/documents` token endpoint, path `documents/<uuid>`) → `addReportAttachment` registruje `client_report_attachments`. Smazání `deleteReportAttachment` (+ `removeObjects` z Blobu).
+- Portál: karty reportů s odkazy na přílohy → `/api/portal/reports/[id]/attachments/[aid]/download` (ownership: report klienta + `sent`, příloha patří reportu → `blobResponse` attachment).
+
 ## TODO
-- [ ] Přílohy (upload souborů k reportu + stažení v portálu) — tabulka je, UI ne. Viz [[Otevřené úkoly]].
 - [ ] Volitelně logo firmy do PDF hlavičky.
+- [ ] (nice-to-have) předvyplnit klienta při „Nový report" z CRM detailu.
 
 Souvisí: [[Klientský portál]] · [[Faktury]] (stejný PDF vzor) · [[Databáze a multi-tenant]]

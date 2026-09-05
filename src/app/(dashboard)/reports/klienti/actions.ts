@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { requireTenant } from '@/lib/supabase/tenant'
+import { removeObjects } from '@/lib/storage/blob'
 
 // Klientské reporty — tvorba/úprava/odeslání. Jen interní role (ne external).
 async function ctx() {
@@ -90,6 +91,37 @@ export async function unsendClientReport(id: string): Promise<{ ok?: true; error
   if (error) return { error: error.message }
   revalidatePath('/reports/klienti')
   revalidatePath(`/reports/klienti/${id}`)
+  return { ok: true }
+}
+
+// ── Přílohy ───────────────────────────────────────────────────────────────
+// Soubor se nahraje z browseru přímo do Blobu přes /api/blob/documents (client
+// upload token, odmítá external), pak se zaregistruje sem.
+export async function addReportAttachment(
+  reportId: string,
+  input: { path: string; name: string; contentType?: string | null; size?: number | null },
+): Promise<{ id?: string; error?: string }> {
+  const { supabase, user, tenantId } = await ctx()
+  const { data: rep } = await supabase.from('client_reports').select('id').eq('id', reportId).eq('tenant_id', tenantId).maybeSingle()
+  if (!rep) return { error: 'Report nenalezen.' }
+  const { data, error } = await supabase
+    .from('client_report_attachments')
+    .insert({ report_id: reportId, name: input.name, storage_path: input.path, mime_type: input.contentType ?? null, file_size: input.size ?? null, uploaded_by: user.id })
+    .select('id')
+    .maybeSingle()
+  if (error) return { error: error.message }
+  revalidatePath(`/reports/klienti/${reportId}`)
+  return { id: data?.id as string }
+}
+
+export async function deleteReportAttachment(reportId: string, attachmentId: string): Promise<{ ok?: true; error?: string }> {
+  const { supabase, tenantId } = await ctx()
+  const { data: rep } = await supabase.from('client_reports').select('id').eq('id', reportId).eq('tenant_id', tenantId).maybeSingle()
+  if (!rep) return { error: 'Report nenalezen.' }
+  const { data: att } = await supabase.from('client_report_attachments').select('storage_path').eq('id', attachmentId).eq('report_id', reportId).maybeSingle()
+  if (att?.storage_path) await removeObjects([att.storage_path])
+  await supabase.from('client_report_attachments').delete().eq('id', attachmentId).eq('report_id', reportId)
+  revalidatePath(`/reports/klienti/${reportId}`)
   return { ok: true }
 }
 

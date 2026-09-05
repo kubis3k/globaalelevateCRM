@@ -7,6 +7,11 @@ updated: 2026-09-05
 
 Append-only chronologie zásahů. Nejnovější nahoře. Detail vždy i v git historii.
 
+## 2026-09-05 — Reporty: přílohy (dokončení „obojí")
+- Editor reportu má sekci **Přílohy** — upload souborů (client `upload()` přes `/api/blob/documents`, registrace `addReportAttachment` do `client_report_attachments`), mazání (`deleteReportAttachment` + smazání z Blobu).
+- Portál: reporty jako karty s odkazy na přílohy → download route `/api/portal/reports/[id]/attachments/[aid]/download` (ownership + `sent`). Viz [[Reporty]].
+- Tím je splněné „obojí" (generovaný PDF + přílohy).
+
 ## 2026-09-05 — Vymetení latentního timestamptz bugu (celý repo)
 - Navazuje na fix `sent_at` níže. Prošel celý `src` na `new Date().toISOString()` předávané do `.update()/.insert()/.upsert()` přes shim do `timestamp(...)` sloupců → **48 sitů v 19 souborech** přepnuto na `new Date()`. Commit `a3da246`, push na `main`.
 - Zasažené: portal/invite/ai-chat/cron + dashboard (personal, settings, business-contracts, prospects, quotes, expenses, projects, departments, social, hr, milestones, ops, events) + lib (push, deliverables).

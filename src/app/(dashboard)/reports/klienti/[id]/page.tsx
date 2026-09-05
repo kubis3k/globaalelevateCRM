@@ -16,10 +16,11 @@ export default async function ClientReportEditPage({ params }: { params: Promise
     .maybeSingle()
   if (!report) notFound()
 
-  const [{ data: client }, { data: metrics }, { data: sections }] = await Promise.all([
+  const [{ data: client }, { data: metrics }, { data: sections }, { data: attachments }] = await Promise.all([
     supabase.from('crm_clients').select('name').eq('tenant_id', tenantId).eq('id', report.client_id).maybeSingle(),
     supabase.from('client_report_metrics').select('label, value, note, position').eq('report_id', id).order('position'),
     supabase.from('client_report_sections').select('heading, body, position').eq('report_id', id).order('position'),
+    supabase.from('client_report_attachments').select('id, name, mime_type, file_size, created_at').eq('report_id', id).order('created_at', { ascending: true }),
   ])
 
   return (
@@ -28,6 +29,7 @@ export default async function ClientReportEditPage({ params }: { params: Promise
       clientName={client?.name ?? 'Klient'}
       initialMetrics={(metrics ?? []).map((m: any) => ({ label: m.label ?? '', value: m.value ?? '', note: m.note ?? '' }))}
       initialSections={(sections ?? []).map((s: any) => ({ heading: s.heading ?? '', body: s.body ?? '' }))}
+      initialAttachments={(attachments ?? []).map((a: any) => ({ id: a.id as string, name: a.name as string, mimeType: a.mime_type ?? null, fileSize: a.file_size ?? null }))}
     />
   )
 }

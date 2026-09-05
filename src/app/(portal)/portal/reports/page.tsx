@@ -1,16 +1,15 @@
 import { PageHeader } from '@/components/ui/page-header'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { EmptyState } from '@/components/ui/empty-state'
-import { BarChart3 } from 'lucide-react'
+import { BarChart3, Paperclip } from 'lucide-react'
 import { getPortalScope } from '../scope'
 import { ReportDownload } from './report-download'
 
-// Reporty od nás pro klienta (marketing / weby / akce). Klient vidí jen odeslané
-// (status 'sent') a stáhne je jako PDF.
+// Reporty od nás pro klienta. Klient vidí jen odeslané (status 'sent'), stáhne
+// PDF + případné přílohy.
 export default async function PortalReportsPage() {
   const { supabase, tenantId, clientId } = await getPortalScope()
 
-  const { data } = clientId
+  const { data: reports } = clientId
     ? await supabase
         .from('client_reports')
         .select('id, title, period_label, sent_at')
@@ -19,11 +18,18 @@ export default async function PortalReportsPage() {
         .eq('status', 'sent')
         .order('sent_at', { ascending: false })
     : { data: [] as any[] }
-  const list = data ?? []
+  const list = reports ?? []
+
+  const ids = list.map((r: any) => r.id)
+  const { data: atts } = ids.length
+    ? await supabase.from('client_report_attachments').select('id, report_id, name, file_size').in('report_id', ids).order('created_at', { ascending: true })
+    : { data: [] as any[] }
+  const attByReport = new Map<string, any[]>()
+  for (const a of atts ?? []) { const arr = attByReport.get(a.report_id) ?? []; arr.push(a); attByReport.set(a.report_id, arr) }
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Reporty" description="Reporty od nás — ke stažení v PDF." />
+      <PageHeader title="Reporty" description="Reporty od nás — ke stažení v PDF, včetně příloh." />
 
       {list.length === 0 ? (
         <EmptyState
@@ -32,27 +38,39 @@ export default async function PortalReportsPage() {
           description={clientId ? 'Zatím vám nebyl odeslán žádný report.' : 'Váš účet zatím nemáme napojený na firmu.'}
         />
       ) : (
-        <div className="overflow-hidden rounded-xl border border-border">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Report</TableHead>
-                <TableHead>Období</TableHead>
-                <TableHead>Odesláno</TableHead>
-                <TableHead className="text-right">PDF</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {list.map((r: any) => (
-                <TableRow key={r.id}>
-                  <TableCell className="font-medium text-foreground">{r.title}</TableCell>
-                  <TableCell className="text-muted-foreground">{r.period_label ?? '—'}</TableCell>
-                  <TableCell className="whitespace-nowrap tabular-nums text-muted-foreground">{r.sent_at ? new Date(r.sent_at).toLocaleDateString('cs-CZ') : '—'}</TableCell>
-                  <TableCell className="text-right"><ReportDownload id={r.id} /></TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+        <div className="space-y-3">
+          {list.map((r: any) => {
+            const files = attByReport.get(r.id) ?? []
+            return (
+              <div key={r.id} className="rounded-xl border border-border bg-card p-4 shadow-xs">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="font-medium text-foreground">{r.title}</div>
+                    <div className="text-xs text-muted-foreground">
+                      {[r.period_label, r.sent_at ? 'odesláno ' + new Date(r.sent_at).toLocaleDateString('cs-CZ') : null].filter(Boolean).join(' · ') || '—'}
+                    </div>
+                  </div>
+                  <ReportDownload id={r.id} />
+                </div>
+                {files.length > 0 && (
+                  <div className="mt-3 flex flex-wrap gap-2 border-t border-border pt-3">
+                    {files.map((f: any) => (
+                      <a
+                        key={f.id}
+                        href={`/api/portal/reports/${r.id}/attachments/${f.id}/download`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-xs text-foreground transition-colors hover:bg-muted"
+                      >
+                        <Paperclip className="size-3.5 text-muted-foreground" />
+                        {f.name}
+                      </a>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )
+          })}
         </div>
       )}
     </div>
