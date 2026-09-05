@@ -1286,6 +1286,49 @@ export const vipReservations = pgTable("vip_reservations", {
   created_at: timestamp("created_at", { withTimezone: true }).defaultNow(),
 })
 
+// Reporty pro klienty (portál) — hlavička + metriky + sekce + přílohy.
+// Viz migrace 20240654_client_reports.sql. Tenant+client scoped v app kódu.
+export const clientReports = pgTable("client_reports", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenant_id: uuid("tenant_id").notNull(),
+  client_id: uuid("client_id").notNull(),
+  title: text("title").notNull(),
+  period_label: text("period_label"),
+  summary: text("summary"),
+  status: text("status").notNull().default("draft"),
+  created_by: uuid("created_by"),
+  created_at: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  sent_at: timestamp("sent_at", { withTimezone: true }),
+})
+
+export const clientReportMetrics = pgTable("client_report_metrics", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  report_id: uuid("report_id").notNull(),
+  position: integer("position").notNull().default(0),
+  label: text("label").notNull(),
+  value: text("value").notNull(),
+  note: text("note"),
+})
+
+export const clientReportSections = pgTable("client_report_sections", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  report_id: uuid("report_id").notNull(),
+  position: integer("position").notNull().default(0),
+  heading: text("heading"),
+  body: text("body"),
+})
+
+export const clientReportAttachments = pgTable("client_report_attachments", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  report_id: uuid("report_id").notNull(),
+  name: text("name").notNull(),
+  storage_path: text("storage_path").notNull(),
+  mime_type: text("mime_type"),
+  file_size: bigint("file_size", { mode: 'number' }),
+  uploaded_by: uuid("uploaded_by"),
+  created_at: timestamp("created_at", { withTimezone: true }).defaultNow(),
+})
+
 // Better-Auth needs these to be discoverable via its `with: { accounts: true }`
 // relational lookups (e.g. findUserByEmail(email, { includeAccounts: true })
 // inside signInEmail) — without them the join returns empty and every sign-in

@@ -7,6 +7,14 @@ updated: 2026-09-05
 
 Append-only chronologie zásahů. Nejnovější nahoře. Detail vždy i v git historii.
 
+## 2026-09-05 — Klientské reporty (posílání + PDF do portálu)
+- Nová feature: interní tým vytvoří report (název/období/shrnutí + metriky + sekce), odešle klientovi, klient si ho v [[Klientský portál|portálu]] stáhne jako PDF. Viz [[Reporty]].
+- Migrace `20240654_client_reports.sql` (4 tabulky) aplikována na Neon main + Drizzle schema.
+- Interní: `/reports/klienti` (list + editor), portál: nav „Reporty" + `/portal/reports`. PDF přes pdf-lib (`lib/pdf/report.ts`), routy interní náhled + portál (ownership + jen `sent`).
+- Portál header: přidán zvonek (oznámení/push) + ozubené kolo (změna hesla) — `PortalHeaderActions`.
+- Kontext: portál je obecný (marketing/weby/akce), ne jen eventy.
+- TODO: přílohy k reportům (tabulka je, UI ne).
+
 ## 2026-09-05 — Dashboard header: ikony oznámení + nastavení
 - `app-shell.tsx`: vedle uživatele přidány samostatné ikony **zvonek** (Oznámení → `setShowPush`, PushSetupDialog) a **ozubené kolo** (Nastavení → link `/settings`, jen když `allowedModules` obsahuje `settings`).
 - Odebrána duplicitní položka „Notifikace" z user dropdownu (zvonek ji nahrazuje). Podle screenshotu (bell + gear + user).

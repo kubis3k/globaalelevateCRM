@@ -1,10 +1,11 @@
+import Link from 'next/link'
 import { requireModuleAccess } from '@/lib/supabase/tenant'
 import { NoTenantView } from '@/components/ui/no-tenant-view'
 import { PageHeader } from '@/components/ui/page-header'
 import { StatCard } from '@/components/ui/stat-card'
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card'
 import { EmptyState } from '@/components/ui/empty-state'
-import { ArrowUpRight, ArrowDownLeft, TrendingUp, Receipt, BarChart3, Magnet, PhoneCall, ArrowRight, Users } from 'lucide-react'
+import { ArrowUpRight, ArrowDownLeft, TrendingUp, Receipt, BarChart3, Magnet, PhoneCall, ArrowRight, Users, FileText } from 'lucide-react'
 import { CashflowChart } from '../finance/cashflow-chart'
 import { ProspectsWeeklyChart } from './prospects-weekly-chart'
 
@@ -185,7 +186,12 @@ export default async function ReportsPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Reporty" description={`Analýzy a souhrny za rok ${year}.`} />
+      <PageHeader title="Reporty" description={`Analýzy a souhrny za rok ${year}.`}>
+        <Link href="/reports/klienti" className="inline-flex items-center gap-2 rounded-lg bg-primary px-3.5 py-2 text-sm font-medium text-primary-foreground shadow-xs transition-colors hover:bg-primary/90">
+          <FileText className="size-4" />
+          Klientské reporty
+        </Link>
+      </PageHeader>
 
       {hasOps && (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

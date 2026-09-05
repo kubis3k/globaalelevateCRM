@@ -29,6 +29,7 @@ Píše se sem vše podstatné o projektu — architektura, integrace, rozhodnut�
 ### Domény aplikace
 - [[Klientský portál]] — `klient.` doména, role external
 - [[Faktury]] — modul Faktury + PDF do portálu
+- [[Reporty]] — klientské reporty posílané do portálu (PDF)
 - [[Leady a Akvizice]] — CRM prospekty, ČTÚ evidence, do-not-call
 - [[HR a nábor]] — zaměstnanci, dokumenty, náborový web `jobs.`
 

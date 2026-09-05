@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LayoutGrid, FileText, FolderOpen, MessageSquare, FileSignature, PackageCheck } from 'lucide-react'
+import { LayoutGrid, FileText, FolderOpen, MessageSquare, FileSignature, PackageCheck, BarChart3 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const SECTIONS = [
@@ -10,6 +10,7 @@ const SECTIONS = [
   { href: '/portal/invoices', label: 'Faktury', icon: FileText },
   { href: '/portal/contracts', label: 'Smlouvy', icon: FileSignature },
   { href: '/portal/deliverables', label: 'Dodávky', icon: PackageCheck },
+  { href: '/portal/reports', label: 'Reporty', icon: BarChart3 },
   { href: '/portal/documents', label: 'Dokumenty', icon: FolderOpen },
   { href: '/portal/messages', label: 'Komunikace', icon: MessageSquare },
 ]

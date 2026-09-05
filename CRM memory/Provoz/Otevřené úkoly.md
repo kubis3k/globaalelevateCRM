@@ -16,6 +16,10 @@ updated: 2026-09-05
 - [ ] Ověřit vzhled PDF na reálné vydané faktuře — v účtu je teď **0 vydaných faktur**, feature nemá co zobrazit, dokud nevzniknou.
 - [ ] (volitelně) přidat PDF i do interního modulu Faktury (teď jen portál).
 
+## 🟡 [[Reporty]]
+- [ ] **Přílohy k reportům** — tabulka `client_report_attachments` je, chybí UI (upload v editoru + stažení v portálu). Uživatel chtěl „obojí" (generovat + přiložit) — generování hotové, přílohy dořešit.
+- [ ] Volitelně logo firmy do PDF hlavičky reportu.
+
 ## 🟢 [[Leady a Akvizice|Leady]]
 - [ ] **PR3** — vitest + čisté funkce `src/lib/leads/*` (další v pořadí).
 - [ ] PR4 seznam/detail → PR5 fronta hovorů → PR6 import → PR7 ČTÚ export (HTML print).
