@@ -38,6 +38,7 @@ DELETE FROM contact          WHERE ico='12345678' AND name='Demo Klient s.r.o.';
 ```
 Hlavní DB (`restless-sound-29076324`):
 ```sql
+DELETE FROM client_reports WHERE client_id='45194ee2-f539-4b0d-b624-5af05a7e5b3a'; -- cascade smaže metriky+sekce
 UPDATE portal_access SET client_id=NULL, display_name='test' WHERE user_id='34db2b7c-ce9a-4843-8306-a394dfdb9304';
 DELETE FROM deliverables       WHERE client_id='45194ee2-f539-4b0d-b624-5af05a7e5b3a';
 DELETE FROM business_contracts WHERE client_id='45194ee2-f539-4b0d-b624-5af05a7e5b3a';
