@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { headers } from 'next/headers'
 import { getPortalScope, getHiddenIds } from './scope'
 
-/** Signed download URL for a document auto-shared with this client (defense in depth). */
+/** Download URL for a document auto-shared with this client (defense in depth). */
 export async function portalDocUrl(documentId: string): Promise<{ url?: string; error?: string }> {
   const { supabase, tenantId, clientId } = await getPortalScope()
   if (!clientId) return { error: 'Nemáte přístup k tomuto dokumentu.' }
@@ -12,9 +12,7 @@ export async function portalDocUrl(documentId: string): Promise<{ url?: string; 
   if (!doc?.storage_path || doc.client_id !== clientId) return { error: 'Nemáte přístup k tomuto dokumentu.' }
   const hidden = await getHiddenIds(supabase, clientId, 'document')
   if (hidden.has(documentId)) return { error: 'Nemáte přístup k tomuto dokumentu.' }
-  const { data: signed, error } = await supabase.storage.from('documents').createSignedUrl(doc.storage_path, 120)
-  if (error || !signed?.signedUrl) return { error: 'Nepodařilo se vytvořit odkaz ke stažení.' }
-  return { url: signed.signedUrl }
+  return { url: `/api/portal/documents/${documentId}/download` }
 }
 
 /** Klient sám akceptuje smlouvu navázanou na jeho firmu (real e-akceptace,

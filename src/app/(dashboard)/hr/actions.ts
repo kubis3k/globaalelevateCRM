@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { canManageHr } from '@/lib/permissions'
+import { putObject, removeObjects } from '@/lib/storage/blob'
 import { sendPushToUsers } from '@/lib/push/webpush'
 import { workingDaysBetween } from '@/lib/cz-holidays'
 import { computePayroll, DEFAULT_PAYROLL_CONFIG, type PayrollConfig } from '@/lib/payroll-cz'
@@ -137,10 +138,10 @@ export async function saveContract(formData: FormData): Promise<{ error?: string
   if (file && file.size > 0) {
     if (file.size > 10 * 1024 * 1024) return { error: 'Soubor je větší než 10 MB.' }
     const ext = file.name.includes('.') ? '.' + file.name.split('.').pop() : ''
-    const path = `${c.tenantId}/contracts/${crypto.randomUUID()}${ext}`
-    const { error: upErr } = await c.admin.storage.from(BUCKET).upload(path, file, { contentType: file.type || undefined, upsert: false })
-    if (upErr) return { error: upErr.message }
-    row.storage_path = path
+    const path = `hr-documents/contracts/${crypto.randomUUID()}${ext}`
+    const up = await putObject(path, file, file.type || undefined)
+    if (up.error) return { error: up.error }
+    row.storage_path = up.path
   }
   if (id) {
     row.updated_at = new Date().toISOString()
@@ -160,7 +161,7 @@ export async function deleteContract(id: string): Promise<{ error?: string }> {
   const c = await getCtx(); if ('error' in c) return c
   if (!canManageHr(c.role)) return { error: 'Nemáte oprávnění.' }
   const { data: ct } = await c.admin.from('hr_contracts').select('storage_path').eq('id', id).eq('tenant_id', c.tenantId).maybeSingle()
-  if (ct?.storage_path) { try { await c.admin.storage.from(BUCKET).remove([ct.storage_path]) } catch { } }
+  if (ct?.storage_path) await removeObjects([ct.storage_path])
   const { error } = await c.admin.from('hr_contracts').delete().eq('id', id).eq('tenant_id', c.tenantId)
   if (error) return { error: error.message }
   revalidatePath('/hr/contracts'); revalidatePath('/hr'); return {}
@@ -182,9 +183,7 @@ export async function getContractUrl(id: string): Promise<{ url?: string; error?
   const { data: ct } = await c.admin.from('hr_contracts').select('user_id, storage_path').eq('id', id).eq('tenant_id', c.tenantId).maybeSingle()
   if (!ct?.storage_path) return { error: 'Soubor není přiložen.' }
   if (ct.user_id !== c.userId && !canManageHr(c.role)) return { error: 'Nemáte oprávnění.' }
-  const { data, error } = await c.admin.storage.from(BUCKET).createSignedUrl(ct.storage_path, 60)
-  if (error) return { error: error.message }
-  return { url: data.signedUrl }
+  return { url: `/api/hr/contracts/${id}/download` }
 }
 
 // ─── Leave ─────────────────────────────────────────────────────
@@ -297,8 +296,7 @@ export async function clockOut(): Promise<{ error?: string }> {
   revalidatePath('/hr/attendance'); return {}
 }
 
-// ─── Documents (private storage bucket: hr-documents) ──────────
-const BUCKET = 'hr-documents'
+// ─── Documents (private storage: hr-documents/ prefix) ─────────
 
 export async function uploadDocument(formData: FormData): Promise<{ error?: string }> {
   const c = await getCtx(); if ('error' in c) return c
@@ -312,12 +310,12 @@ export async function uploadDocument(formData: FormData): Promise<{ error?: stri
     targetUser = forUser
   }
   const ext = file.name.includes('.') ? '.' + file.name.split('.').pop() : ''
-  const path = `${c.tenantId}/${targetUser}/${crypto.randomUUID()}${ext}`
-  const { error: upErr } = await c.admin.storage.from(BUCKET).upload(path, file, { contentType: file.type || undefined, upsert: false })
-  if (upErr) return { error: upErr.message }
+  const path = `hr-documents/${targetUser}/${crypto.randomUUID()}${ext}`
+  const up = await putObject(path, file, file.type || undefined)
+  if (up.error) return { error: up.error }
   const { error } = await c.admin.from('hr_documents').insert({
     tenant_id: c.tenantId, user_id: targetUser, name: str(formData, 'name') || file.name,
-    category: str(formData, 'category') || 'other', storage_path: path, uploaded_by: c.userId,
+    category: str(formData, 'category') || 'other', storage_path: up.path, uploaded_by: c.userId,
   })
   if (error) return { error: error.message }
   revalidatePath('/hr/documents'); return {}
@@ -328,9 +326,7 @@ export async function getDocumentUrl(id: string): Promise<{ url?: string; error?
   const { data: doc } = await c.admin.from('hr_documents').select('user_id, storage_path').eq('id', id).eq('tenant_id', c.tenantId).maybeSingle()
   if (!doc) return { error: 'Dokument nenalezen.' }
   if (doc.user_id !== c.userId && !canManageHr(c.role)) return { error: 'Nemáte oprávnění.' }
-  const { data, error } = await c.admin.storage.from(BUCKET).createSignedUrl(doc.storage_path, 60)
-  if (error) return { error: error.message }
-  return { url: data.signedUrl }
+  return { url: `/api/hr/documents/${id}/download` }
 }
 
 export async function deleteDocument(id: string): Promise<{ error?: string }> {
@@ -338,7 +334,7 @@ export async function deleteDocument(id: string): Promise<{ error?: string }> {
   const { data: doc } = await c.admin.from('hr_documents').select('user_id, storage_path').eq('id', id).eq('tenant_id', c.tenantId).maybeSingle()
   if (!doc) return { error: 'Dokument nenalezen.' }
   if (doc.user_id !== c.userId && !canManageHr(c.role)) return { error: 'Nemáte oprávnění.' }
-  await c.admin.storage.from(BUCKET).remove([doc.storage_path])
+  await removeObjects([doc.storage_path])
   const { error } = await c.admin.from('hr_documents').delete().eq('id', id).eq('tenant_id', c.tenantId)
   if (error) return { error: error.message }
   revalidatePath('/hr/documents'); return {}
@@ -379,15 +375,13 @@ export async function setJobPublished(id: string, published: boolean): Promise<{
   revalidatePath('/hr/recruitment'); return {}
 }
 
-// Signed URL pro CV uchazeče (z veřejné přihlášky) — bucket 'applications'.
+// Odkaz na CV uchazeče (z veřejné přihlášky) — private storage, applications/ prefix.
 export async function applicantCvUrl(candidateId: string): Promise<{ url?: string; error?: string }> {
   const c = await getCtx(); if ('error' in c) return { error: c.error }
   if (!canManageHr(c.role)) return { error: 'Nemáte oprávnění.' }
   const { data: cand } = await c.admin.from('hr_candidates').select('cv_path').eq('id', candidateId).eq('tenant_id', c.tenantId).maybeSingle()
   if (!cand?.cv_path) return { error: 'CV není přiloženo.' }
-  const { data, error } = await c.admin.storage.from('applications').createSignedUrl(cand.cv_path, 120)
-  if (error || !data) return { error: error?.message || 'Nepodařilo se vytvořit odkaz.' }
-  return { url: data.signedUrl }
+  return { url: `/api/hr/candidates/${candidateId}/cv` }
 }
 
 export async function setJobStatus(id: string, status: 'open' | 'closed'): Promise<{ error?: string }> {

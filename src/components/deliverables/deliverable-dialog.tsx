@@ -6,9 +6,8 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { toast } from '@/components/ui/toast'
-import { createClient } from '@/lib/supabase/client'
-import { DOCUMENTS_BUCKET } from '@/lib/documents'
-import { createUploadUrl, finalizeUpload } from '@/app/(dashboard)/documents/actions'
+import { upload } from '@vercel/blob/client'
+import { finalizeUpload } from '@/app/(dashboard)/documents/actions'
 import { createDeliverable } from '@/lib/deliverables/actions'
 
 export const DELIVERABLE_STATUS: Record<string, { label: string; variant: 'secondary' | 'success' | 'destructive' }> = {
@@ -30,12 +29,14 @@ export function DeliverableDialog({ projectId, eventId, onClose }: { projectId?:
     const file = fileRef.current?.files?.[0] || null
     startTransition(async () => {
       if (file) {
-        const up = await createUploadUrl(file.name)
-        if (up.error || !up.path || !up.token) { toast.error('Chyba', up.error || 'Nahrání se nepodařilo připravit.'); return }
-        const supabase = createClient()
-        const { error: upErr } = await supabase.storage.from(DOCUMENTS_BUCKET).uploadToSignedUrl(up.path, up.token, file)
-        if (upErr) { toast.error('Chyba', upErr.message); return }
-        const fin = await finalizeUpload({ path: up.path, name: file.name, contentType: file.type || undefined, size: file.size, category: 'other' })
+        const ext = file.name.includes('.') ? '.' + file.name.split('.').pop() : ''
+        const pathname = `documents/${crypto.randomUUID()}${ext}`
+        let path: string
+        try {
+          const blob = await upload(pathname, file, { access: 'private', handleUploadUrl: '/api/blob/documents', contentType: file.type || undefined })
+          path = blob.pathname
+        } catch (e: any) { toast.error('Chyba', e?.message || 'Nahrání se nepodařilo připravit.'); return }
+        const fin = await finalizeUpload({ path, name: file.name, contentType: file.type || undefined, size: file.size, category: 'other' })
         if (fin.error || !fin.id) { toast.error('Chyba', fin.error || 'Uložení dokumentu selhalo.'); return }
         fd.set('documentId', fin.id)
       }

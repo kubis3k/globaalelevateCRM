@@ -1,4 +1,3 @@
-import { createClient as createSupabaseJs } from '@supabase/supabase-js'
 import { randomUUID } from 'crypto'
 import { eq } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
@@ -6,19 +5,11 @@ import { auth } from '@/lib/auth/auth'
 import { from } from '@/lib/db/pg-shim'
 
 // `.from()` a `.auth.admin.*` jdou přes Neon/Drizzle + Better-Auth (viz
-// server.ts). `.storage` zůstává na reálném Supabase service-role klientovi —
-// Storage se na Vercel Blob přesouvá jako samostatný navazující krok, do té
-// doby zůstávají soubory (dokumenty, HR přílohy, CV) beze změny na Supabase.
-const storageClient = createSupabaseJs(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  { auth: { autoRefreshToken: false, persistSession: false } },
-)
-
+// server.ts). Storage je na Vercel Blob (viz src/lib/storage/blob.ts) — žádný
+// reálný Supabase klient tu už není potřeba.
 export function createAdminClient() {
   return {
     from,
-    storage: storageClient.storage,
     auth: {
       admin: {
         async createUser(opts: { email: string; password: string; email_confirm?: boolean }) {

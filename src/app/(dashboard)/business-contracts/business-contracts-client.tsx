@@ -11,10 +11,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { toast } from '@/components/ui/toast'
 import { confirmDialog } from '@/components/ui/confirm-dialog'
-import { createClient } from '@/lib/supabase/client'
-import { DOCUMENTS_BUCKET } from '@/lib/documents'
+import { upload } from '@vercel/blob/client'
 import { createBusinessContract, updateBusinessContract, deleteBusinessContract, toggleAcknowledged } from './actions'
-import { createUploadUrl, finalizeUpload, getDocumentUrl } from '../documents/actions'
+import { finalizeUpload, getDocumentUrl } from '../documents/actions'
 
 const selectClass = 'h-8 w-full rounded-lg border border-input bg-background px-2 text-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50'
 const czk = (n: number, c = 'CZK') => new Intl.NumberFormat('cs-CZ', { style: 'currency', currency: c, maximumFractionDigits: 0 }).format(n)
@@ -40,12 +39,14 @@ function expiry(end: string | null, status: string) {
 /** Upload a file straight to Storage (Documents library) and return its document id.
  * Přebírá clientId smlouvy, aby se příloha automaticky sdílela stejnému klientovi v portálu. */
 async function uploadToDocuments(file: File, clientId: string | null): Promise<string | null> {
-  const up = await createUploadUrl(file.name)
-  if (up.error || !up.path || !up.token) { toast.error('Chyba', up.error || 'Nahrání se nepodařilo připravit.'); return null }
-  const supabase = createClient()
-  const { error: upErr } = await supabase.storage.from(DOCUMENTS_BUCKET).uploadToSignedUrl(up.path, up.token, file)
-  if (upErr) { toast.error('Chyba', upErr.message); return null }
-  const fin = await finalizeUpload({ path: up.path, name: file.name, contentType: file.type || undefined, size: file.size, category: 'contract', clientId })
+  const ext = file.name.includes('.') ? '.' + file.name.split('.').pop() : ''
+  const pathname = `documents/${crypto.randomUUID()}${ext}`
+  let path: string
+  try {
+    const blob = await upload(pathname, file, { access: 'private', handleUploadUrl: '/api/blob/documents', contentType: file.type || undefined })
+    path = blob.pathname
+  } catch (e: any) { toast.error('Chyba', e?.message || 'Nahrání se nepodařilo připravit.'); return null }
+  const fin = await finalizeUpload({ path, name: file.name, contentType: file.type || undefined, size: file.size, category: 'contract', clientId })
   if (fin.error || !fin.id) { toast.error('Chyba', fin.error || 'Uložení dokumentu selhalo.'); return null }
   return fin.id
 }

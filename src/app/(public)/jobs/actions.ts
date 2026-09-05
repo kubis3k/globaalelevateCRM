@@ -1,9 +1,9 @@
 'use server'
 
 import { createAdminClient } from '@/lib/supabase/admin'
+import { putObject } from '@/lib/storage/blob'
 import { getCareersTenant } from './scope'
 
-const APPLICATIONS_BUCKET = 'applications'
 const MAX_CV_BYTES = 8 * 1024 * 1024
 
 /** Public job application → creates a candidate (stage 'applied', source 'web') + optional CV upload. */
@@ -35,10 +35,10 @@ export async function applyToJob(formData: FormData): Promise<{ ok?: boolean; er
   if (file && file.size > 0) {
     if (file.size > MAX_CV_BYTES) return { error: 'CV je větší než 8 MB.' }
     const ext = file.name.includes('.') ? '.' + file.name.split('.').pop() : ''
-    const path = `${t.tenantId}/${crypto.randomUUID()}${ext}`
-    const { error: upErr } = await admin.storage.from(APPLICATIONS_BUCKET).upload(path, file, { contentType: file.type || undefined, upsert: false })
-    if (upErr) return { error: 'Nahrání CV se nezdařilo.' }
-    cvPath = path
+    const path = `applications/${crypto.randomUUID()}${ext}`
+    const up = await putObject(path, file, file.type || undefined)
+    if (up.error) return { error: 'Nahrání CV se nezdařilo.' }
+    cvPath = up.path ?? null
   }
 
   const { error } = await admin.from('hr_candidates').insert({

@@ -4,8 +4,9 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { canManageDocuments } from '@/lib/permissions'
-import { DOCUMENTS_BUCKET, MAX_DOCUMENT_BYTES } from '@/lib/documents'
+import { MAX_DOCUMENT_BYTES } from '@/lib/documents'
 import { storeDocument } from '@/lib/documents-store'
+import { removeObjects } from '@/lib/storage/blob'
 import { recordAudit } from '@/lib/audit'
 
 type Ctx = { admin: ReturnType<typeof createAdminClient>; userId: string; tenantId: string; role: string }
@@ -49,26 +50,15 @@ export async function getDocumentUrl(id: string): Promise<{ url?: string; error?
   const c = await getCtx(); if ('error' in c) return { error: c.error }
   const { data: doc } = await c.admin.from('documents').select('storage_path').eq('id', id).eq('tenant_id', c.tenantId).maybeSingle()
   if (!doc) return { error: 'Dokument nenalezen.' }
-  const { data, error } = await c.admin.storage.from(DOCUMENTS_BUCKET).createSignedUrl(doc.storage_path, 60)
-  if (error) return { error: error.message }
-  return { url: data.signedUrl }
+  return { url: `/api/documents/${id}/download` }
 }
 
-// Direct-to-storage upload. The client gets a signed upload URL, sends the file
-// straight to Storage (no server-action body limit → large videos work), then
-// calls finalizeUpload to register the metadata row.
-export async function createUploadUrl(name: string): Promise<{ path?: string; token?: string; error?: string }> {
-  const c = await getCtx(); if ('error' in c) return { error: c.error }
-  const ext = name.includes('.') ? '.' + name.split('.').pop() : ''
-  const path = `${c.tenantId}/${crypto.randomUUID()}${ext}`
-  const { data, error } = await c.admin.storage.from(DOCUMENTS_BUCKET).createSignedUploadUrl(path)
-  if (error || !data) return { error: error?.message || 'Upload se nepodařilo připravit.' }
-  return { path: data.path, token: data.token }
-}
-
+// Direct-to-Blob upload. The client calls `upload()` from '@vercel/blob/client'
+// against /api/blob/documents (no server-action body limit → large videos work),
+// then calls finalizeUpload to register the metadata row.
 export async function finalizeUpload(input: { path: string; name: string; contentType?: string; size?: number | null; category?: string; sourceRef?: string; clientId?: string | null }): Promise<{ id?: string; error?: string }> {
   const c = await getCtx(); if ('error' in c) return { error: c.error }
-  if (!input.path.startsWith(`${c.tenantId}/`)) return { error: 'Neplatná cesta.' }
+  if (!input.path.startsWith('documents/')) return { error: 'Neplatná cesta.' }
   const { data, error } = await c.admin.from('documents').insert({
     tenant_id: c.tenantId,
     name: input.name,
@@ -81,7 +71,7 @@ export async function finalizeUpload(input: { path: string; name: string; conten
     uploaded_by: c.userId,
     client_id: input.clientId || null,
   }).select('id').single()
-  if (error) { try { await c.admin.storage.from(DOCUMENTS_BUCKET).remove([input.path]) } catch { } ; return { error: error.message } }
+  if (error) { await removeObjects([input.path]); return { error: error.message } }
   revalidatePath('/documents')
   return { id: data.id }
 }
@@ -92,7 +82,7 @@ export async function deleteDocument(id: string): Promise<{ error?: string }> {
   if (!doc) return { error: 'Dokument nenalezen.' }
   // The uploader can remove their own; otherwise admin/manager only.
   if (doc.uploaded_by !== c.userId && !canManageDocuments(c.role)) return { error: 'Nemáte oprávnění tento dokument smazat.' }
-  await c.admin.storage.from(DOCUMENTS_BUCKET).remove([doc.storage_path])
+  await removeObjects([doc.storage_path])
   const { error } = await c.admin.from('documents').delete().eq('id', id).eq('tenant_id', c.tenantId)
   if (error) return { error: error.message }
   await recordAudit(c.admin, { tenantId: c.tenantId, userId: c.userId, action: 'documents.delete', entity: 'documents', entityId: id })

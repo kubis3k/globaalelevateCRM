@@ -1,10 +1,10 @@
 import 'server-only'
-import { DOCUMENTS_BUCKET } from './documents'
+import { putObject, removeObjects } from './storage/blob'
 
 // Server-only write path for the document library. Both the Documents module
 // (manual upload) and the Mail "save attachment" action go through this so the
-// bucket name and the metadata row stay consistent. `admin` must be a
-// service-role client (storage + RLS bypass).
+// storage path and the metadata row stay consistent. `admin` must be a
+// service-role client (RLS bypass on the `documents` table).
 
 type StoreInput = {
   tenantId: string
@@ -23,12 +23,10 @@ type StoreInput = {
 // Rolls back the uploaded object if the row insert fails.
 export async function storeDocument(admin: any, input: StoreInput): Promise<{ id?: string; error?: string }> {
   const ext = input.name.includes('.') ? '.' + input.name.split('.').pop() : ''
-  const path = `${input.tenantId}/${crypto.randomUUID()}${ext}`
+  const path = `documents/${crypto.randomUUID()}${ext}`
 
-  const { error: upErr } = await admin.storage
-    .from(DOCUMENTS_BUCKET)
-    .upload(path, input.body, { contentType: input.contentType || undefined, upsert: false })
-  if (upErr) return { error: upErr.message }
+  const up = await putObject(path, input.body, input.contentType || undefined)
+  if (up.error) return { error: up.error }
 
   const { data, error } = await admin
     .from('documents')
@@ -49,7 +47,7 @@ export async function storeDocument(admin: any, input: StoreInput): Promise<{ id
 
   if (error) {
     // Best-effort rollback so we don't leave an orphaned object behind.
-    try { await admin.storage.from(DOCUMENTS_BUCKET).remove([path]) } catch { /* ignore */ }
+    await removeObjects([path])
     return { error: error.message }
   }
   return { id: data.id }

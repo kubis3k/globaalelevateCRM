@@ -2,8 +2,6 @@
 // lives in documents-store.ts so this file can be imported from client
 // components (category labels in the UI) without pulling in 'server-only'.
 
-export const DOCUMENTS_BUCKET = 'documents'
-
 export const DOC_CATEGORIES: Record<string, string> = {
   contract: 'Smlouvy',
   invoice: 'Faktury',

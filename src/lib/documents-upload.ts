@@ -1,10 +1,10 @@
 'use client'
 
-import { createClient } from '@/lib/supabase/client'
-import { DOCUMENTS_BUCKET, MAX_DOCUMENT_BYTES } from '@/lib/documents'
-import { createUploadUrl, finalizeUpload } from '@/app/(dashboard)/documents/actions'
+import { upload } from '@vercel/blob/client'
+import { MAX_DOCUMENT_BYTES } from '@/lib/documents'
+import { finalizeUpload } from '@/app/(dashboard)/documents/actions'
 
-// Uploads a file straight to Supabase Storage via a signed upload URL, then
+// Uploads a file straight to Vercel Blob (private) via the browser, then
 // registers the documents row. Avoids the ~4.5 MB server-action body limit, so
 // large media (rendered videos, PC uploads) save reliably.
 export async function uploadToDocuments(
@@ -14,17 +14,16 @@ export async function uploadToDocuments(
   const size = (file as File).size
   if (size && size > MAX_DOCUMENT_BYTES) return { error: 'Soubor je větší než 25 MB.' }
   const contentType = opts.contentType || (file as File).type || undefined
+  const ext = opts.name.includes('.') ? '.' + opts.name.split('.').pop() : ''
+  const pathname = `documents/${crypto.randomUUID()}${ext}`
 
-  const prep = await createUploadUrl(opts.name)
-  if (prep.error || !prep.path || !prep.token) return { error: prep.error || 'Upload se nepodařilo připravit.' }
-
+  let path: string
   try {
-    const supabase = createClient()
-    const { error } = await supabase.storage.from(DOCUMENTS_BUCKET).uploadToSignedUrl(prep.path, prep.token, file, { contentType })
-    if (error) return { error: error.message }
+    const blob = await upload(pathname, file, { access: 'private', handleUploadUrl: '/api/blob/documents', contentType })
+    path = blob.pathname
   } catch (e: any) {
     return { error: e?.message || 'Nahrání do úložiště selhalo.' }
   }
 
-  return finalizeUpload({ path: prep.path, name: opts.name, contentType, size: size ?? null, category: opts.category, sourceRef: opts.sourceRef })
+  return finalizeUpload({ path, name: opts.name, contentType, size: size ?? null, category: opts.category, sourceRef: opts.sourceRef })
 }
