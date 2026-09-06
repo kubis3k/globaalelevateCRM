@@ -7,7 +7,9 @@
 - OPRAVENO: send reportu padal — `sent_at` ISO string do timestamptz (drizzle volá .toISOString()
   na hodnotě → string ji nemá → celý update spadl). Fix `new Date()`. Plošně vymeteno (commit a3da246,
   48 sitů) v samostatné background session.
-- Poslední commit: 40a07e8 (přílohy reportů) — ČEKÁ ověření Vercel buildu.
+- STAV: vše nasazené a živé (b397c4b READY). Přílohy reportů hotové (upload v editoru +
+  stažení v portálu). Build 40a07e8 padl na chybějícím `import { cn }` v report-editoru → fix b397c4b.
+- POZNATEK: před pushem hlídat importy použitých helperů (`cn`, ikony) — TS build je jediná kontrola.
 - Další nápady (nezačato): logo firmy do PDF reportu, předvyplnit klienta při „Nový report", CRM
   sekce s posledními událostmi/reporty (teď jen počty), leady PR3.
 
