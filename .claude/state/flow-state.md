@@ -1,11 +1,20 @@
 # FLOW STATE
-## Aktuální úkol
-- cíl: LEADY v modulu Obchod → Akvizice (rozšíření existujícího `/prospects`, NE nová tabulka):
-  origin/legal evidence pro ČTÚ, do-not-call blocklist, append-only touches, skóring z configu,
-  fronta hovorů (klávesnice), import XLSX, export ČTÚ. Zadání: `/Users/luigi/Downloads/PROMPT_leady_globaalelevateCRM.md`
-- tier: T4 (migrace + bezpečnost + právní jádro) — architekt schvaluje plán před kódem
-- status: PR2a (migrace) + PR2b (schema.ts + bezpečnost) HOTOVO a pushnuto. Čeká ověření Vercel buildu.
+## Aktuální úkol — KLIENTSKÝ PORTÁL stream (2026-09-05)
+- cíl: obecný klientský portál (marketing/weby/akce, ne jen eventy) + interní CRM. Human-readable
+  dokumentace jde do Obsidian vaultu `CRM memory/` (uživatel to výslovně chce — aktivně číst i psát).
+- DONE dnes (detail ve vaultu Deník + git): portál header ikony (oznámení/nastavení), fix loga,
+  demo data, PDF faktury, **Klientské reporty** (tvorba+PDF+odeslání+přílohy), **CRM 360° detail klienta**.
+- OPRAVENO: send reportu padal — `sent_at` ISO string do timestamptz (drizzle volá .toISOString()
+  na hodnotě → string ji nemá → celý update spadl). Fix `new Date()`. Plošně vymeteno (commit a3da246,
+  48 sitů) v samostatné background session.
+- Poslední commit: 40a07e8 (přílohy reportů) — ČEKÁ ověření Vercel buildu.
+- Další nápady (nezačato): logo firmy do PDF reportu, předvyplnit klienta při „Nový report", CRM
+  sekce s posledními událostmi/reporty (teď jen počty), leady PR3.
+
+## PŘEDCHOZÍ FOKUS: LEADY (Obchod → Akvizice) — pozastaveno
+- tier: T4. PR2a (migrace) + PR2b (schema.ts + bezpečnost) HOTOVO a nasazeno.
   Další: PR3 (vitest + čisté funkce leads/*). VisionBoost XLSX uživatel doošle (pro PR6).
+  Odložené migrace 20240652/20240653 (deferred trigger + region FK) — až formulář/import na kódy krajů.
 
 ## PŘEDCHOZÍ ÚKOL (uzavřený, detail v git historii)
 - Supabase→Neon+Drizzle+Better-Auth cutover: DONE (login opraven — 3 bugy: account_id,
