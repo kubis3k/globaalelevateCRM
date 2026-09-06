@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { ArrowLeft, Plus, Trash2, Save, Send, Undo2, Download, Paperclip, Upload } from 'lucide-react'
 import { toast } from '@/components/ui/toast'
 import { Badge } from '@/components/ui/badge'
+import { cn } from '@/lib/utils'
 import { saveClientReport, sendClientReport, unsendClientReport, deleteClientReport, deleteReportAttachment } from '../actions'
 import { uploadReportAttachment } from './report-upload'
 
