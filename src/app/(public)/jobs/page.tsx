@@ -10,12 +10,22 @@ import {
 
 export const dynamic = 'force-dynamic'
 
+const BASE = 'https://jobs.globaalelevate.com'
+
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getCareersTenant()
   const company = t?.companyName || 'Globaal Elevate Production'
   const title = `Kariéra — ${company}`
   const description = `Volné pozice a brigády v ${company} — produkce a eventy, marketing, web i obchod. Přidej se do týmu.`
-  return { title, description, openGraph: { title, description, type: 'website' } }
+  return {
+    metadataBase: new URL(BASE),
+    title,
+    description,
+    keywords: [company, 'Globaal Elevate', 'kariéra', 'volné pozice', 'práce', 'brigáda', 'nábor', 'eventy', 'produkce', 'Praha'],
+    alternates: { canonical: `${BASE}/jobs` },
+    openGraph: { title, description, type: 'website', url: `${BASE}/jobs`, siteName: `Kariéra ${company}` },
+    twitter: { card: 'summary_large_image', title, description },
+  }
 }
 
 const AREAS = [
@@ -78,8 +88,40 @@ export default async function JobsPage() {
   }))
   const company = t.companyName.replace(/\s*s\.r\.o\.?$/i, '')
 
+  // Organization + WebSite structured data — pomáhá Googlu spojit web s firmou
+  // (knowledge panel / brand search). Údaje z obchodního rejstříku (ARES).
+  const orgLd = {
+    '@context': 'https://schema.org',
+    '@type': 'Organization',
+    name: company,
+    legalName: 'Globaal Elevate Production s.r.o.',
+    url: 'https://globaalelevate.com',
+    logo: `${BASE}/logo.png`,
+    foundingDate: '2026-04-20',
+    vatID: 'CZ24972070',
+    taxID: '24972070',
+    address: {
+      '@type': 'PostalAddress',
+      streetAddress: 'Dlouhá 715/38',
+      addressLocality: 'Praha 1 — Staré Město',
+      postalCode: '110 00',
+      addressCountry: 'CZ',
+    },
+    sameAs: ['https://globaalelevate.com', BASE],
+  }
+  const siteLd = {
+    '@context': 'https://schema.org',
+    '@type': 'WebSite',
+    name: `Kariéra ${company}`,
+    url: `${BASE}/jobs`,
+    inLanguage: 'cs-CZ',
+    publisher: { '@type': 'Organization', name: company },
+  }
+
   return (
     <div>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(orgLd) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(siteLd) }} />
       {/* Hero */}
       <section className="relative overflow-hidden">
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(60%_60%_at_50%_-10%,rgba(201,162,75,0.13),transparent_70%)] dark:bg-[radial-gradient(60%_60%_at_50%_-10%,rgba(201,162,75,0.18),transparent_70%)]" />

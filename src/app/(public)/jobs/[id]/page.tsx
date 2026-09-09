@@ -8,9 +8,25 @@ import { ArrowLeft, MapPin, Banknote, Briefcase } from 'lucide-react'
 
 export const dynamic = 'force-dynamic'
 
+const BASE = 'https://jobs.globaalelevate.com'
+
 // Mapování na schema.org JobPosting employmentType.
 const SCHEMA_EMPLOYMENT: Record<string, string> = {
   full_time: 'FULL_TIME', part_time: 'PART_TIME', brigada: 'PART_TIME', dohoda: 'CONTRACTOR', other: 'OTHER',
+}
+
+const isRemote = (loc: string | null) => !!loc && /remote|home\s?office|z\s?domova|na dálku/i.test(loc)
+
+// Best-effort baseSalary z volného textu (jen když poznáme jednotku; provize/% přeskočíme).
+function parseSalary(s: string | null): Record<string, unknown> | undefined {
+  if (!s || /proviz|%/i.test(s)) return undefined
+  const m = s.replace(/\s/g, '').match(/(\d[\d.]*)(?:,(\d+))?/)
+  if (!m) return undefined
+  const value = Number(m[1].replace(/\./g, '') + (m[2] ? '.' + m[2] : ''))
+  if (!Number.isFinite(value) || value <= 0) return undefined
+  const unitText = /\/?\s*(h|hod|hodin)/i.test(s) ? 'HOUR' : /(měs|mesic|month)/i.test(s) ? 'MONTH' : null
+  if (!unitText) return undefined
+  return { '@type': 'MonetaryAmount', currency: 'CZK', value: { '@type': 'QuantitativeValue', value, unitText } }
 }
 
 async function loadJob(id: string) {
@@ -30,12 +46,17 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
   const { id } = await params
   const r = await loadJob(id)
   if (!r) return { title: 'Pozice není dostupná' }
+  const empl = r.job.employment_type ? EMPLOYMENT_TYPES[r.job.employment_type] : null
   const desc = (r.job.description || `Volná pozice ${r.job.title} v ${r.t.companyName}.`).replace(/\s+/g, ' ').slice(0, 160)
-  const title = `${r.job.title} — kariéra ${r.t.companyName}`
+  const title = `${r.job.title}${empl ? ' — ' + empl : ''}${r.job.location ? ', ' + r.job.location : ''} | kariéra ${r.t.companyName}`
+  const url = `${BASE}/jobs/${id}`
   return {
+    metadataBase: new URL(BASE),
     title,
     description: desc,
-    openGraph: { title, description: desc, type: 'website' },
+    alternates: { canonical: url },
+    openGraph: { title, description: desc, type: 'website', url, siteName: `Kariéra ${r.t.companyName}` },
+    twitter: { card: 'summary_large_image', title, description: desc },
   }
 }
 
@@ -54,19 +75,30 @@ export default async function JobDetailPage({ params }: { params: Promise<{ id: 
 
   const neutralBadge = 'inline-flex items-center gap-1 rounded-full bg-zinc-100 px-3 py-1 text-sm text-zinc-700 ring-1 ring-zinc-200 dark:bg-white/5 dark:text-zinc-300 dark:ring-white/10'
 
-  // JobPosting structured data (Google Jobs).
-  const jsonLd = {
+  // JobPosting structured data (Google for Jobs). validThrough je povinné a
+  // Google penalizuje jeho absenci → rolling +45 dní, dokud je pozice otevřená.
+  const remote = isRemote(job.location)
+  const salary = parseSalary(job.salary_range)
+  const jsonLd: Record<string, unknown> = {
     '@context': 'https://schema.org',
     '@type': 'JobPosting',
     title: job.title,
     description: job.description || `Volná pozice ${job.title} v ${t.companyName}.`,
-    datePosted: job.created_at ? new Date(job.created_at).toISOString().slice(0, 10) : undefined,
+    datePosted: job.created_at ? new Date(job.created_at).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10),
+    validThrough: new Date(Date.now() + 45 * 86_400_000).toISOString().slice(0, 10),
     employmentType: job.employment_type ? SCHEMA_EMPLOYMENT[job.employment_type] ?? 'OTHER' : undefined,
-    hiringOrganization: { '@type': 'Organization', name: t.companyName, sameAs: 'https://globaalelevate.com' },
+    hiringOrganization: { '@type': 'Organization', name: t.companyName, sameAs: 'https://globaalelevate.com', logo: `${BASE}/logo.png` },
+    identifier: { '@type': 'PropertyValue', name: t.companyName, value: job.id },
     jobLocation: job.location
       ? { '@type': 'Place', address: { '@type': 'PostalAddress', addressLocality: job.location, addressCountry: 'CZ' } }
       : { '@type': 'Place', address: { '@type': 'PostalAddress', addressCountry: 'CZ' } },
     directApply: true,
+    url: `${BASE}/jobs/${job.id}`,
+  }
+  if (salary) jsonLd.baseSalary = salary
+  if (remote) {
+    jsonLd.jobLocationType = 'TELECOMMUTE'
+    jsonLd.applicantLocationRequirements = { '@type': 'Country', name: 'CZ' }
   }
 
   return (
