@@ -7,6 +7,10 @@ updated: 2026-09-05
 
 Append-only chronologie zásahů. Nejnovější nahoře. Detail vždy i v git historii.
 
+## 2026-09-08 — Úklid demo dat
+- Odstraněna demo data klientského portálu (na žádost). Hlavní DB: smazán klient „Demo Klient s.r.o." + 2 reporty (kaskáda), 3 dodávky, 2 smlouvy. Účto: DEMO-2026-001/002 **stornovány** (doklady nelze mazat — § 11/§ 33a ZoÚ, právní trigger v účtu), contact zůstává. Portál/KPI je filtrují.
+- POZNATEK: účto = append-only účetnictví (jen storno, ne delete). `portal_access` účtu test@test.com už neexistoval. Detail v [[Demo data (portál)]].
+
 ## 2026-09-05 — Reporty: přílohy (dokončení „obojí")
 - Editor reportu má sekci **Přílohy** — upload souborů (client `upload()` přes `/api/blob/documents`, registrace `addReportAttachment` do `client_report_attachments`), mazání (`deleteReportAttachment` + smazání z Blobu).
 - Portál: reporty jako karty s odkazy na přílohy → download route `/api/portal/reports/[id]/attachments/[aid]/download` (ownership + `sent`). Viz [[Reporty]].

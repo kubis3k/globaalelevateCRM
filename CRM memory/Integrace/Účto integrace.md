@@ -17,6 +17,9 @@ updated: 2026-09-05
 > [!warning] Zvláštnost schématu
 > Nasazená verze účta má tabulky ve schématu `public` a používá **SQLite-styl typů**: datumy jako ISO **text**, booleany jako **0/1** (integer). Dotazy tomu odpovídají (ISO text jde porovnávat lexikálně).
 
+> [!warning] Účto je append-only (účetní legislativa)
+> Doklady (`document`) **nelze mazat** — DB trigger to blokuje (`§ 11, § 33a ZoÚ`), jde jen **stornovat** (`status='stornovany'`). Řádky (`document_line`) lze měnit/mazat **jen** u dokladu ve stavu `koncept` (jinak trigger `Řádky lze měnit pouze u dokladu ve stavu koncept`). Při úklidu demo dat (2026-09-08) se doklady proto stornovaly, ne mazaly.
+
 ## Klíčové funkce v `ucto.ts`
 - `getUctoSummary()` → KPI dashboard: tržby/náklady YTD, pohledávky/závazky, bankovní zůstatek, DPH k odvodu (plátce), obrat 12 m vůči limitu 2 mil.
 - `getUctoInvoices(limit=300)` → zrcadlo pro interní modul Faktury (vydané + přijaté).

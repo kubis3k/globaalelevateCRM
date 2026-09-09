@@ -9,6 +9,8 @@
   48 sitů) v samostatné background session.
 - STAV: vše nasazené a živé (b397c4b READY). Přílohy reportů hotové (upload v editoru +
   stažení v portálu). Build 40a07e8 padl na chybějícím `import { cn }` v report-editoru → fix b397c4b.
+- 2026-09-08: DEMO DATA VYČIŠTĚNA (na žádost) — klient „Demo Klient" + reporty/dodávky/smlouvy smazány,
+  účto DEMO faktury STORNOVÁNY (doklady nelze mazat — § 11/§ 33a ZoÚ, append-only trigger v účtu).
 - POZNATEK: před pushem hlídat importy použitých helperů (`cn`, ikony) — TS build je jediná kontrola.
 - Další nápady (nezačato): logo firmy do PDF reportu, předvyplnit klienta při „Nový report", CRM
   sekce s posledními událostmi/reporty (teď jen počty), leady PR3.

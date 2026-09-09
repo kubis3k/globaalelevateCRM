@@ -1,7 +1,10 @@
 ---
 tags: [provoz, demo, test]
-updated: 2026-09-05
+updated: 2026-09-08
 ---
+
+> [!success] VYČIŠTĚNO 2026-09-08
+> Demo data odstraněna. Hlavní DB: smazán klient „Demo Klient s.r.o." (45194ee2) + 2 reporty (kaskádou metriky/sekce/přílohy), 3 dodávky, 2 smlouvy; `portal_access` účtu test@test.com už neexistoval (odpojení = no-op). Účto: doklady DEMO-2026-001/002 **stornovány** (mazat nelze — § 11, § 33a ZoÚ, právní trigger); contact 24 „Demo Klient s.r.o." zůstává (storno doklady na něj odkazují). Portál i KPI je filtrují (`status<>'stornovany'`), takže nikde nesvítí. Záznam níže je archivní.
 
 # 🧪 Demo data (klientský portál)
 
