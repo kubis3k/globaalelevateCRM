@@ -11,6 +11,9 @@
 - DATA: hr_job_postings má jen `description` (žádné strukt. požadavky/benefity). hr_candidates: name/email/
   phone/cover_letter/cv_path/source/stage/notes/job_id (portfolio/dostupnost → append do cover_letter,
   bez migrace). company_settings.careers_intro = hero intro.
+- STAV: HOTOVO a nasazeno (commit 85a281b READY), vizuálně ověřeno na jobs.globaalelevate.com — hero,
+  6 oblastí, pozice s filtry (2 reálné joby), benefity/kroky/FAQ/spontánní, metadata OK.
+  TODO (viz vault): strukt. požadavky/benefity per pozice, fotky, sitemap, portfolio/dostupnost jako sloupce.
 
 ## PŘEDCHOZÍ: KLIENTSKÝ PORTÁL stream (2026-09-05)
 - cíl: obecný klientský portál (marketing/weby/akce, ne jen eventy) + interní CRM. Human-readable
