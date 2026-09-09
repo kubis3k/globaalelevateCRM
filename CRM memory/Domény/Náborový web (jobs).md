@@ -25,8 +25,11 @@ Veřejný kariérní web. Doména `jobs.` → middleware rewrite na `/jobs`. Sv�
 
 ## SEO / Google
 - `src/app/sitemap.ts` — sitemap náborového webu (landing + detaily pozic, absolutní `https://jobs.globaalelevate.com` URL, z published pozic). `src/app/robots.ts` — allow all + odkaz na sitemap. Slouží pro **Google Search Console** / Google Jobs.
-- Detail pozice: **JobPosting JSON-LD** (viz výše). Web zatím NENÍ v Google indexu (ověřeno web searchem 2026-09-09) → submit sitemapu v GSC.
-- **GSC setup (na uživateli, potřebuje Google účet + DNS):** přidat property `jobs.globaalelevate.com` (nebo doménovou `globaalelevate.com`), ověřit DNS TXT, submitnout `https://jobs.globaalelevate.com/sitemap.xml`, Rich Results test na detailu pozice, případně požádat o indexaci.
+- **Landing `page.tsx`** (commit ac65614): brand-rich `generateMetadata` (`metadataBase`, `alternates.canonical`, `keywords` s názvem firmy, OG+twitter) + **Organization JSON-LD** (název, legalName, `taxID`/`vatID` IČO 24972070, sídlo Dlouhá 715/38 Praha 1, `foundingDate` 2026-04-20, `sameAs` → globaalelevate.com) + **WebSite JSON-LD**. Cíl: brand search / knowledge panel spojí web s firmou.
+- **Detail `[id]/page.tsx`** (commit ac65614): **JobPosting JSON-LD** kompletní pro Google Jobs — `validThrough` (POVINNÉ, rolling +45 dní, pozice nemají expiry sloupec), `hiringOrganization.logo` (`${BASE}/logo.png`), `identifier`, `url`, `baseSalary` (`parseSalary()` z volného textu — jen když pozná jednotku HOUR/MONTH, provize/% přeskočí), remote → `jobLocationType: TELECOMMUTE` + `applicantLocationRequirements`. `generateMetadata` má canonical/metadataBase/OG/twitter.
+- **Stav indexu:** web zatím NENÍ v Google indexu (brand search „globaal elevate production" ukazuje jen rejstříkové weby Kurzy.cz/Peníze.cz a `globaalelevate.com/podminky-uziti`). Strukt. data + metadata jsou nutná, ale **NEstačí** — rozhodující je ověření v GSC + submit sitemapy (na uživateli).
+- **GSC setup (na uživateli, potřebuje Google účet + DNS):** přidat property `jobs.globaalelevate.com` (nebo doménovou `globaalelevate.com`), ověřit DNS TXT, submitnout `https://jobs.globaalelevate.com/sitemap.xml`, Rich Results test na detailu pozice, případně požádat o indexaci. Bez GSC ověření Google web neproindexuje spolehlivě.
+- **Pozn. logo v JSON-LD** je na `jobs.` subdoméně; ideálně logo i na hlavní `globaalelevate.com` (brand entita sídlí tam). Hlavní web ale není v tomto repu.
 
 ## TODO / nápady
 - [ ] Strukturované požadavky/benefity per pozice (nový sloupec + admin UI) — teď jen `description`.
