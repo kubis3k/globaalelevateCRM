@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getCareersTenant, EMPLOYMENT_TYPES } from '../scope'
@@ -7,29 +8,70 @@ import { ArrowLeft, MapPin, Banknote, Briefcase } from 'lucide-react'
 
 export const dynamic = 'force-dynamic'
 
-export default async function JobDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params
-  const t = await getCareersTenant()
-  if (!t) notFound()
+// Mapování na schema.org JobPosting employmentType.
+const SCHEMA_EMPLOYMENT: Record<string, string> = {
+  full_time: 'FULL_TIME', part_time: 'PART_TIME', brigada: 'PART_TIME', dohoda: 'CONTRACTOR', other: 'OTHER',
+}
 
+async function loadJob(id: string) {
+  const t = await getCareersTenant()
+  if (!t) return null
   const admin = createAdminClient()
   const { data: job } = await admin
     .from('hr_job_postings')
-    .select('id, title, description, location, employment_type, salary_range, department_id')
+    .select('id, title, description, location, employment_type, salary_range, department_id, created_at')
     .eq('id', id).eq('tenant_id', t.tenantId).eq('status', 'open').eq('published', true)
     .maybeSingle()
-  if (!job) notFound()
+  if (!job) return null
+  return { t, job }
+}
+
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
+  const { id } = await params
+  const r = await loadJob(id)
+  if (!r) return { title: 'Pozice není dostupná' }
+  const desc = (r.job.description || `Volná pozice ${r.job.title} v ${r.t.companyName}.`).replace(/\s+/g, ' ').slice(0, 160)
+  const title = `${r.job.title} — kariéra ${r.t.companyName}`
+  return {
+    title,
+    description: desc,
+    openGraph: { title, description: desc, type: 'website' },
+  }
+}
+
+export default async function JobDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
+  const r = await loadJob(id)
+  if (!r) notFound()
+  const { t, job } = r
 
   let deptName: string | null = null
   if (job.department_id) {
+    const admin = createAdminClient()
     const { data } = await admin.from('hr_departments').select('name').eq('id', job.department_id).maybeSingle()
     deptName = data?.name ?? null
   }
 
   const neutralBadge = 'inline-flex items-center gap-1 rounded-full bg-zinc-100 px-3 py-1 text-sm text-zinc-700 ring-1 ring-zinc-200 dark:bg-white/5 dark:text-zinc-300 dark:ring-white/10'
 
+  // JobPosting structured data (Google Jobs).
+  const jsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'JobPosting',
+    title: job.title,
+    description: job.description || `Volná pozice ${job.title} v ${t.companyName}.`,
+    datePosted: job.created_at ? new Date(job.created_at).toISOString().slice(0, 10) : undefined,
+    employmentType: job.employment_type ? SCHEMA_EMPLOYMENT[job.employment_type] ?? 'OTHER' : undefined,
+    hiringOrganization: { '@type': 'Organization', name: t.companyName, sameAs: 'https://globaalelevate.com' },
+    jobLocation: job.location
+      ? { '@type': 'Place', address: { '@type': 'PostalAddress', addressLocality: job.location, addressCountry: 'CZ' } }
+      : { '@type': 'Place', address: { '@type': 'PostalAddress', addressCountry: 'CZ' } },
+    directApply: true,
+  }
+
   return (
     <div className="mx-auto max-w-6xl px-5 py-8 lg:px-8 lg:py-10">
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
       <Link href="/jobs" className="inline-flex items-center gap-1.5 text-sm text-zinc-600 transition-colors hover:text-amber-700 dark:text-zinc-400 dark:hover:text-amber-200"><ArrowLeft className="size-4" />Zpět na pozice</Link>
 
       <div className="mt-6 grid gap-8 lg:grid-cols-[1fr_380px]">

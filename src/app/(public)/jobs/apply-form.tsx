@@ -6,7 +6,8 @@ import { applyToJob } from './actions'
 
 const fieldClass = 'w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 outline-none transition-colors focus:border-amber-500/60 focus:ring-2 focus:ring-amber-500/20 dark:border-white/15 dark:bg-white/5 dark:text-zinc-100 dark:placeholder:text-zinc-500 dark:focus:border-amber-300/50 dark:focus:ring-amber-300/20'
 
-export function ApplyForm({ jobId }: { jobId: string }) {
+export function ApplyForm({ jobId }: { jobId?: string }) {
+  const spontaneous = !jobId
   const [pending, start] = useTransition()
   const [done, setDone] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -15,7 +16,7 @@ export function ApplyForm({ jobId }: { jobId: string }) {
     e.preventDefault()
     setError(null)
     const fd = new FormData(e.currentTarget)
-    fd.set('jobId', jobId)
+    if (jobId) fd.set('jobId', jobId)
     start(async () => {
       const r = await applyToJob(fd)
       if (r?.error) { setError(r.error); return }
@@ -35,7 +36,7 @@ export function ApplyForm({ jobId }: { jobId: string }) {
 
   return (
     <form onSubmit={onSubmit} className="space-y-3 rounded-2xl border border-zinc-200 bg-zinc-50 p-5 dark:border-white/10 dark:bg-white/[0.03]">
-      <h3 className="text-base font-semibold text-zinc-900 dark:text-white">Reagovat na pozici</h3>
+      <h3 className="text-base font-semibold text-zinc-900 dark:text-white">{spontaneous ? 'Spontánní přihláška' : 'Reagovat na pozici'}</h3>
       {/* honeypot */}
       <input type="text" name="website" tabIndex={-1} autoComplete="off" className="hidden" aria-hidden />
       <div className="grid gap-3 sm:grid-cols-2">
@@ -43,21 +44,31 @@ export function ApplyForm({ jobId }: { jobId: string }) {
         <div className="space-y-1"><label className="text-xs text-zinc-600 dark:text-zinc-400">Telefon</label><input name="phone" className={fieldClass} placeholder="+420…" /></div>
         <div className="space-y-1 sm:col-span-2"><label className="text-xs text-zinc-600 dark:text-zinc-400">E-mail</label><input type="email" name="email" className={fieldClass} placeholder="jan@email.cz" /></div>
       </div>
-      <div className="space-y-1"><label className="text-xs text-zinc-600 dark:text-zinc-400">Pár slov o vás</label><textarea name="message" rows={4} className={fieldClass} placeholder="Proč se hodíte, zkušenosti, dostupnost…" /></div>
+      {spontaneous && (
+        <div className="space-y-1"><label className="text-xs text-zinc-600 dark:text-zinc-400">O jakou práci / oblast máš zájem?</label><input name="desiredRole" className={fieldClass} placeholder="Např. produkce, marketing, bar, brigáda na akce…" /></div>
+      )}
+      <div className="space-y-1"><label className="text-xs text-zinc-600 dark:text-zinc-400">Pár slov o vás</label><textarea name="message" rows={4} className={fieldClass} placeholder="Proč se hodíte, zkušenosti, co vás baví…" /></div>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div className="space-y-1"><label className="text-xs text-zinc-600 dark:text-zinc-400">Portfolio / odkaz</label><input name="portfolio" className={fieldClass} placeholder="Instagram, web, portfolio…" /></div>
+        <div className="space-y-1"><label className="text-xs text-zinc-600 dark:text-zinc-400">Dostupnost / nástup</label><input name="availability" className={fieldClass} placeholder="Ihned, od září, víkendy…" /></div>
+      </div>
       <div className="space-y-1">
         <label className="text-xs text-zinc-600 dark:text-zinc-400">Životopis (CV) — PDF/DOC, max 8 MB</label>
         <input type="file" name="cv" accept=".pdf,.doc,.docx,application/pdf" className="block w-full text-xs text-zinc-600 file:mr-3 file:rounded-lg file:border-0 file:bg-amber-400 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-zinc-900 hover:file:bg-amber-300 dark:text-zinc-400 dark:file:bg-amber-300 dark:file:text-[#06070b] dark:hover:file:bg-amber-200" />
       </div>
+      <label className="flex items-start gap-2 text-[11px] leading-relaxed text-zinc-500">
+        <input type="checkbox" name="gdpr" required className="mt-0.5 size-4 shrink-0 rounded border-zinc-300 text-amber-500 focus:ring-amber-500/30 dark:border-white/20" />
+        <span>
+          Souhlasím se zpracováním osobních údajů (vč. životopisu) pro účely tohoto výběrového řízení na základě{' '}
+          <strong className="font-medium text-zinc-400">předsmluvního jednání</strong> (čl. 6 odst. 1 písm. b) GDPR).{' '}
+          Podrobnosti v{' '}
+          <a href="https://globaalelevate.com/zasady-ochrany-osobnich-udaju" target="_blank" rel="noopener noreferrer" className="underline underline-offset-2 hover:text-zinc-300">Zásadách ochrany osobních údajů</a>.
+        </span>
+      </label>
       {error && <p className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-600 dark:text-red-300">{error}</p>}
       <button type="submit" disabled={pending} className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-amber-400 px-4 py-2.5 text-sm font-semibold text-zinc-900 transition-colors hover:bg-amber-300 disabled:opacity-60 dark:bg-amber-300 dark:text-[#06070b] dark:hover:bg-amber-200">
         <Send className="size-4" />{pending ? 'Odesílám…' : 'Odeslat přihlášku'}
       </button>
-      <p className="text-center text-[11px] leading-relaxed text-zinc-500">
-        Vaše osobní údaje (vč. životopisu) zpracováváme pro účely tohoto výběrového řízení na základě{' '}
-        <strong className="font-medium text-zinc-400">předsmluvního jednání</strong> (čl. 6 odst. 1 písm. b) GDPR). Životopis se ukládá do zabezpečeného úložiště.{' '}
-        Podrobnosti v{' '}
-        <a href="https://globaalelevate.com/zasady-ochrany-osobnich-udaju" target="_blank" rel="noopener noreferrer" className="underline underline-offset-2 hover:text-zinc-300">Zásadách ochrany osobních údajů</a>.
-      </p>
     </form>
   )
 }

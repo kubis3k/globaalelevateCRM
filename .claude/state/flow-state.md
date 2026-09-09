@@ -1,5 +1,18 @@
 # FLOW STATE
-## Aktuální úkol — KLIENTSKÝ PORTÁL stream (2026-09-05)
+## Aktuální úkol — NÁBOROVÝ WEB jobs.globaalelevate.com (2026-09-09)
+- cíl: rozšířit `(public)/jobs` z „event/klub jobů" na **nábor celé Globaal Elevate Production**
+  (produkce/eventy + marketing + web + obchod + provoz…). Design: **světlý & čistý** (vylepšit), grafika ne fotky.
+- rozsah (T3): redesign landingu (hero firmy, sekce Oblasti/týmy, benefity, jak probíhá nábor, FAQ,
+  spontánní přihláška), filtry pozic (typ/oddělení), SEO (JobPosting JSON-LD, metadata/OG, sitemap),
+  formulář (portfolio odkaz, dostupnost, GDPR checkbox; spontánní přihláška bez job_id).
+- mapa: `(public)/jobs/` = page.tsx (list+hero), [id]/page.tsx (detail+ApplyForm), apply-form.tsx,
+  actions.ts (applyToJob → hr_candidates insert, CV do Blob `applications/`), scope.ts (getCareersTenant
+  z company_settings jobs_enabled/careers_intro; EMPLOYMENT_TYPES), layout.tsx.
+- DATA: hr_job_postings má jen `description` (žádné strukt. požadavky/benefity). hr_candidates: name/email/
+  phone/cover_letter/cv_path/source/stage/notes/job_id (portfolio/dostupnost → append do cover_letter,
+  bez migrace). company_settings.careers_intro = hero intro.
+
+## PŘEDCHOZÍ: KLIENTSKÝ PORTÁL stream (2026-09-05)
 - cíl: obecný klientský portál (marketing/weby/akce, ne jen eventy) + interní CRM. Human-readable
   dokumentace jde do Obsidian vaultu `CRM memory/` (uživatel to výslovně chce — aktivně číst i psát).
 - DONE dnes (detail ve vaultu Deník + git): portál header ikony (oznámení/nastavení), fix loga,

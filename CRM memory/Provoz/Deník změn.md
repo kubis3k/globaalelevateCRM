@@ -7,6 +7,12 @@ updated: 2026-09-05
 
 Append-only chronologie zásahů. Nejnovější nahoře. Detail vždy i v git historii.
 
+## 2026-09-09 — Náborový web: rozšíření na celofiremní nábor + redesign
+- `jobs.globaalelevate.com` přestavěn z event/klub jobů na **nábor celé Globaal Elevate Production**. Viz [[Náborový web (jobs)]].
+- Landing: hero (firma), sekce Kde hledáme (6 oblastí), pozice s **filtry** (typ/tým), Proč k nám, Jak probíhá nábor, FAQ, **spontánní přihláška**.
+- Formulář: + portfolio, dostupnost, GDPR checkbox; spontánní bez pozice (job_id null). Ukládá do cover_letter (bez migrace).
+- SEO: JobPosting **JSON-LD** na detailu + metadata/OG na obou stránkách. Světlý & čistý (bez fotek, grafika).
+
 ## 2026-09-08 — Tržby na dashboardu: účetní základ (fix)
 - Uživatel: „smazal jsi tržby, má tam být 600". Prošetřeno: **nic nesmazáno**. Reálná tržba (600,30 Kč, vstupenky KISS OR SLAP PARTY přes Eventlook) je v účtu jako **interní doklad + zaúčtování na účet 602** — ne jako vydaná faktura. CRM ale počítal tržby z **typu dokladu**, tak ji nevidělo (0).
 - Fix (`ucto.ts` getUctoSummary): tržby/náklady/obrat nově z **zaúčtování** — výnosy tř. 6 (revenueYtd = 600,30), náklady tř. 5 (148 278, dřív dokladově 187 826), obrat 60x/12m (600). Sedí s bilanxflow. Popisky karet na dashboardu+finance: „Výnosy/Náklady z účetnictví". Viz [[Účto integrace]].
