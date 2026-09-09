@@ -31,6 +31,19 @@ Veřejný kariérní web. Doména `jobs.` → middleware rewrite na `/jobs`. Sv�
 - **GSC setup (na uživateli, potřebuje Google účet + DNS):** přidat property `jobs.globaalelevate.com` (nebo doménovou `globaalelevate.com`), ověřit DNS TXT, submitnout `https://jobs.globaalelevate.com/sitemap.xml`, Rich Results test na detailu pozice, případně požádat o indexaci. Bez GSC ověření Google web neproindexuje spolehlivě.
 - **Pozn. logo v JSON-LD** je na `jobs.` subdoméně; ideálně logo i na hlavní `globaalelevate.com` (brand entita sídlí tam). Hlavní web ale není v tomto repu.
 
+## GSC — stav (ověřeno přes Composio connector 2026-09-09)
+Connector `google_search_console` je aktivní (účet `henpen-vert`). Ověřené property:
+- **`sc-domain:globaalelevate.com` — siteOwner** ✅ (doménová property pokrývá i `jobs.` subdoménu → ověření náborového webu je HOTOVÉ, není třeba nic dělat na uživateli).
+- `https://globaalelevate.com/` — siteOwner. `sc-domain:globaaljoobs.com` a `sc-domain:visiontechnology.cz` — jen unverified user (necizí, přeskočit).
+
+Registrované sitemapy pod doménovou property:
+- `https://jobs.globaalelevate.com/sitemap.xml` — **submitnuto** (0 chyb, 3 URL, `0 indexed`). Landing `/jobs` inspekce = **„Discovered – currently not indexed"** (nový web, Google čeká; vynutit indexaci přes API nelze).
+- `https://globaalelevate.com/sitemap.xml` — **1 error, 2 warnings, 22 submitted / 0 indexed**.
+
+### ⚠️ Hlavní blocker brand-search (mimo tento repo!)
+Inspekce `https://globaalelevate.com/` = **„Duplicate, Google chose different canonical than user"**: Google canonical = `https://www.globaalelevate.com/`, user canonical = `https://globaalelevate.com/`. **Web běží na www i bez www** → signály se tříští, brand nic pořádně nezaindexuje. Homepage se crawluje OK (`INDEXING_ALLOWED`, fetch SUCCESSFUL), jen vyhodnocena jako duplikát.
+**Fix (na hlavním webu globaalelevate.com, NENÍ v tomto repu):** zvolit jeden kanonický host (např. bez www), 301 redirect druhého na něj, sjednotit `<link rel=canonical>` + sitemapu, resubmit. Bez toho SEO náborového webu pomůže jen omezeně, protože brand entita sídlí na hlavní doméně.
+
 ## TODO / nápady
 - [ ] Strukturované požadavky/benefity per pozice (nový sloupec + admin UI) — teď jen `description`.
 - [ ] Fotky z akcí (hero/galerie) — zatím jen grafika/gradienty (uživatel fotky nedodal).
