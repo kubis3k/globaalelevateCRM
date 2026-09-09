@@ -20,6 +20,13 @@ updated: 2026-09-05
 > [!warning] Účto je append-only (účetní legislativa)
 > Doklady (`document`) **nelze mazat** — DB trigger to blokuje (`§ 11, § 33a ZoÚ`), jde jen **stornovat** (`status='stornovany'`). Řádky (`document_line`) lze měnit/mazat **jen** u dokladu ve stavu `koncept` (jinak trigger `Řádky lze měnit pouze u dokladu ve stavu koncept`). Při úklidu demo dat (2026-09-08) se doklady proto stornovaly, ne mazaly.
 
+> [!important] Tržby/náklady = ZAÚČTOVÁNÍ (třídy 6/5), NE typ dokladu
+> Výnosy nemusí být `faktura_vydana` — např. **tržba ze vstupenek** přijde jako **vyúčtování od prodejce** (Eventlook) a zaúčtuje se jako **interní doklad + zápis na účet 602** (Tržby z prodeje služeb). Proto `getUctoSummary` počítá (od 2026-09-08):
+> - **revenueYtd** = čistý Dal tříd **6** (`chart_of_accounts.account_class=6`) přes `posting_line`+`posting` (posting_date >= 1.1.).
+> - **costsYtd** = čistý Má dáti tříd **5**. **obrat12m** = čistý Dal účtů **60x** (tržby z prodeje) za 12 m (limit DPH).
+> - `posting_line.account_id` → FK na `chart_of_accounts` (account_number '602', account_class 6). Storno = protizápis, v netto (D−MD) se vyruší.
+> Pohledávky/závazky/banka/DPH/měsíční cashflow zůstávají dokladové/bankovní.
+
 ## Klíčové funkce v `ucto.ts`
 - `getUctoSummary()` → KPI dashboard: tržby/náklady YTD, pohledávky/závazky, bankovní zůstatek, DPH k odvodu (plátce), obrat 12 m vůči limitu 2 mil.
 - `getUctoInvoices(limit=300)` → zrcadlo pro interní modul Faktury (vydané + přijaté).

@@ -277,12 +277,18 @@ export async function getUctoSummary(): Promise<UctoResult> {
     const quarterStart = iso(new Date(now.getFullYear(), Math.floor(now.getMonth() / 3) * 3, 1))
 
     const [kpi, unpaid, bank, monthsRes, unit, vat, obrat] = await Promise.all([
+      // Tržby/náklady z ÚČETNICTVÍ (zaúčtování), ne z typu dokladu — jinak by
+      // chyběly výnosy zaúčtované jako interní doklad (např. tržby ze vstupenek
+      // na účtu 602). Výnosy = čistý Dal tříd 6, náklady = čistý Má dáti tříd 5.
+      // Storno = protizápis, který se v netto (D−MD) sám vyruší.
       pool.query(
         `SELECT
-           COALESCE(SUM(total_amount) FILTER (WHERE doc_type IN ('faktura_vydana','pokladni_prijem') AND issue_date >= $1), 0) AS revenue,
-           COALESCE(SUM(total_amount) FILTER (WHERE doc_type IN ('faktura_prijata','pokladni_vydej') AND issue_date >= $1), 0) AS costs
-         FROM document
-         WHERE status <> 'stornovany'`,
+           COALESCE(SUM(CASE WHEN c.account_class = 6 THEN (CASE WHEN pl.side = 'D' THEN pl.amount ELSE -pl.amount END) ELSE 0 END), 0) AS revenue,
+           COALESCE(SUM(CASE WHEN c.account_class = 5 THEN (CASE WHEN pl.side = 'MD' THEN pl.amount ELSE -pl.amount END) ELSE 0 END), 0) AS costs
+         FROM posting_line pl
+         JOIN posting p ON p.id = pl.posting_id
+         JOIN chart_of_accounts c ON c.id = pl.account_id
+         WHERE p.posting_date >= $1`,
         [yearStart],
       ),
       // Kniha pohledávek a závazků — neuhrazené = bez spárované bankovní platby
@@ -315,11 +321,14 @@ export async function getUctoSummary(): Promise<UctoResult> {
          WHERE duzp >= $1`,
         [quarterStart],
       ),
-      // Obrat 12 po sobě jdoucích měsíců vůči limitu povinné registrace k DPH.
+      // Obrat 12 po sobě jdoucích měsíců vůči limitu povinné registrace k DPH —
+      // tržby z prodeje (účty 60x, čistý Dal) ze zaúčtování.
       pool.query(
-        `SELECT COALESCE(SUM(total_amount), 0) AS obrat
-         FROM document
-         WHERE doc_type = 'faktura_vydana' AND status <> 'stornovany' AND issue_date >= $1`,
+        `SELECT COALESCE(SUM(CASE WHEN pl.side = 'D' THEN pl.amount ELSE -pl.amount END), 0) AS obrat
+         FROM posting_line pl
+         JOIN posting p ON p.id = pl.posting_id
+         JOIN chart_of_accounts c ON c.id = pl.account_id
+         WHERE c.account_number LIKE '60%' AND p.posting_date >= $1`,
         [twelveMonthsAgo],
       ),
     ])

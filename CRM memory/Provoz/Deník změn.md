@@ -7,6 +7,11 @@ updated: 2026-09-05
 
 Append-only chronologie zásahů. Nejnovější nahoře. Detail vždy i v git historii.
 
+## 2026-09-08 — Tržby na dashboardu: účetní základ (fix)
+- Uživatel: „smazal jsi tržby, má tam být 600". Prošetřeno: **nic nesmazáno**. Reálná tržba (600,30 Kč, vstupenky KISS OR SLAP PARTY přes Eventlook) je v účtu jako **interní doklad + zaúčtování na účet 602** — ne jako vydaná faktura. CRM ale počítal tržby z **typu dokladu**, tak ji nevidělo (0).
+- Fix (`ucto.ts` getUctoSummary): tržby/náklady/obrat nově z **zaúčtování** — výnosy tř. 6 (revenueYtd = 600,30), náklady tř. 5 (148 278, dřív dokladově 187 826), obrat 60x/12m (600). Sedí s bilanxflow. Popisky karet na dashboardu+finance: „Výnosy/Náklady z účetnictví". Viz [[Účto integrace]].
+- POZNATEK: účto revenue je posting-based (třída 6 přes chart_of_accounts), doklady samy nestačí.
+
 ## 2026-09-08 — Úklid demo dat
 - Odstraněna demo data klientského portálu (na žádost). Hlavní DB: smazán klient „Demo Klient s.r.o." + 2 reporty (kaskáda), 3 dodávky, 2 smlouvy. Účto: DEMO-2026-001/002 **stornovány** (doklady nelze mazat — § 11/§ 33a ZoÚ, právní trigger v účtu), contact zůstává. Portál/KPI je filtrují.
 - POZNATEK: účto = append-only účetnictví (jen storno, ne delete). `portal_access` účtu test@test.com už neexistoval. Detail v [[Demo data (portál)]].

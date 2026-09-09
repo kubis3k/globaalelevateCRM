@@ -65,8 +65,8 @@ export default async function FinancePage() {
         <>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <StatCard title="Stav banky" value={czk(ucto.bankBalance)} tone={ucto.bankBalance >= 0 ? 'neutral' : 'negative'} hint="Z bankovních pohybů" icon={<Landmark className="size-4" />} />
-            <StatCard title="Tržby (rok)" value={czk(ucto.revenueYtd)} tone="positive" hint="Vydané faktury + pokladna" icon={<ArrowUpRight className="size-4" />} />
-            <StatCard title="Náklady (rok)" value={czk(ucto.costsYtd)} tone="negative" hint="Přijaté faktury + pokladna" icon={<ArrowDownLeft className="size-4" />} />
+            <StatCard title="Tržby (rok)" value={czk(ucto.revenueYtd)} tone="positive" hint="Výnosy z účetnictví (tř. 6)" icon={<ArrowUpRight className="size-4" />} />
+            <StatCard title="Náklady (rok)" value={czk(ucto.costsYtd)} tone="negative" hint="Náklady z účetnictví (tř. 5)" icon={<ArrowDownLeft className="size-4" />} />
             <StatCard title="Zisk (rok)" value={czk(ucto.profitYtd)} tone={ucto.profitYtd >= 0 ? 'positive' : 'negative'} hint="Tržby − náklady" icon={<TrendingUp className="size-4" />} />
           </div>
 

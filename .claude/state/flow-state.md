@@ -11,6 +11,9 @@
   stažení v portálu). Build 40a07e8 padl na chybějícím `import { cn }` v report-editoru → fix b397c4b.
 - 2026-09-08: DEMO DATA VYČIŠTĚNA (na žádost) — klient „Demo Klient" + reporty/dodávky/smlouvy smazány,
   účto DEMO faktury STORNOVÁNY (doklady nelze mazat — § 11/§ 33a ZoÚ, append-only trigger v účtu).
+- 2026-09-08: TRŽBY na dashboardu opraveny na ÚČETNÍ ZÁKLAD. getUctoSummary revenue/costs/obrat teď z
+  posting_line+chart_of_accounts (výnosy tř.6=600,30 / náklady tř.5=148278 / obrat 60x=600), ne z typu
+  dokladu — tržba ze vstupenek je interní doklad+účet 602. POZNATEK: účto revenue = posting-based (tř.6).
 - POZNATEK: před pushem hlídat importy použitých helperů (`cn`, ikony) — TS build je jediná kontrola.
 - Další nápady (nezačato): logo firmy do PDF reportu, předvyplnit klienta při „Nový report", CRM
   sekce s posledními událostmi/reporty (teď jen počty), leady PR3.
