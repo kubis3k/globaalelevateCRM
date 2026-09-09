@@ -23,10 +23,15 @@ Veřejný kariérní web. Doména `jobs.` → middleware rewrite na `/jobs`. Sv�
 ## Zapnutí náboru
 `company_settings.jobs_enabled = true` (+ `careers_intro` = hero text). Bez toho web ukáže „Nábor právě neprobíhá".
 
+## SEO / Google
+- `src/app/sitemap.ts` — sitemap náborového webu (landing + detaily pozic, absolutní `https://jobs.globaalelevate.com` URL, z published pozic). `src/app/robots.ts` — allow all + odkaz na sitemap. Slouží pro **Google Search Console** / Google Jobs.
+- Detail pozice: **JobPosting JSON-LD** (viz výše). Web zatím NENÍ v Google indexu (ověřeno web searchem 2026-09-09) → submit sitemapu v GSC.
+- **GSC setup (na uživateli, potřebuje Google účet + DNS):** přidat property `jobs.globaalelevate.com` (nebo doménovou `globaalelevate.com`), ověřit DNS TXT, submitnout `https://jobs.globaalelevate.com/sitemap.xml`, Rich Results test na detailu pozice, případně požádat o indexaci.
+
 ## TODO / nápady
 - [ ] Strukturované požadavky/benefity per pozice (nový sloupec + admin UI) — teď jen `description`.
 - [ ] Fotky z akcí (hero/galerie) — zatím jen grafika/gradienty (uživatel fotky nedodal).
-- [ ] sitemap.xml pro jobs (kvůli subdoméně netriviální) + OG obrázek.
+- [ ] OG obrázek (dedikovaný) pro sdílení pozic.
 - [ ] Portfolio/dostupnost jako vlastní sloupce hr_candidates (teď v cover_letter).
 
 Souvisí: [[HR a nábor]] · [[Storage — Vercel Blob]] · [[Deploy a prostředí]]
